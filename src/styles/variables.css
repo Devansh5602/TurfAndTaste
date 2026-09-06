@@ -1,0 +1,105 @@
+/* Turf & Taste - Global Design Tokens */
+:root {
+  /* Fonts */
+  --font-display: 'Bebas Neue', Impact, sans-serif;
+  --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-accent: 'Playfair Display', Georgia, serif;
+
+  /* Transitions */
+  --transition-fast: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --radius-full: 9999px;
+
+  /* Default / Dark Theme (Primary Brand Experience) */
+  --bg-base: #090c09;
+  --bg-surface: #111611;
+  --bg-surface-elevated: #182018;
+  --bg-glass: rgba(17, 22, 17, 0.85);
+  --bg-input: #131913;
+
+  --brand-olive: #6b8f49;
+  --brand-olive-bright: #82ab58;
+  --brand-olive-light: #98c36b;
+  --brand-olive-dim: rgba(107, 143, 73, 0.16);
+  --brand-olive-glow: rgba(107, 143, 73, 0.35);
+  --brand-olive-border: rgba(107, 143, 73, 0.3);
+
+  --brand-cream: #f4ede0;
+  --brand-cream-muted: #d0c7b2;
+  --brand-cream-dim: rgba(244, 237, 224, 0.1);
+
+  --text-primary: #fbfaf6;
+  --text-secondary: #adb6a8;
+  --text-muted: #798575;
+
+  --brand-orange: #e86726;
+  --brand-orange-bright: #ff7938;
+  --brand-orange-dim: rgba(232, 103, 38, 0.18);
+  --brand-orange-glow: rgba(232, 103, 38, 0.4);
+
+  --brand-crimson: #b32629;
+  --brand-crimson-dim: rgba(179, 38, 41, 0.2);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(107, 143, 73, 0.35);
+  --border-highlight: rgba(130, 171, 88, 0.6);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --glow-olive: 0 0 30px rgba(107, 143, 73, 0.28);
+  --glow-orange: 0 0 24px rgba(232, 103, 38, 0.32);
+
+  --court-line-color: rgba(107, 143, 73, 0.14);
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --bg-base: #f6f4ee;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ede8dc;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-input: #ffffff;
+
+  --brand-olive: #486530;
+  --brand-olive-bright: #567a39;
+  --brand-olive-light: #6a9446;
+  --brand-olive-dim: rgba(72, 101, 48, 0.12);
+  --brand-olive-glow: rgba(72, 101, 48, 0.25);
+  --brand-olive-border: rgba(72, 101, 48, 0.25);
+
+  --brand-cream: #141b12;
+  --brand-cream-muted: #3a4537;
+  --brand-cream-dim: rgba(20, 27, 18, 0.06);
+
+  --text-primary: #121811;
+  --text-secondary: #485346;
+  --text-muted: #748171;
+
+  --brand-orange: #d55919;
+  --brand-orange-bright: #e76725;
+  --brand-orange-dim: rgba(213, 89, 25, 0.12);
+  --brand-orange-glow: rgba(213, 89, 25, 0.28);
+
+  --brand-crimson: #a62023;
+  --brand-crimson-dim: rgba(166, 32, 35, 0.12);
+
+  --border-subtle: rgba(20, 27, 18, 0.1);
+  --border-strong: rgba(72, 101, 48, 0.3);
+  --border-highlight: rgba(86, 122, 57, 0.5);
+
+  --shadow-sm: 0 2px 8px rgba(20, 27, 18, 0.06);
+  --shadow-md: 0 8px 24px rgba(20, 27, 18, 0.08);
+  --shadow-lg: 0 16px 40px rgba(20, 27, 18, 0.12);
+  --glow-olive: 0 0 24px rgba(72, 101, 48, 0.16);
+  --glow-orange: 0 0 20px rgba(213, 89, 25, 0.2);
+
+  --court-line-color: rgba(72, 101, 48, 0.1);
+}

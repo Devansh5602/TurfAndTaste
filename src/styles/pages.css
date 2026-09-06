@@ -1,0 +1,423 @@
+/* Page Specific Layouts & Components */
+
+/* --- HOME PAGE --- */
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 3.5rem;
+  align-items: center;
+}
+
+@media (max-width: 992px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}
+
+.hero-headline {
+  margin-bottom: 1.25rem;
+  line-height: 1;
+}
+
+.hero-supporting-text {
+  font-size: clamp(1.05rem, 2vw, 1.22rem);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  max-width: 580px;
+}
+
+.hero-cta-group {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+
+.hero-chips {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.hero-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--brand-cream-muted);
+}
+
+/* Hero Visual Composition */
+.hero-visual-card {
+  position: relative;
+}
+
+.hero-image-frame {
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg), var(--glow-olive);
+  aspect-ratio: 16 / 11;
+  background-color: var(--bg-surface);
+}
+
+.hero-main-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-overlay-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(9,12,9,0.7) 100%);
+  pointer-events: none;
+}
+
+.hero-floating-stat {
+  position: absolute;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-strong);
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  box-shadow: var(--shadow-md);
+  z-index: 3;
+}
+
+.hero-floating-stat.left {
+  bottom: 1.25rem;
+  left: 1.25rem;
+}
+
+.hero-floating-stat.right {
+  top: 1.25rem;
+  right: 1.25rem;
+}
+
+.hero-floating-stat strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--brand-cream);
+}
+
+.hero-floating-stat span {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* Brand Pillars */
+.brand-intro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.5rem;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .brand-intro-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}
+
+.brand-pillars-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .brand-pillars-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pillar-box {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  transition: transform var(--transition-fast);
+}
+
+.pillar-box:hover {
+  transform: translateY(-4px);
+  border-color: var(--brand-olive-border);
+}
+
+.pillar-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.pillar-icon-wrap.olive {
+  background: var(--brand-olive-dim);
+  color: var(--brand-olive-bright);
+}
+
+.pillar-icon-wrap.orange {
+  background: var(--brand-orange-dim);
+  color: var(--brand-orange);
+}
+
+.pillar-box h4 {
+  margin-bottom: 0.4rem;
+  font-size: 1.15rem;
+}
+
+.pillar-box p {
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* Feature numbers in Why Choose Us */
+.feature-num {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+  opacity: 0.75;
+}
+
+/* Experience Highlight (From Pitch to Plate) */
+.experience-highlight-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 900px) {
+  .experience-highlight-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.experience-content {
+  padding: clamp(2rem, 5vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.experience-image-side {
+  position: relative;
+  min-height: 320px;
+}
+
+.experience-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Booking Steps */
+.booking-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .booking-steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .booking-steps-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  position: relative;
+}
+
+.step-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--brand-olive-dim);
+  border: 2px solid var(--brand-olive);
+  color: var(--brand-cream);
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+}
+
+.step-card h4 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.step-card p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Promotional Banner */
+.promo-banner-card {
+  background: linear-gradient(135deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: clamp(2.5rem, 6vw, 4.5rem);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.promo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-full);
+  background: var(--brand-orange-dim);
+  color: var(--brand-orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-bottom: 1.5rem;
+}
+
+.promo-title {
+  max-width: 800px;
+  margin: 0 auto 1.25rem;
+}
+
+.promo-desc {
+  max-width: 680px;
+  margin: 0 auto 2.25rem;
+  font-size: 1.12rem;
+  line-height: 1.6;
+}
+
+.promo-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+/* --- BOOKING WIZARD PAGE --- */
+.booking-wizard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr);
+  gap: 2.25rem;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+}
+
+.booking-steps-column {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.booking-summary-column {
+  min-width: 0;
+  width: 100%;
+}
+
+.booking-summary-sticky {
+  position: sticky;
+  top: 90px;
+  width: 100%;
+}
+
+.date-picker-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.date-picker-scroll {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0.25rem 0.75rem 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-olive) var(--bg-surface-elevated);
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  width: 100%;
+  max-width: 100%;
+}
+
+.date-picker-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.date-picker-scroll::-webkit-scrollbar-track {
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-full);
+}
+
+.date-picker-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--brand-olive-bright);
+  border-radius: var(--radius-full);
+}
+
+.date-nav-btn {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.date-nav-btn:hover {
+  background: var(--brand-olive-dim);
+  border-color: var(--brand-olive);
+  color: var(--brand-cream);
+}
+
+@media (max-width: 1024px) {
+  .booking-wizard-layout {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .booking-summary-sticky {
+    position: static;
+  }
+}
