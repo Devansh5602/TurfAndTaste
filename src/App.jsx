@@ -12,6 +12,7 @@ import Pricing from './pages/Pricing';
 import Booking from './pages/Booking';
 import Contact from './pages/Contact';
 import Inquiry from './pages/Inquiry';
+import Admin from './pages/Admin';
 
 function RouteRenderer() {
   const { currentPath } = useRouter();
@@ -40,6 +41,8 @@ function RouteRenderer() {
       return <Contact />;
     case '/inquiry':
       return <Inquiry />;
+    case '/admin':
+      return <Admin />;
     default:
       return (
         <div className="section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>

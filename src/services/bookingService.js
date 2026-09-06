@@ -3,9 +3,11 @@
  * 
  * Architecture Layer:
  * Prepares the slot availability and booking submission pipeline.
- * Currently serves realistic demo slot state for Phase 1.
+ * Persists demo bookings into adminStore (localStorage).
  * Ready to connect to real backend API (Node.js/Express, Supabase, or Firebase) in Phase 2.
  */
+
+import { adminStore } from './adminStore';
 
 export const generateTimeSlots = (facilityId, selectedDate) => {
   // Returns structured slots with status (available, fast-filling, booked)
@@ -34,8 +36,30 @@ export const submitBookingReservation = async (bookingPayload) => {
   // Simulates network latency
   await new Promise((resolve) => setTimeout(resolve, 800));
 
-  // Generates reference code (e.g. TT-2026-XXXX)
+  // Generates reference code (e.g. TT-XXXXXX)
   const bookingReference = `TT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  // Save to local storage for Admin dashboard
+  try {
+    adminStore.saveBooking({
+      id: bookingReference,
+      facilityId: bookingPayload.facilityId,
+      facilityName: bookingPayload.facilityName || bookingPayload.facilityId,
+      date: bookingPayload.date,
+      time: bookingPayload.slot?.time || 'Custom Slot',
+      customerName: bookingPayload.customer?.name || 'Guest Player',
+      customerPhone: bookingPayload.customer?.phone || 'N/A',
+      customerEmail: bookingPayload.customer?.email || 'N/A',
+      teamName: bookingPayload.customer?.teamName || '',
+      duration: bookingPayload.duration || 1,
+      paymentType: bookingPayload.paymentType || 'deposit',
+      amount: bookingPayload.paymentType === 'full' ? '100% Full Payment' : 'Token Deposit',
+      status: 'Confirmed',
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn('Could not persist booking to admin store:', err);
+  }
 
   return {
     success: true,

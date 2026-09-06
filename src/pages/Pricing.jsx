@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from '../context/RouterContext';
-import { pricingTiers, durationMultipliers, paymentOptionsInfo } from '../data/pricingData';
+import { durationMultipliers, paymentOptionsInfo } from '../data/pricingData';
+import { adminStore } from '../services/adminStore';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import { 
@@ -10,14 +11,19 @@ import {
   ArrowRight, 
   ShieldCheck, 
   Sparkles, 
-  CreditCard,
-  Clock,
-  Users
+  CreditCard, 
+  Clock, 
+  Users 
 } from 'lucide-react';
 
 export default function Pricing() {
   const [selectedDuration, setSelectedDuration] = useState(1);
   const [activeTab, setActiveTab] = useState('sports'); // 'sports' or 'combos'
+  const [pricingList, setPricingList] = useState(() => adminStore.getPricing());
+
+  useEffect(() => {
+    setPricingList(adminStore.getPricing());
+  }, []);
 
   return (
     <div className="page-pricing">
@@ -59,7 +65,7 @@ export default function Pricing() {
       <section className="section" style={{ paddingTop: '1rem' }}>
         <div className="container">
           <div className="grid grid-3">
-            {pricingTiers.map((tier) => (
+            {pricingList.map((tier) => (
               <div 
                 key={tier.facilityId} 
                 className={`card-arena ${tier.popular ? 'highlight' : ''}`}

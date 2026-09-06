@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from '../context/RouterContext';
 import { footerLinks } from '../data/navigationData';
 import { contactData } from '../data/contactData';
-import { MapPin, Phone, Mail, Clock, ArrowUpRight } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, ArrowUpRight, Lock } from 'lucide-react';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -115,6 +115,9 @@ export default function Footer() {
                 {item.label}
               </a>
             ))}
+            <Link to="/admin" className="footer-legal-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.8, color: 'var(--brand-cream)' }}>
+              <Lock size={12} /> Staff Portal
+            </Link>
           </div>
         </div>
       </div>
