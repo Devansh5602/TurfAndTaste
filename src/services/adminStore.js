@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
   BOOKINGS: 'tt_bookings_v1',
   PRICING: 'tt_pricing_v1',
   TIMINGS: 'tt_timings_v1',
-  PIN: 'tt_admin_pin_v1'
+  PASSWORD: 'tt_admin_password_v2'
 };
 
 const INITIAL_BOOKINGS = [
@@ -92,12 +92,22 @@ const DEFAULT_TIMINGS = {
 // Admin Store APIs
 export const adminStore = {
   // Authentication
+  getAdminPassword: () => {
+    return localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'Turfandtaste2026';
+  },
+
+  setAdminPassword: (newPassword) => {
+    localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
+    return true;
+  },
+
+  // Backward compatibility
   getAdminPin: () => {
-    return localStorage.getItem(STORAGE_KEYS.PIN) || '1234';
+    return localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'Turfandtaste2026';
   },
 
   setAdminPin: (newPin) => {
-    localStorage.setItem(STORAGE_KEYS.PIN, newPin);
+    localStorage.setItem(STORAGE_KEYS.PASSWORD, newPin);
     return true;
   },
 
@@ -174,7 +184,7 @@ export const adminStore = {
     localStorage.removeItem(STORAGE_KEYS.BOOKINGS);
     localStorage.removeItem(STORAGE_KEYS.PRICING);
     localStorage.removeItem(STORAGE_KEYS.TIMINGS);
-    localStorage.removeItem(STORAGE_KEYS.PIN);
+    localStorage.removeItem(STORAGE_KEYS.PASSWORD);
     return true;
   }
 };

@@ -23,6 +23,8 @@ import {
   Phone, 
   Mail, 
   Eye, 
+  EyeOff, 
+  KeyRound, 
   Settings, 
   ChevronRight,
   TrendingUp,
@@ -34,8 +36,9 @@ export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('tt_admin_authenticated') === 'true';
   });
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Active Tab: 'overview' | 'bookings' | 'pricing' | 'timings'
   const [activeTab, setActiveTab] = useState('bookings');
@@ -91,15 +94,15 @@ export default function Admin() {
   // Auth Handlers
   const handleLogin = (e) => {
     e.preventDefault();
-    const correctPin = adminStore.getAdminPin();
-    if (pinInput === correctPin) {
+    const correctPassword = adminStore.getAdminPassword();
+    if (passwordInput.trim() === correctPassword.trim()) {
       setIsAuthenticated(true);
       sessionStorage.setItem('tt_admin_authenticated', 'true');
-      setPinError('');
-      setPinInput('');
+      setPasswordError('');
+      setPasswordInput('');
       showToast('Welcome to Turf & Taste Management Portal!');
     } else {
-      setPinError('Invalid PIN code. Default is 1234.');
+      setPasswordError('Incorrect password. Please verify and try again.');
     }
   };
 
@@ -256,60 +259,192 @@ export default function Admin() {
     };
   }, [bookings]);
 
-  // If Not Authenticated, show PIN entry modal
+  // If Not Authenticated, show Password entry modal
   if (!isAuthenticated) {
     return (
-      <div className="page-admin-auth section" style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="page-admin-auth section" style={{ 
+        minHeight: 'calc(100vh - 120px)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        padding: '3rem 1.5rem',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
         <CourtBackground />
-        <div className="container" style={{ position: 'relative', zIndex: 2, maxWidth: '440px' }}>
-          <div className="card-arena highlight" style={{ textAlign: 'center', padding: '2.5rem' }}>
+        
+        {/* Subtle radial glow behind card */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '580px',
+          height: '580px',
+          background: 'radial-gradient(circle, rgba(107, 143, 73, 0.12) 0%, rgba(232, 103, 38, 0.04) 40%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 1
+        }} />
+
+        <div className="container" style={{ position: 'relative', zIndex: 2, maxWidth: '460px', width: '100%', margin: '0 auto' }}>
+          <div style={{
+            background: 'linear-gradient(165deg, rgba(22, 28, 22, 0.96) 0%, rgba(11, 15, 11, 0.98) 100%)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: '20px',
+            padding: 'clamp(2rem, 5vw, 2.75rem) clamp(1.5rem, 4vw, 2.25rem)',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(107, 143, 73, 0.15)',
+            backdropFilter: 'blur(16px)',
+            textAlign: 'center'
+          }}>
+            {/* Top Shield & Logo Badge */}
             <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: 'rgba(107, 143, 73, 0.15)',
+              width: '68px',
+              height: '68px',
+              borderRadius: '18px',
+              background: 'linear-gradient(135deg, rgba(107, 143, 73, 0.25), rgba(232, 103, 38, 0.12))',
+              border: '1px solid var(--brand-olive)',
               color: 'var(--brand-olive-bright)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 1.5rem',
-              border: '1px solid var(--brand-olive)'
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 8px 24px rgba(107, 143, 73, 0.2)'
             }}>
-              <Shield size={32} />
+              <Shield size={34} className="text-olive" />
             </div>
 
-            <span className="badge badge-olive" style={{ marginBottom: '0.75rem' }}>Ground Staff &amp; Management</span>
-            <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>Arena Control Panel</h2>
-            <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-              Enter management access PIN to update operational timings, slot bookings, and pricing rates.
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
+              <span className="badge badge-olive" style={{ fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Management Portal
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>• Patan HQ</span>
+            </div>
+
+            <h1 style={{ fontSize: '1.9rem', marginBottom: '0.45rem', color: 'var(--brand-cream)' }}>
+              Arena <span className="text-olive">Control Panel</span>
+            </h1>
+
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '1.75rem' }}>
+              Enter management password to configure operational timings, slot bookings, and pricing rates.
             </p>
 
-            <form onSubmit={handleLogin}>
+            <form onSubmit={handleLogin} style={{ textAlign: 'left' }}>
               <div style={{ marginBottom: '1.25rem' }}>
-                <input
-                  type="password"
-                  maxLength={6}
-                  placeholder="Enter 4-digit PIN (Default: 1234)"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  className="input-field"
-                  style={{ textAlign: 'center', fontSize: '1.4rem', letterSpacing: '0.3em', fontWeight: 700 }}
-                  autoFocus
-                />
-                {pinError && (
-                  <p style={{ color: 'var(--brand-orange)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                    {pinError}
-                  </p>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem', 
+                  fontSize: '0.85rem', 
+                  fontWeight: 600, 
+                  color: 'var(--brand-cream)', 
+                  marginBottom: '0.5rem' 
+                }}>
+                  <KeyRound size={15} className="text-olive" />
+                  Management Password
+                </label>
+
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter management password"
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className="input-field"
+                    style={{ 
+                      paddingRight: '2.75rem', 
+                      fontSize: '0.95rem', 
+                      height: '46px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-surface-elevated)',
+                      border: passwordError ? '1px solid var(--brand-orange)' : '1px solid var(--border-subtle)',
+                      letterSpacing: showPassword ? 'normal' : '0.1em'
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {passwordError && (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.4rem', 
+                    color: 'var(--brand-orange)', 
+                    fontSize: '0.82rem', 
+                    marginTop: '0.5rem',
+                    background: 'rgba(232, 103, 38, 0.1)',
+                    padding: '0.4rem 0.65rem',
+                    borderRadius: 'var(--radius-sm)'
+                  }}>
+                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                    <span>{passwordError}</span>
+                  </div>
                 )}
               </div>
 
-              <button type="submit" className="btn btn-primary btn-block btn-lg">
-                <Unlock size={18} /> Unlock Dashboard
+              <button 
+                type="submit" 
+                className="btn btn-primary btn-block btn-lg" 
+                style={{ 
+                  height: '46px', 
+                  fontSize: '0.96rem', 
+                  fontWeight: 600,
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 15px rgba(232, 103, 38, 0.3)'
+                }}
+              >
+                <Unlock size={17} /> Unlock Dashboard
               </button>
             </form>
 
-            <div style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Authorized management access • Patan, Gujarat
+            {/* Quick default credential info */}
+            <div style={{
+              marginTop: '1.5rem',
+              paddingTop: '1.15rem',
+              borderTop: '1px solid var(--border-subtle)',
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.3rem'
+            }}>
+              <div>
+                Default setup password: <code style={{ 
+                  background: 'rgba(107, 143, 73, 0.2)', 
+                  color: 'var(--brand-olive-bright)', 
+                  padding: '2px 6px', 
+                  borderRadius: '4px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }} onClick={() => setPasswordInput('Turfandtaste2026')}>Turfandtaste2026</code>
+              </div>
+              <span style={{ fontSize: '0.73rem', opacity: 0.75 }}>Click to autofill or type above</span>
             </div>
           </div>
         </div>
