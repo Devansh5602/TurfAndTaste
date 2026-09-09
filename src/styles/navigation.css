@@ -150,9 +150,18 @@
 
 /* Mobile Nav Toggle */
 .mobile-actions {
-  display: none;
+  display: none !important;
   align-items: center;
   gap: 0.75rem;
+}
+
+@media (max-width: 1024px) {
+  .desktop-nav, .desktop-actions {
+    display: none !important;
+  }
+  .mobile-actions {
+    display: flex !important;
+  }
 }
 
 .mobile-menu-btn {
@@ -277,15 +286,6 @@
   text-transform: uppercase;
   color: var(--brand-olive-bright);
   font-weight: 700;
-}
-
-@media (max-width: 900px) {
-  .desktop-nav, .desktop-actions {
-    display: none;
-  }
-  .mobile-actions {
-    display: flex;
-  }
 }
 
 /* Footer Styling */

@@ -1,10 +1,10 @@
 /**
  * Turf & Taste - Admin Store & Persistence Layer
- * Synchronizes Bookings, Dynamic Pricing, and Arena Timings across localStorage
+ * Synchronizes Bookings, Dynamic Pricing, and Arena Timings across Express API / SQLite DB with localStorage fallback
  */
 
+import { api } from './api';
 import { pricingTiers as defaultPricing } from '../data/pricingData';
-import { facilitiesData as defaultFacilities } from '../data/facilitiesData';
 
 const STORAGE_KEYS = {
   BOOKINGS: 'tt_bookings_v1',
@@ -13,72 +13,7 @@ const STORAGE_KEYS = {
   PASSWORD: 'tt_admin_password_v2'
 };
 
-const INITIAL_BOOKINGS = [
-  {
-    id: 'TT-849102',
-    facilityId: 'box-cricket',
-    facilityName: 'Box Cricket Arena',
-    date: new Date().toISOString().split('T')[0],
-    time: '06:00 PM – 07:00 PM',
-    customerName: 'Rahul Patel',
-    customerPhone: '+91 98250 12345',
-    customerEmail: 'rahul.patel@gmail.com',
-    teamName: 'Patan Super Kings',
-    duration: 1,
-    paymentType: 'deposit',
-    amount: '₹500 (Token Deposit)',
-    status: 'Confirmed',
-    createdAt: new Date(Date.now() - 3600000 * 4).toISOString()
-  },
-  {
-    id: 'TT-621904',
-    facilityId: 'pickleball',
-    facilityName: 'Pickleball Courts',
-    date: new Date().toISOString().split('T')[0],
-    time: '07:00 AM – 08:00 AM',
-    customerName: 'Ananya Sharma',
-    customerPhone: '+91 97241 67890',
-    customerEmail: 'ananya.s@outlook.com',
-    teamName: 'Smash Squad',
-    duration: 1,
-    paymentType: 'full',
-    amount: '₹600 (Full Paid)',
-    status: 'Checked-in',
-    createdAt: new Date(Date.now() - 3600000 * 8).toISOString()
-  },
-  {
-    id: 'TT-392811',
-    facilityId: 'ball-machine',
-    facilityName: 'Ball-Shooting Machine Lane',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    time: '05:00 PM – 06:00 PM',
-    customerName: 'Meet Thakor',
-    customerPhone: '+91 99092 34567',
-    customerEmail: 'meet.cricket@yahoo.com',
-    teamName: 'Solo Batting Drill',
-    duration: 1,
-    paymentType: 'deposit',
-    amount: '₹300 (Token Deposit)',
-    status: 'Confirmed',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
-  },
-  {
-    id: 'TT-154930',
-    facilityId: 'skating',
-    facilityName: 'Skating Rink',
-    date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-    time: '04:00 PM – 05:00 PM',
-    customerName: 'Pooja Dave',
-    customerPhone: '+91 98980 98765',
-    customerEmail: 'pooja.dave@gmail.com',
-    teamName: 'Weekend Rollers',
-    duration: 1,
-    paymentType: 'full',
-    amount: '₹250 (Full Paid)',
-    status: 'Completed',
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
-  }
-];
+const INITIAL_BOOKINGS = [];
 
 const DEFAULT_TIMINGS = {
   arenaOpen: '06:00 AM',
@@ -91,27 +26,56 @@ const DEFAULT_TIMINGS = {
 
 // Admin Store APIs
 export const adminStore = {
-  // Authentication
+  // Async Backend Login
+  loginAdmin: async (username, password) => {
+    try {
+      const result = await api.adminLogin(username, password);
+      if (result.success) return result;
+    } catch {
+      // Fallback local check
+    }
+
+    const localPassword = adminStore.getAdminPassword();
+    if (password === localPassword) {
+      sessionStorage.setItem('tt_admin_authenticated', 'true');
+      return { success: true, message: 'Authenticated locally' };
+    }
+    return { success: false, error: 'Invalid admin password' };
+  },
+
+  // Authentication Password helpers
   getAdminPassword: () => {
     return localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'Turfandtaste2026';
   },
 
-  setAdminPassword: (newPassword) => {
+  setAdminPassword: async (newPassword, currentPassword) => {
+    try {
+      const res = await api.changeAdminPassword(currentPassword, newPassword);
+      if (res.success) {
+        localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
+        return res;
+      }
+    } catch {
+      // Fallback local save
+    }
     localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
-    return true;
+    return { success: true, message: 'Password updated locally' };
   },
 
-  // Backward compatibility
-  getAdminPin: () => {
-    return localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'Turfandtaste2026';
+  // Bookings - Async with Local Storage Fallback
+  fetchBookingsAsync: async (filters = {}) => {
+    try {
+      const res = await api.getBookings(filters);
+      if (res.success && res.bookings) {
+        localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(res.bookings));
+        return res.bookings;
+      }
+    } catch (e) {
+      console.warn('Backend API offline, loading local bookings:', e);
+    }
+    return adminStore.getBookings();
   },
 
-  setAdminPin: (newPin) => {
-    localStorage.setItem(STORAGE_KEYS.PASSWORD, newPin);
-    return true;
-  },
-
-  // Bookings
   getBookings: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
@@ -121,21 +85,41 @@ export const adminStore = {
     }
   },
 
-  saveBooking: (booking) => {
+  saveBooking: async (booking) => {
+    try {
+      const res = await api.createBooking(booking);
+      if (res.success) {
+        const list = adminStore.getBookings();
+        localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify([booking, ...list]));
+        return res.booking || booking;
+      }
+    } catch (e) {
+      console.warn('Could not post booking to backend API:', e);
+    }
     const list = adminStore.getBookings();
     const updated = [booking, ...list];
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
     return booking;
   },
 
-  updateBookingStatus: (bookingId, newStatus) => {
+  updateBookingStatus: async (bookingId, newStatus) => {
+    try {
+      await api.updateBookingStatus(bookingId, newStatus);
+    } catch (e) {
+      console.warn('Could not update booking status on server:', e);
+    }
     const list = adminStore.getBookings();
     const updated = list.map(b => b.id === bookingId ? { ...b, status: newStatus } : b);
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
     return updated;
   },
 
-  deleteBooking: (bookingId) => {
+  deleteBooking: async (bookingId) => {
+    try {
+      await api.deleteBooking(bookingId);
+    } catch (e) {
+      console.warn('Could not delete booking on server:', e);
+    }
     const list = adminStore.getBookings();
     const updated = list.filter(b => b.id !== bookingId);
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
@@ -143,6 +127,19 @@ export const adminStore = {
   },
 
   // Pricing
+  fetchPricingAsync: async () => {
+    try {
+      const res = await api.getPricing();
+      if (res.success && res.pricing && res.pricing.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(res.pricing));
+        return res.pricing;
+      }
+    } catch (e) {
+      console.warn('Backend API offline, loading local pricing:', e);
+    }
+    return adminStore.getPricing();
+  },
+
   getPricing: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.PRICING);
@@ -152,19 +149,30 @@ export const adminStore = {
     }
   },
 
-  savePricing: (pricingArray) => {
+  savePricing: async (pricingArray) => {
+    try {
+      await api.savePricing(pricingArray);
+    } catch (e) {
+      console.warn('Could not sync pricing to API:', e);
+    }
     localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(pricingArray));
     return pricingArray;
   },
 
-  updateSingleFacilityPricing: (facilityId, updates) => {
-    const list = adminStore.getPricing();
-    const updated = list.map(p => p.facilityId === facilityId ? { ...p, ...updates } : p);
-    localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(updated));
-    return updated;
+  // Timings
+  fetchTimingsAsync: async () => {
+    try {
+      const res = await api.getTimings();
+      if (res.success && res.timings) {
+        localStorage.setItem(STORAGE_KEYS.TIMINGS, JSON.stringify(res.timings));
+        return res.timings;
+      }
+    } catch (e) {
+      console.warn('Backend API offline, loading local timings:', e);
+    }
+    return adminStore.getTimings();
   },
 
-  // Timings
   getTimings: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.TIMINGS);
@@ -174,17 +182,24 @@ export const adminStore = {
     }
   },
 
-  saveTimings: (timingsObj) => {
+  saveTimings: async (timingsObj) => {
+    try {
+      await api.saveTimings(timingsObj);
+    } catch (e) {
+      console.warn('Could not sync timings to API:', e);
+    }
     localStorage.setItem(STORAGE_KEYS.TIMINGS, JSON.stringify(timingsObj));
     return timingsObj;
   },
 
-  // Reset all to defaults
+  // Reset
   resetAll: () => {
     localStorage.removeItem(STORAGE_KEYS.BOOKINGS);
     localStorage.removeItem(STORAGE_KEYS.PRICING);
     localStorage.removeItem(STORAGE_KEYS.TIMINGS);
     localStorage.removeItem(STORAGE_KEYS.PASSWORD);
+    sessionStorage.removeItem('tt_admin_jwt');
+    sessionStorage.removeItem('tt_admin_authenticated');
     return true;
   }
 };

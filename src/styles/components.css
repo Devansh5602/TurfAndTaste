@@ -309,25 +309,65 @@
   margin-left: 3px;
 }
 
-.form-input, .form-select, .form-textarea {
+.form-input, .form-select, .input-field {
   width: 100%;
-  padding: 0.85rem 1.1rem;
-  background-color: var(--bg-input);
+  height: 40px;
+  padding: 0 0.85rem;
+  line-height: normal;
+  background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 0.98rem;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
   transition: all var(--transition-fast);
+  box-sizing: border-box;
 }
 
-.form-input:focus, .form-select:focus, .form-textarea:focus {
+.form-textarea {
+  width: 100%;
+  padding: 0.75rem 1.1rem;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: var(--font-body);
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus, .input-field:focus {
   outline: none;
   border-color: var(--brand-olive-bright);
   box-shadow: 0 0 0 3px var(--brand-olive-dim);
 }
 
-.form-input.error, .form-select.error, .form-textarea.error {
+.form-input.error, .form-select.error, .form-textarea.error, .input-field.error {
   border-color: var(--brand-crimson);
+}
+
+.input-prefix-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-prefix-badge {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--brand-olive-bright);
+  font-weight: 700;
+  font-size: 0.95rem;
+  pointer-events: none;
+  z-index: 2;
+  user-select: none;
+}
+
+.input-prefix-wrapper .form-input,
+.input-prefix-wrapper .input-field {
+  padding-left: 2rem;
 }
 
 .form-error {
@@ -433,4 +473,52 @@
 .modal-close-btn:hover {
   color: var(--brand-orange);
   border-color: var(--brand-orange);
+}
+
+/* Mobile Responsiveness Enhancements */
+@media (max-width: 768px) {
+  .btn {
+    min-height: 46px;
+    padding: 0.7rem 1.25rem;
+    font-size: 0.95rem;
+  }
+  
+  .form-input, .form-select, .form-textarea {
+    font-size: 16px !important; /* Prevents forced iOS auto-zoom on input focus */
+    min-height: 46px;
+  }
+
+  .tabs-container {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 0.35rem;
+  }
+
+  .tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: 1.5rem;
+    border-top-right-radius: 1.5rem;
+    max-height: 85vh;
+    padding: 1.75rem 1.25rem;
+    animation: slideUpMobile 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes slideUpMobile {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }

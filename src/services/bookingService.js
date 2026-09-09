@@ -1,16 +1,12 @@
 /**
  * Turf & Taste - Booking Service
- * 
- * Architecture Layer:
- * Prepares the slot availability and booking submission pipeline.
- * Persists demo bookings into adminStore (localStorage).
- * Ready to connect to real backend API (Node.js/Express, Supabase, or Firebase) in Phase 2.
+ * Express API & SQLite Database integration for slot availability & reservation submission
  */
 
+import { api } from './api';
 import { adminStore } from './adminStore';
 
 export const generateTimeSlots = (facilityId, selectedDate) => {
-  // Returns structured slots with status (available, fast-filling, booked)
   const slots = [
     { time: '06:00 AM – 07:00 AM', category: 'Morning Early', price: '₹___', status: 'available', peak: false },
     { time: '07:00 AM – 08:00 AM', category: 'Morning Early', price: '₹___', status: 'available', peak: false },
@@ -32,41 +28,85 @@ export const generateTimeSlots = (facilityId, selectedDate) => {
   return slots;
 };
 
-export const submitBookingReservation = async (bookingPayload) => {
-  // Simulates network latency
-  await new Promise((resolve) => setTimeout(resolve, 800));
+export const fetchRealTimeSlots = async (facilityId, selectedDate) => {
+  try {
+    const res = await api.getSlotAvailability(facilityId, selectedDate);
+    if (res.success && res.slots) {
+      return res.slots;
+    }
+  } catch (e) {
+    console.warn('Using offline slots generator:', e);
+  }
+  return generateTimeSlots(facilityId, selectedDate);
+};
 
-  // Generates reference code (e.g. TT-XXXXXX)
+export const submitBookingReservation = async (bookingPayload) => {
   const bookingReference = `TT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-  // Save to local storage for Admin dashboard
+  const formattedPayload = {
+    id: bookingReference,
+    facilityId: bookingPayload.facilityId,
+    facilityName: bookingPayload.facilityName || bookingPayload.facilityId,
+    date: bookingPayload.date,
+    time: bookingPayload.slot?.time || 'Custom Slot',
+    customerName: bookingPayload.customer?.name || 'Guest Player',
+    customerPhone: bookingPayload.customer?.phone || 'N/A',
+    customerEmail: bookingPayload.customer?.email || 'N/A',
+    teamName: bookingPayload.customer?.teamName || '',
+    duration: bookingPayload.duration || 1,
+    paymentType: bookingPayload.paymentType || 'deposit',
+    amount: bookingPayload.paymentType === 'full' ? '₹1200 (Full Paid)' : '₹500 (Token Deposit)',
+    status: 'Confirmed',
+    createdAt: new Date().toISOString()
+  };
+
   try {
-    adminStore.saveBooking({
-      id: bookingReference,
-      facilityId: bookingPayload.facilityId,
-      facilityName: bookingPayload.facilityName || bookingPayload.facilityId,
-      date: bookingPayload.date,
-      time: bookingPayload.slot?.time || 'Custom Slot',
-      customerName: bookingPayload.customer?.name || 'Guest Player',
-      customerPhone: bookingPayload.customer?.phone || 'N/A',
-      customerEmail: bookingPayload.customer?.email || 'N/A',
-      teamName: bookingPayload.customer?.teamName || '',
-      duration: bookingPayload.duration || 1,
-      paymentType: bookingPayload.paymentType || 'deposit',
-      amount: bookingPayload.paymentType === 'full' ? '100% Full Payment' : 'Token Deposit',
-      status: 'Confirmed',
-      createdAt: new Date().toISOString()
-    });
+    const apiRes = await api.createBooking(formattedPayload);
+    if (apiRes.success) {
+      adminStore.saveBooking(formattedPayload);
+      return {
+        success: true,
+        bookingReference: apiRes.bookingReference || bookingReference,
+        timestamp: new Date().toISOString(),
+        details: bookingPayload,
+        message: 'Slot reservation recorded and saved to database!'
+      };
+    }
   } catch (err) {
-    console.warn('Could not persist booking to admin store:', err);
+    console.warn('API error during booking, persisting locally:', err);
   }
+
+  // Fallback local save
+  await adminStore.saveBooking(formattedPayload);
 
   return {
     success: true,
     bookingReference,
     timestamp: new Date().toISOString(),
     details: bookingPayload,
-    isPhase1Demo: true,
-    message: 'Slot preview recorded! You will receive priority reservation status for grand opening.'
+    message: 'Slot preview recorded! Saved to browser cache.'
   };
+};
+
+export const fetchCustomerBookingHistory = async (phoneOrEmail) => {
+  try {
+    const isEmail = phoneOrEmail.includes('@');
+    const res = await api.getBookingHistory({
+      phone: isEmail ? '' : phoneOrEmail,
+      email: isEmail ? phoneOrEmail : ''
+    });
+    if (res.success && res.history) {
+      return res.history;
+    }
+  } catch (e) {
+    console.warn('Could not fetch online booking history:', e);
+  }
+  
+  // Local fallback filter
+  const allBookings = adminStore.getBookings();
+  const search = phoneOrEmail.trim().toLowerCase();
+  return allBookings.filter(b => 
+    (b.customerPhone && b.customerPhone.includes(search)) ||
+    (b.customerEmail && b.customerEmail.toLowerCase().includes(search))
+  );
 };

@@ -50,12 +50,21 @@ export default function FacilityCard({ facility }) {
             Details <ArrowRight size={15} />
           </Link>
 
-          <Link 
-            to={`/booking?facility=${facility.slug}`} 
-            className="btn btn-primary btn-sm"
-          >
-            <Calendar size={14} /> Book Slot
-          </Link>
+          {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+            <Link 
+              to={`/inquiry?facility=${facility.slug}`} 
+              className="btn btn-secondary btn-sm"
+            >
+              Inquire / Menu
+            </Link>
+          ) : (
+            <Link 
+              to={`/booking?facility=${facility.slug}`} 
+              className="btn btn-primary btn-sm"
+            >
+              <Calendar size={14} /> Book Slot
+            </Link>
+          )}
         </div>
       </div>
     </div>

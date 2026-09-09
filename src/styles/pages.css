@@ -421,3 +421,97 @@
     position: static;
   }
 }
+
+/* --- MOBILE SPECIFIC BOOKING ENGINE STYLES --- */
+@media (max-width: 768px) {
+  .date-picker-scroll {
+    scroll-snap-type: x mandatory;
+    padding-bottom: 0.5rem;
+  }
+  
+  .date-pill-btn {
+    scroll-snap-align: start;
+    min-width: 72px;
+    min-height: 64px;
+    padding: 0.6rem 0.5rem;
+  }
+
+  .slots-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .slot-btn {
+    padding: 0.85rem 0.6rem !important;
+    min-height: 54px !important;
+  }
+
+  .slot-btn .slot-time {
+    font-size: 0.82rem !important;
+  }
+
+  /* Admin & Booking Tables Mobile Responsive Scroll Wrapper */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+  }
+
+  .admin-table, .booking-table {
+    min-width: 640px; /* Ensures table columns don't crunch on small phone screens */
+  }
+}
+
+@media (max-width: 480px) {
+  .slots-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .date-pill-btn {
+    min-width: 64px;
+  }
+}
+
+/* Mobile Sticky Checkout Action Bar */
+.mobile-checkout-sticky-bar {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-checkout-sticky-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-surface-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-strong);
+    padding: 0.9rem 1.25rem;
+    z-index: 999;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    animation: slideUpMobile 0.25s ease-out forwards;
+  }
+
+  .mobile-checkout-sticky-bar .info-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-checkout-sticky-bar .info-time {
+    font-size: 0.82rem;
+    color: var(--brand-cream-muted);
+  }
+
+  .mobile-checkout-sticky-bar .info-price {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--brand-orange);
+  }
+}

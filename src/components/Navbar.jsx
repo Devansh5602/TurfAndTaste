@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useRouter } from '../context/RouterContext';
 import { navLinks } from '../data/navigationData';
 import ThemeToggle from './ThemeToggle';
-import { Menu, X, Calendar, ChevronRight } from 'lucide-react';
+import { Menu, X, Calendar, ChevronRight, ShieldCheck } from 'lucide-react';
 
 export default function Navbar() {
   const { currentPath } = useRouter();
@@ -58,15 +58,22 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Desktop Actions: Theme switch & Book a Slot CTA */}
+          {/* Desktop Actions: Theme switch, Admin Login & Book a Slot CTA */}
           <div className="navbar-actions desktop-actions">
             <ThemeToggle />
+            <Link 
+              to="/admin" 
+              className={`btn btn-outline btn-sm ${currentPath === '/admin' ? 'active' : ''}`} 
+              title="Admin Portal"
+            >
+              <ShieldCheck size={16} className="text-olive" /> Admin
+            </Link>
             <Link to="/booking" className="btn btn-primary btn-sm btn-nav-cta">
               <Calendar size={15} /> Book a Slot
             </Link>
           </div>
 
-          {/* Mobile Menu Hamburger Button */}
+          {/* Mobile Actions: Theme Switcher & Mobile Menu Toggle */}
           <div className="mobile-actions">
             <ThemeToggle />
             <button
@@ -126,6 +133,18 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          <Link
+            to="/admin"
+            className={`mobile-nav-link ${currentPath === '/admin' ? 'active' : ''}`}
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '0.5rem', paddingTop: '0.85rem' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--brand-olive-bright)', fontWeight: 600 }}>
+              <ShieldCheck size={18} /> Admin Management
+            </span>
+            <ChevronRight size={18} className="mobile-nav-arrow" />
+          </Link>
         </nav>
 
         <div className="mobile-drawer-footer">

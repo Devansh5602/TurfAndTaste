@@ -240,15 +240,15 @@ export default function Booking() {
 
                   <div className="date-picker-container">
                     <div ref={dateScrollRef} className="date-picker-scroll">
-                      {datesList.map(item => (
+                      {datesList.map((item) => (
                         <button
                           type="button"
                           key={item.iso}
+                          className="date-pill-btn"
                           onClick={() => setSelectedDate(item.iso)}
                           style={{
-                            minWidth: '76px',
                             flexShrink: 0,
-                            padding: '0.85rem 0.5rem',
+                            padding: '0.85rem 0.75rem',
                             borderRadius: 'var(--radius-md)',
                             border: `1px solid ${selectedDate === item.iso ? 'var(--brand-olive-bright)' : 'var(--border-subtle)'}`,
                             background: selectedDate === item.iso ? 'var(--brand-olive)' : 'var(--bg-surface-elevated)',
@@ -301,7 +301,7 @@ export default function Booking() {
                   )}
 
                   {/* Slots Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem' }}>
+                  <div className="slots-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
                     {slots.map((slot, idx) => {
                       const isSelected = selectedSlot?.time === slot.time;
                       const isBooked = slot.status === 'booked';
@@ -312,6 +312,7 @@ export default function Booking() {
                           type="button"
                           key={idx}
                           disabled={isBooked}
+                          className={`slot-btn ${isSelected ? 'selected' : ''}`}
                           onClick={() => {
                             setSelectedSlot(slot);
                             setErrors(prev => ({ ...prev, slot: null }));
@@ -349,7 +350,7 @@ export default function Booking() {
                             </span>
                           </div>
 
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? 'var(--brand-cream)' : 'var(--text-primary)' }}>
+                          <div className="slot-time" style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? 'var(--brand-cream)' : 'var(--text-primary)' }}>
                             {slot.time}
                           </div>
                         </button>

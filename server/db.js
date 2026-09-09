@@ -1,0 +1,262 @@
+import pg from 'pg';
+import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config();
+
+const databaseUrl = process.env.DATABASE_URL;
+
+let isPostgres = false;
+let pgPool = null;
+let sqliteDb = null;
+
+if (databaseUrl && databaseUrl.startsWith('postgres')) {
+  isPostgres = true;
+  console.log('[Database] Connecting to Cloud Supabase PostgreSQL...');
+  pgPool = new pg.Pool({
+    connectionString: databaseUrl,
+    ssl: { rejectUnauthorized: false }
+  });
+} else {
+  console.log('[Database] Using Local SQLite Database...');
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  const dbPath = path.join(dataDir, 'turf_and_taste.db');
+  sqliteDb = new Database(dbPath);
+  sqliteDb.pragma('journal_mode = WAL');
+}
+
+export async function initDatabase() {
+  if (isPostgres) {
+    try {
+      console.log('[Supabase Cloud DB] Running PostgreSQL table migrations...');
+
+      // 1. Admins Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS admins (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(255) UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 2. Facilities Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS facilities (
+          id VARCHAR(255) PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          category VARCHAR(255),
+          base_price_day INTEGER NOT NULL,
+          base_price_night INTEGER NOT NULL,
+          deposit_amount INTEGER NOT NULL,
+          status VARCHAR(50) DEFAULT 'active'
+        );
+      `);
+
+      // 3. Bookings Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS bookings (
+          id VARCHAR(255) PRIMARY KEY,
+          facility_id VARCHAR(255) NOT NULL,
+          facility_name VARCHAR(255) NOT NULL,
+          date VARCHAR(50) NOT NULL,
+          time_slot VARCHAR(255) NOT NULL,
+          customer_name VARCHAR(255) NOT NULL,
+          customer_phone VARCHAR(50) NOT NULL,
+          customer_email VARCHAR(255),
+          team_name VARCHAR(255),
+          duration INTEGER DEFAULT 1,
+          payment_type VARCHAR(50) DEFAULT 'deposit',
+          amount_paid VARCHAR(255) NOT NULL,
+          payment_status VARCHAR(50) DEFAULT 'Paid',
+          booking_status VARCHAR(50) DEFAULT 'Confirmed',
+          payment_id VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 4. Payments Audit Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS payments (
+          id SERIAL PRIMARY KEY,
+          booking_id VARCHAR(255) NOT NULL,
+          razorpay_order_id VARCHAR(255),
+          razorpay_payment_id VARCHAR(255),
+          razorpay_signature TEXT,
+          amount INTEGER NOT NULL,
+          currency VARCHAR(10) DEFAULT 'INR',
+          payment_type VARCHAR(50) DEFAULT 'deposit',
+          status VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 5. Inquiries Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS inquiries (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          phone VARCHAR(50) NOT NULL,
+          category VARCHAR(100) DEFAULT 'General',
+          message TEXT NOT NULL,
+          status VARCHAR(50) DEFAULT 'unread',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 6. Pricing Tiers Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS pricing_tiers (
+          facility_id VARCHAR(255) PRIMARY KEY,
+          facility_name VARCHAR(255) NOT NULL,
+          day_rate INTEGER NOT NULL,
+          night_rate INTEGER NOT NULL,
+          weekend_surge INTEGER DEFAULT 15,
+          deposit_pct INTEGER DEFAULT 30,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 7. Arena Timings Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS timings (
+          id INTEGER PRIMARY KEY DEFAULT 1,
+          arena_open VARCHAR(50) DEFAULT '06:00 AM',
+          arena_close VARCHAR(50) DEFAULT '11:30 PM',
+          floodlight_start VARCHAR(50) DEFAULT '04:00 PM',
+          slot_interval_mins INTEGER DEFAULT 60,
+          notes TEXT,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Seed Default Admin
+      const adminRes = await pgPool.query('SELECT count(*) as count FROM admins');
+      if (parseInt(adminRes.rows[0].count, 10) === 0) {
+        const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+        const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Turfandtaste2026';
+        const passwordHash = bcrypt.hashSync(defaultPassword, 10);
+        await pgPool.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', [defaultUsername, passwordHash]);
+        console.log(`[Supabase DB] Default Admin Created -> Username: ${defaultUsername}`);
+      }
+
+      // Seed Facilities if empty
+      const facilityRes = await pgPool.query('SELECT count(*) as count FROM facilities');
+      if (parseInt(facilityRes.rows[0].count, 10) === 0) {
+        const seedFacilities = [
+          ['box-cricket', 'Box Cricket Arena', 'Cricket', 1200, 1500, 500],
+          ['pickleball', 'Pickleball Courts', 'Racket Sports', 600, 800, 300],
+          ['ball-machine', 'Ball-Shooting Machine Lane', 'Training', 500, 650, 250],
+          ['skating', 'Skating Rink', 'Wheels & Rollers', 400, 500, 200]
+        ];
+
+        for (const f of seedFacilities) {
+          await pgPool.query(
+            'INSERT INTO facilities (id, title, category, base_price_day, base_price_night, deposit_amount) VALUES ($1, $2, $3, $4, $5, $6)',
+            f
+          );
+        }
+      }
+
+      // Seed Pricing if empty
+      const pricingRes = await pgPool.query('SELECT count(*) as count FROM pricing_tiers');
+      if (parseInt(pricingRes.rows[0].count, 10) === 0) {
+        const seedPricing = [
+          ['box-cricket', 'Box Cricket Arena', 1200, 1500, 15, 35],
+          ['pickleball', 'Pickleball Courts', 600, 800, 15, 30],
+          ['ball-machine', 'Ball-Shooting Machine Lane', 500, 650, 10, 40],
+          ['skating', 'Skating Rink', 400, 500, 10, 30]
+        ];
+
+        for (const p of seedPricing) {
+          await pgPool.query(
+            'INSERT INTO pricing_tiers (facility_id, facility_name, day_rate, night_rate, weekend_surge, deposit_pct) VALUES ($1, $2, $3, $4, $5, $6)',
+            p
+          );
+        }
+      }
+
+      // Seed Timings if empty
+      const timingRes = await pgPool.query('SELECT count(*) as count FROM timings');
+      if (parseInt(timingRes.rows[0].count, 10) === 0) {
+        await pgPool.query(`
+          INSERT INTO timings (id, arena_open, arena_close, floodlight_start, slot_interval_mins, notes)
+          VALUES (1, '06:00 AM', '11:30 PM', '04:00 PM', 60, 'Regular operating schedule across all 7 open-air and indoor sports arenas in Patan, Gujarat.')
+          ON CONFLICT (id) DO NOTHING
+        `);
+      }
+
+      // Ensure clean bookings table for real-time live testing
+      await pgPool.query('TRUNCATE TABLE bookings CASCADE');
+      console.log('🧹 [Supabase DB] Cleaned bookings table for real-time live testing.');
+
+      console.log('✅ [Supabase Cloud DB] Tables & Schema successfully verified!');
+    } catch (err) {
+      console.error('❌ [Supabase Migration Error]:', err.message);
+    }
+  } else {
+    // SQLite Fallback setup
+    console.log('[SQLite DB] Initializing local tables...');
+    sqliteDb.exec(`
+      CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS facilities (id TEXT PRIMARY KEY, title TEXT NOT NULL, category TEXT, base_price_day INTEGER NOT NULL, base_price_night INTEGER NOT NULL, deposit_amount INTEGER NOT NULL, status TEXT DEFAULT 'active');
+      CREATE TABLE IF NOT EXISTS bookings (id TEXT PRIMARY KEY, facility_id TEXT NOT NULL, facility_name TEXT NOT NULL, date TEXT NOT NULL, time_slot TEXT NOT NULL, customer_name TEXT NOT NULL, customer_phone TEXT NOT NULL, customer_email TEXT, team_name TEXT, duration INTEGER DEFAULT 1, payment_type TEXT DEFAULT 'deposit', amount_paid TEXT NOT NULL, payment_status TEXT DEFAULT 'Paid', booking_status TEXT DEFAULT 'Confirmed', payment_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, booking_id TEXT NOT NULL, razorpay_order_id TEXT, razorpay_payment_id TEXT, razorpay_signature TEXT, amount INTEGER NOT NULL, currency TEXT DEFAULT 'INR', payment_type TEXT DEFAULT 'deposit', status TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS inquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, category TEXT DEFAULT 'General', message TEXT NOT NULL, status TEXT DEFAULT 'unread', created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS pricing_tiers (facility_id TEXT PRIMARY KEY, facility_name TEXT NOT NULL, day_rate INTEGER NOT NULL, night_rate INTEGER NOT NULL, weekend_surge INTEGER DEFAULT 15, deposit_pct INTEGER DEFAULT 30, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY DEFAULT 1, arena_open TEXT DEFAULT '06:00 AM', arena_close TEXT DEFAULT '11:30 PM', floodlight_start TEXT DEFAULT '04:00 PM', slot_interval_mins INTEGER DEFAULT 60, notes TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+    `);
+  }
+}
+
+// Universal Async Database Abstraction Layer
+export const dbAsync = {
+  isPostgres: () => isPostgres,
+
+  query: async (sql, params = []) => {
+    if (isPostgres) {
+      // Convert SQLite ? placeholders to Postgres $1, $2, $3...
+      let paramCount = 1;
+      const pgSql = sql.replace(/\?/g, () => `$${paramCount++}`);
+      const result = await pgPool.query(pgSql, params);
+      return result;
+    } else {
+      const stmt = sqliteDb.prepare(sql);
+      if (sql.trim().toUpperCase().startsWith('SELECT')) {
+        return { rows: stmt.all(...params) };
+      } else {
+        const info = stmt.run(...params);
+        return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+      }
+    }
+  },
+
+  get: async (sql, params = []) => {
+    const res = await dbAsync.query(sql, params);
+    return res.rows[0] || null;
+  },
+
+  all: async (sql, params = []) => {
+    const res = await dbAsync.query(sql, params);
+    return res.rows || [];
+  },
+
+  run: async (sql, params = []) => {
+    return await dbAsync.query(sql, params);
+  }
+};
+
+export default dbAsync;

@@ -80,10 +80,13 @@ export default function Admin() {
     loadData();
   }, []);
 
-  const loadData = () => {
-    setBookings(adminStore.getBookings());
-    setPricingList(adminStore.getPricing());
-    setTimings(adminStore.getTimings());
+  const loadData = async () => {
+    const fetchedBookings = await adminStore.fetchBookingsAsync();
+    const fetchedPricing = await adminStore.fetchPricingAsync();
+    const fetchedTimings = await adminStore.fetchTimingsAsync();
+    setBookings(fetchedBookings || []);
+    setPricingList(fetchedPricing || []);
+    setTimings(fetchedTimings || {});
   };
 
   const showToast = (msg, type = 'success') => {
@@ -92,44 +95,46 @@ export default function Admin() {
   };
 
   // Auth Handlers
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const correctPassword = adminStore.getAdminPassword();
-    if (passwordInput.trim() === correctPassword.trim()) {
+    const result = await adminStore.loginAdmin('admin', passwordInput.trim());
+    if (result.success) {
       setIsAuthenticated(true);
       sessionStorage.setItem('tt_admin_authenticated', 'true');
       setPasswordError('');
       setPasswordInput('');
       showToast('Welcome to Turf & Taste Management Portal!');
+      loadData();
     } else {
-      setPasswordError('Incorrect password. Please verify and try again.');
+      setPasswordError(result.error || 'Incorrect password. Please verify and try again.');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('tt_admin_authenticated');
+    sessionStorage.removeItem('tt_admin_jwt');
     showToast('Logged out of Admin Portal.', 'info');
   };
 
   // Status Change Handler
-  const handleStatusChange = (bookingId, newStatus) => {
-    const updated = adminStore.updateBookingStatus(bookingId, newStatus);
+  const handleStatusChange = async (bookingId, newStatus) => {
+    const updated = await adminStore.updateBookingStatus(bookingId, newStatus);
     setBookings(updated);
     showToast(`Booking ${bookingId} marked as "${newStatus}"`);
   };
 
   // Delete Booking
-  const handleDeleteBooking = (bookingId) => {
+  const handleDeleteBooking = async (bookingId) => {
     if (window.confirm(`Are you sure you want to remove booking record ${bookingId}?`)) {
-      const updated = adminStore.deleteBooking(bookingId);
+      const updated = await adminStore.deleteBooking(bookingId);
       setBookings(updated);
       showToast(`Booking ${bookingId} removed.`, 'info');
     }
   };
 
   // Walk-in submit
-  const handleCreateWalkIn = (e) => {
+  const handleCreateWalkIn = async (e) => {
     e.preventDefault();
     if (!walkIn.customerName || !walkIn.customerPhone) {
       alert('Please provide customer name and phone number.');
@@ -153,8 +158,8 @@ export default function Admin() {
       createdAt: new Date().toISOString()
     };
 
-    adminStore.saveBooking(newBooking);
-    loadData();
+    await adminStore.saveBooking(newBooking);
+    await loadData();
     setShowWalkInModal(false);
     setWalkIn({
       facilityId: 'box-cricket',
@@ -286,64 +291,59 @@ export default function Admin() {
           zIndex: 1
         }} />
 
-        <div className="container" style={{ position: 'relative', zIndex: 2, maxWidth: '460px', width: '100%', margin: '0 auto' }}>
+        <div className="container" style={{ position: 'relative', zIndex: 2, maxWidth: '440px', width: '100%', margin: '0 auto' }}>
           <div style={{
-            background: 'linear-gradient(165deg, rgba(22, 28, 22, 0.96) 0%, rgba(11, 15, 11, 0.98) 100%)',
-            border: '1px solid var(--border-strong)',
-            borderRadius: '20px',
-            padding: 'clamp(2rem, 5vw, 2.75rem) clamp(1.5rem, 4vw, 2.25rem)',
-            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(107, 143, 73, 0.15)',
-            backdropFilter: 'blur(16px)',
+            background: 'linear-gradient(165deg, rgba(22, 28, 22, 0.95) 0%, rgba(10, 14, 10, 0.98) 100%)',
+            border: '1px solid rgba(107, 143, 73, 0.35)',
+            borderRadius: '24px',
+            padding: '2.5rem 2rem',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(107, 143, 73, 0.18)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             textAlign: 'center'
           }}>
-            {/* Top Shield & Logo Badge */}
+            {/* Top Shield Icon */}
             <div style={{
-              width: '68px',
-              height: '68px',
-              borderRadius: '18px',
-              background: 'linear-gradient(135deg, rgba(107, 143, 73, 0.25), rgba(232, 103, 38, 0.12))',
-              border: '1px solid var(--brand-olive)',
+              width: '72px',
+              height: '72px',
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, rgba(107, 143, 73, 0.28), rgba(232, 103, 38, 0.15))',
+              border: '1.5px solid var(--brand-olive)',
               color: 'var(--brand-olive-bright)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 1.25rem',
-              boxShadow: '0 8px 24px rgba(107, 143, 73, 0.2)'
+              boxShadow: 'var(--glow-olive)'
             }}>
-              <Shield size={34} className="text-olive" />
+              <Shield size={36} className="text-olive" />
             </div>
 
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
-              <span className="badge badge-olive" style={{ fontSize: '0.75rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <span className="badge badge-olive" style={{ fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 Management Portal
               </span>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>• Patan HQ</span>
             </div>
 
-            <h1 style={{ fontSize: '1.9rem', marginBottom: '0.45rem', color: 'var(--brand-cream)' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '0.45rem', color: 'var(--brand-cream)', letterSpacing: '0.02em' }}>
               Arena <span className="text-olive">Control Panel</span>
             </h1>
 
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '1.75rem' }}>
-              Enter management password to configure operational timings, slot bookings, and pricing rates.
+              Enter management password to access bookings, slot schedules, and pricing rates.
             </p>
 
             <form onSubmit={handleLogin} style={{ textAlign: 'left' }}>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.4rem', 
-                  fontSize: '0.85rem', 
-                  fontWeight: 600, 
-                  color: 'var(--brand-cream)', 
-                  marginBottom: '0.5rem' 
-                }}>
-                  <KeyRound size={15} className="text-olive" />
-                  Management Password
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--brand-cream)' }}>
+                    <KeyRound size={16} className="text-olive" />
+                    Management Password
+                  </span>
                 </label>
 
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative', width: '100%' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter management password"
@@ -352,15 +352,13 @@ export default function Admin() {
                       setPasswordInput(e.target.value);
                       if (passwordError) setPasswordError('');
                     }}
-                    className="input-field"
+                    className={`form-input ${passwordError ? 'error' : ''}`}
                     style={{ 
-                      paddingRight: '2.75rem', 
-                      fontSize: '0.95rem', 
-                      height: '46px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--bg-surface-elevated)',
-                      border: passwordError ? '1px solid var(--brand-orange)' : '1px solid var(--border-subtle)',
-                      letterSpacing: showPassword ? 'normal' : '0.1em'
+                      paddingRight: '3.2rem', 
+                      height: '50px',
+                      fontSize: '1rem',
+                      color: 'var(--text-primary)',
+                      letterSpacing: showPassword ? 'normal' : '0.15em'
                     }}
                     autoFocus
                   />
@@ -369,37 +367,30 @@ export default function Admin() {
                     onClick={() => setShowPassword(!showPassword)}
                     style={{
                       position: 'absolute',
-                      right: '10px',
+                      right: '8px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      padding: '4px',
+                      background: 'var(--bg-surface-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '8px',
+                      width: '34px',
+                      height: '34px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      color: showPassword ? 'var(--brand-orange)' : 'var(--brand-olive-bright)',
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)'
                     }}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
 
                 {passwordError && (
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.4rem', 
-                    color: 'var(--brand-orange)', 
-                    fontSize: '0.82rem', 
-                    marginTop: '0.5rem',
-                    background: 'rgba(232, 103, 38, 0.1)',
-                    padding: '0.4rem 0.65rem',
-                    borderRadius: 'var(--radius-sm)'
-                  }}>
-                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                  <div className="form-error" style={{ marginTop: '0.5rem', background: 'rgba(255, 82, 82, 0.1)', padding: '0.45rem 0.75rem', borderRadius: 'var(--radius-md)' }}>
+                    <AlertCircle size={15} />
                     <span>{passwordError}</span>
                   </div>
                 )}
@@ -409,17 +400,18 @@ export default function Admin() {
                 type="submit" 
                 className="btn btn-primary btn-block btn-lg" 
                 style={{ 
-                  height: '46px', 
-                  fontSize: '0.96rem', 
-                  fontWeight: 600,
+                  height: '50px', 
+                  fontSize: '1rem', 
+                  fontWeight: 700,
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
-                  gap: '0.5rem',
-                  boxShadow: '0 4px 15px rgba(232, 103, 38, 0.3)'
+                  gap: '0.6rem',
+                  boxShadow: 'var(--glow-orange)',
+                  marginBottom: '1.5rem'
                 }}
               >
-                <Unlock size={17} /> Unlock Dashboard
+                <Unlock size={18} /> Unlock Control Panel
               </button>
             </form>
 
@@ -559,47 +551,45 @@ export default function Admin() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '1rem',
-                marginBottom: '1.5rem',
+                gap: '0.75rem',
+                marginBottom: '1.25rem',
                 background: 'var(--bg-surface)',
-                padding: '1.25rem',
-                borderRadius: 'var(--radius-md)',
+                padding: '0.85rem 1.1rem',
+                borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-subtle)'
               }}>
                 {/* Search & Filters */}
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flex: 1 }}>
-                  <div style={{ position: 'relative', minWidth: '220px', flex: 1 }}>
-                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+                  <div style={{ position: 'relative', width: '260px', maxWidth: '100%' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                     <input
                       type="text"
                       placeholder="Search player, phone, or TT-#..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="input-field"
-                      style={{ paddingLeft: '2.4rem', height: '42px', fontSize: '0.9rem' }}
+                      className="form-input"
+                      style={{ paddingLeft: '2.2rem', paddingRight: '0.6rem', height: '38px', fontSize: '0.84rem', background: 'var(--bg-surface-elevated)' }}
                     />
                   </div>
 
                   <select
                     value={facilityFilter}
                     onChange={(e) => setFacilityFilter(e.target.value)}
-                    className="input-field"
-                    style={{ minWidth: '160px', height: '42px', fontSize: '0.88rem' }}
+                    className="form-select"
+                    style={{ width: '150px', height: '38px', paddingLeft: '0.6rem', paddingRight: '1.2rem', fontSize: '0.84rem', background: 'var(--bg-surface-elevated)' }}
                   >
                     <option value="all">All Facilities</option>
                     <option value="box-cricket">Box Cricket</option>
                     <option value="pickleball">Pickleball</option>
                     <option value="skating">Skating Rink</option>
-                    <option value="cricket-nets">Practice Nets</option>
-                    <option value="ball-machine">Ball-Shooting Machine</option>
-                    <option value="cafe-combos">Café Combos</option>
+                    <option value="ball-machine">Ball Machine</option>
                   </select>
 
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="input-field"
-                    style={{ minWidth: '140px', height: '42px', fontSize: '0.88rem' }}
+                    className="form-select"
+                    style={{ width: '130px', height: '38px', paddingLeft: '0.6rem', paddingRight: '1.2rem', fontSize: '0.84rem', background: 'var(--bg-surface-elevated)' }}
                   >
                     <option value="all">All Statuses</option>
                     <option value="confirmed">Confirmed</option>
@@ -610,24 +600,24 @@ export default function Admin() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button onClick={handleExportCSV} className="btn btn-outline" style={{ height: '42px', fontSize: '0.88rem' }}>
-                    <Download size={16} /> Export CSV
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                  <button onClick={handleExportCSV} className="btn btn-outline btn-sm" style={{ height: '38px', fontSize: '0.84rem', padding: '0 0.85rem' }}>
+                    <Download size={14} /> Export CSV
                   </button>
-                  <button onClick={() => setShowWalkInModal(true)} className="btn btn-primary" style={{ height: '42px', fontSize: '0.88rem' }}>
-                    <Plus size={16} /> New Walk-In
+                  <button onClick={() => setShowWalkInModal(true)} className="btn btn-primary btn-sm" style={{ height: '38px', fontSize: '0.84rem', padding: '0 0.95rem' }}>
+                    <Plus size={14} /> New Walk-In
                   </button>
                 </div>
               </div>
 
               {/* Bookings Table */}
-              <div style={{
+              <div className="table-responsive" style={{
                 background: 'var(--bg-surface)',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-subtle)',
                 overflowX: 'auto'
               }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                <table className="admin-table" style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-surface-elevated)', borderBottom: '1px solid var(--border-strong)', color: 'var(--brand-cream-muted)' }}>
                       <th style={{ padding: '1rem' }}>Booking ID</th>
@@ -684,10 +674,10 @@ export default function Admin() {
                                 cursor: 'pointer'
                               }}
                             >
-                              <option value="Confirmed">Confirmed</option>
-                              <option value="Checked-in">Checked-in</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Cancelled">Cancelled</option>
+                              <option value="Confirmed" style={{ background: '#121812', color: 'var(--text-primary)' }}>Confirmed</option>
+                              <option value="Checked-in" style={{ background: '#121812', color: 'var(--text-primary)' }}>Checked-in</option>
+                              <option value="Completed" style={{ background: '#121812', color: 'var(--text-primary)' }}>Completed</option>
+                              <option value="Cancelled" style={{ background: '#121812', color: 'var(--text-primary)' }}>Cancelled</option>
                             </select>
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'right' }}>
@@ -731,82 +721,112 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-2" style={{ gap: '1.5rem' }}>
-                {pricingList.map((tier) => (
-                  <div key={tier.facilityId} className="card-arena" style={{ padding: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <h3 style={{ fontSize: '1.3rem' }}>{tier.facilityName}</h3>
-                      <span className="badge badge-olive" style={{ fontSize: '0.75rem' }}>{tier.facilityId}</span>
-                    </div>
+                {pricingList.map((tier) => {
+                  const cleanDayRate = String(tier.dayRate || '').replace(/^₹\s*/, '');
+                  const cleanNightRate = String(tier.nightRate || '').replace(/^₹\s*/, '');
+                  const cleanDeposit = String(tier.bookingDeposit || tier.depositPct || '').replace(/^₹\s*/, '');
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                      <div>
-                        <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
-                          Day Rate (per hour):
-                        </label>
-                        <input
-                          type="text"
-                          value={tier.dayRate}
-                          onChange={(e) => handlePriceFieldChange(tier.facilityId, 'dayRate', e.target.value)}
-                          className="input-field"
-                          placeholder="e.g. ₹800"
-                        />
+                  return (
+                    <div key={tier.facilityId} className="card-arena" style={{ padding: '1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <h3 style={{ fontSize: '1.3rem', margin: 0, color: 'var(--brand-cream)' }}>{tier.facilityName}</h3>
+                        <span className="badge badge-olive" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>{tier.facilityId}</span>
                       </div>
 
-                      <div>
-                        <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
-                          Night / Floodlight Rate:
-                        </label>
-                        <input
-                          type="text"
-                          value={tier.nightRate}
-                          onChange={(e) => handlePriceFieldChange(tier.facilityId, 'nightRate', e.target.value)}
-                          className="input-field"
-                          placeholder="e.g. ₹1200"
-                        />
-                      </div>
-                    </div>
+                      {/* Rates Section */}
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-cream-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                          Hourly Rates
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+                              Day Rate (per hour):
+                            </label>
+                            <div className="input-prefix-wrapper">
+                              <span className="input-prefix-badge">₹</span>
+                              <input
+                                type="text"
+                                value={cleanDayRate}
+                                onChange={(e) => handlePriceFieldChange(tier.facilityId, 'dayRate', e.target.value)}
+                                className="form-input"
+                                placeholder="800"
+                              />
+                            </div>
+                          </div>
 
-                    <div style={{ marginBottom: '1rem' }}>
-                      <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
-                        Token Booking Amount (Deposit):
-                      </label>
-                      <input
-                        type="text"
-                        value={tier.bookingDeposit}
-                        onChange={(e) => handlePriceFieldChange(tier.facilityId, 'bookingDeposit', e.target.value)}
-                        className="input-field"
-                        placeholder="e.g. ₹400"
-                      />
-                    </div>
+                          <div>
+                            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+                              Night / Floodlight Rate:
+                            </label>
+                            <div className="input-prefix-wrapper">
+                              <span className="input-prefix-badge">₹</span>
+                              <input
+                                type="text"
+                                value={cleanNightRate}
+                                onChange={(e) => handlePriceFieldChange(tier.facilityId, 'nightRate', e.target.value)}
+                                className="form-input"
+                                placeholder="1200"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>
-                          Day Hours Label:
+                      {/* Deposit Section */}
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+                          Token Booking Amount (Deposit):
                         </label>
-                        <input
-                          type="text"
-                          value={tier.dayHours}
-                          onChange={(e) => handlePriceFieldChange(tier.facilityId, 'dayHours', e.target.value)}
-                          className="input-field"
-                          style={{ fontSize: '0.85rem' }}
-                        />
+                        <div className="input-prefix-wrapper">
+                          <span className="input-prefix-badge">₹</span>
+                          <input
+                            type="text"
+                            value={cleanDeposit}
+                            onChange={(e) => handlePriceFieldChange(tier.facilityId, 'bookingDeposit', e.target.value)}
+                            className="form-input"
+                            placeholder="400"
+                          />
+                        </div>
                       </div>
+
+                      {/* Schedule Labels Section */}
                       <div>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>
-                          Night Hours Label:
-                        </label>
-                        <input
-                          type="text"
-                          value={tier.nightHours}
-                          onChange={(e) => handlePriceFieldChange(tier.facilityId, 'nightHours', e.target.value)}
-                          className="input-field"
-                          style={{ fontSize: '0.85rem' }}
-                        />
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-cream-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                          Schedule Window Labels
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>
+                              Day Hours Label:
+                            </label>
+                            <input
+                              type="text"
+                              value={tier.dayHours || ''}
+                              onChange={(e) => handlePriceFieldChange(tier.facilityId, 'dayHours', e.target.value)}
+                              className="form-input"
+                              style={{ fontSize: '0.85rem' }}
+                              placeholder="e.g. 6:00 AM – 4:00 PM"
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>
+                              Night Hours Label:
+                            </label>
+                            <input
+                              type="text"
+                              value={tier.nightHours || ''}
+                              onChange={(e) => handlePriceFieldChange(tier.facilityId, 'nightHours', e.target.value)}
+                              className="form-input"
+                              style={{ fontSize: '0.85rem' }}
+                              placeholder="e.g. 4:00 PM – 11:30 PM"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div style={{ textAlign: 'right', marginTop: '2rem' }}>
@@ -836,74 +856,74 @@ export default function Admin() {
                 <form onSubmit={handleSaveTimings}>
                   <div className="grid grid-2" style={{ gap: '1.25rem', marginBottom: '1.5rem' }}>
                     <div>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--brand-cream-muted)' }}>
                         Arena Gates Open Time:
                       </label>
                       <input
                         type="text"
-                        value={timings.arenaOpen}
+                        value={timings.arenaOpen || ''}
                         onChange={(e) => setTimings({ ...timings, arenaOpen: e.target.value })}
-                        className="input-field"
+                        className="form-input"
                         placeholder="e.g. 06:00 AM"
                       />
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>First bookable slot of the morning</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>First bookable slot of the morning</span>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--brand-cream-muted)' }}>
                         Arena Gates Close Time:
                       </label>
                       <input
                         type="text"
-                        value={timings.arenaClose}
+                        value={timings.arenaClose || ''}
                         onChange={(e) => setTimings({ ...timings, arenaClose: e.target.value })}
-                        className="input-field"
+                        className="form-input"
                         placeholder="e.g. 11:30 PM"
                       />
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Final slot conclude hour</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>Final slot conclude hour</span>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--brand-cream-muted)' }}>
                         Floodlight Peak Start:
                       </label>
                       <input
                         type="text"
-                        value={timings.floodlightStart}
+                        value={timings.floodlightStart || ''}
                         onChange={(e) => setTimings({ ...timings, floodlightStart: e.target.value })}
-                        className="input-field"
+                        className="form-input"
                         placeholder="e.g. 04:00 PM"
                       />
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>When evening floodlight rates take effect</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>When evening floodlight rates take effect</span>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--brand-cream-muted)' }}>
                         Slot Interval Duration (Minutes):
                       </label>
                       <select
-                        value={timings.slotIntervalMins}
+                        value={timings.slotIntervalMins || 60}
                         onChange={(e) => setTimings({ ...timings, slotIntervalMins: Number(e.target.value) })}
-                        className="input-field"
+                        className="form-select"
                       >
                         <option value={30}>30 Minutes</option>
                         <option value={60}>60 Minutes (Standard 1 Hour)</option>
                         <option value={90}>90 Minutes</option>
                         <option value={120}>120 Minutes (2 Hours)</option>
                       </select>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Default bookable block duration</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>Default bookable block duration</span>
                     </div>
                   </div>
 
                   <div style={{ marginBottom: '1.5rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--brand-cream-muted)' }}>
                       Operational Notice / Schedule Notes:
                     </label>
                     <textarea
                       rows={3}
-                      value={timings.notes}
+                      value={timings.notes || ''}
                       onChange={(e) => setTimings({ ...timings, notes: e.target.value })}
-                      className="input-field"
+                      className="form-textarea"
                       placeholder="Special announcements (e.g., Sunday morning tournament maintenance)..."
                     />
                   </div>
@@ -1015,7 +1035,7 @@ export default function Admin() {
 
             <form onSubmit={handleCreateWalkIn}>
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Sport / Court:</label>
+                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Sport / Court:</label>
                 <select
                   value={walkIn.facilityId}
                   onChange={(e) => {
@@ -1023,7 +1043,7 @@ export default function Admin() {
                     const name = sel === 'box-cricket' ? 'Box Cricket Arena' : sel === 'pickleball' ? 'Pickleball Courts' : sel === 'skating' ? 'Skating Rink' : sel === 'cricket-nets' ? 'Practice Nets' : 'Ball Machine';
                     setWalkIn({ ...walkIn, facilityId: sel, facilityName: name });
                   }}
-                  className="input-field"
+                  className="form-select"
                 >
                   <option value="box-cricket">Box Cricket Arena</option>
                   <option value="pickleball">Pickleball Courts</option>
@@ -1034,45 +1054,45 @@ export default function Admin() {
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Customer Name:</label>
+                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Customer Name:</label>
                 <input
                   type="text"
                   required
                   placeholder="Player full name"
                   value={walkIn.customerName}
                   onChange={(e) => setWalkIn({ ...walkIn, customerName: e.target.value })}
-                  className="input-field"
+                  className="form-input"
                 />
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Phone Number:</label>
+                <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Phone Number:</label>
                 <input
                   type="tel"
                   required
                   placeholder="+91 98XXX XXXXX"
                   value={walkIn.customerPhone}
                   onChange={(e) => setWalkIn({ ...walkIn, customerPhone: e.target.value })}
-                  className="input-field"
+                  className="form-input"
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Date:</label>
+                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Date:</label>
                   <input
                     type="date"
                     value={walkIn.date}
                     onChange={(e) => setWalkIn({ ...walkIn, date: e.target.value })}
-                    className="input-field"
+                    className="form-input"
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Slot Time:</label>
+                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Slot Time:</label>
                   <select
                     value={walkIn.time}
                     onChange={(e) => setWalkIn({ ...walkIn, time: e.target.value })}
-                    className="input-field"
+                    className="form-select"
                   >
                     <option value="06:00 AM – 07:00 AM">06:00 AM – 07:00 AM</option>
                     <option value="07:00 AM – 08:00 AM">07:00 AM – 08:00 AM</option>
@@ -1089,25 +1109,28 @@ export default function Admin() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Payment Status:</label>
+                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Payment Status:</label>
                   <select
                     value={walkIn.paymentType}
                     onChange={(e) => setWalkIn({ ...walkIn, paymentType: e.target.value })}
-                    className="input-field"
+                    className="form-select"
                   >
                     <option value="full">100% Full Paid</option>
                     <option value="deposit">Token Deposit Paid</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>Amount Collected (₹):</label>
-                  <input
-                    type="text"
-                    value={walkIn.amount}
-                    onChange={(e) => setWalkIn({ ...walkIn, amount: e.target.value })}
-                    className="input-field"
-                    placeholder="e.g. ₹1200"
-                  />
+                  <label style={{ fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem', color: 'var(--brand-cream-muted)' }}>Amount Collected:</label>
+                  <div className="input-prefix-wrapper">
+                    <span className="input-prefix-badge">₹</span>
+                    <input
+                      type="text"
+                      value={String(walkIn.amount || '').replace(/^₹\s*/, '')}
+                      onChange={(e) => setWalkIn({ ...walkIn, amount: e.target.value })}
+                      className="form-input"
+                      placeholder="1200"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -58,12 +58,20 @@ export default function FacilityDetail({ slug }) {
 
               {/* CTAs */}
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-lg">
-                  <Calendar size={18} /> Book This Facility
-                </Link>
-                <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-outline btn-lg">
-                  Inquire for Events
-                </Link>
+                {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+                  <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-primary btn-lg">
+                    Inquire / View Menu
+                  </Link>
+                ) : (
+                  <>
+                    <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-lg">
+                      <Calendar size={18} /> Book This Facility
+                    </Link>
+                    <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-outline btn-lg">
+                      Inquire for Events
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 
@@ -165,9 +173,15 @@ export default function FacilityDetail({ slug }) {
                   </p>
                 </div>
 
-                <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
-                  <Calendar size={18} /> Reserve This Slot Now
-                </Link>
+                {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+                  <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
+                    Send Dining / Event Inquiry
+                  </Link>
+                ) : (
+                  <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
+                    <Calendar size={18} /> Reserve This Slot Now
+                  </Link>
+                )}
                 <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
                   {facility.pricing.note}
                 </p>
