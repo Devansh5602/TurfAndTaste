@@ -1,5 +1,4 @@
 import pg from 'pg';
-import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
@@ -33,8 +32,13 @@ if (databaseUrl && databaseUrl.startsWith('postgres')) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   const dbPath = path.join(dataDir, 'turf_and_taste.db');
-  sqliteDb = new Database(dbPath);
-  sqliteDb.pragma('journal_mode = WAL');
+  try {
+    const { default: Database } = await import('better-sqlite3');
+    sqliteDb = new Database(dbPath);
+    sqliteDb.pragma('journal_mode = WAL');
+  } catch (e) {
+    console.warn('[Database] SQLite not available in this environment:', e.message);
+  }
 }
 
 export async function initDatabase() {
