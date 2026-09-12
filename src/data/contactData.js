@@ -17,10 +17,10 @@ export const contactData = {
     practiceNets: '6:00 AM – 11:00 PM (Daily)'
   },
   socials: [
-    { platform: 'Instagram', handle: '@turfandtaste.official', url: 'https://instagram.com' },
+    { platform: 'Instagram', handle: '@turfandtaste.official', url: 'https://instagram.com/turfandtaste.official' },
     { platform: 'WhatsApp', handle: 'Chat with Us', url: 'https://wa.me/919876543210' },
-    { platform: 'Facebook', handle: 'Turf & Taste Sports', url: 'https://facebook.com' },
-    { platform: 'YouTube', handle: 'Turf & Taste Arena', url: 'https://youtube.com' }
+    { platform: 'Facebook', handle: 'Turf & Taste Sports', url: 'https://facebook.com/turfandtaste' },
+    { platform: 'YouTube', handle: 'Turf & Taste Arena', url: 'https://youtube.com/@turfandtaste' }
   ],
   amenitiesList: [
     'Ample 4-Wheeler & 2-Wheeler Parking',

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useRouter } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
+import { adminStore } from '../services/adminStore';
 import CourtBackground from '../components/CourtBackground';
 import FacilityCard from '../components/FacilityCard';
 import { 
@@ -13,7 +14,9 @@ import {
   Sparkles, 
   Clock, 
   Info,
-  ArrowRight
+  ArrowRight,
+  Utensils,
+  Coffee
 } from 'lucide-react';
 
 export default function FacilityDetail({ slug }) {
@@ -23,6 +26,25 @@ export default function FacilityDetail({ slug }) {
   const relatedFacilities = facilitiesData
     .filter(f => f.slug !== facility.slug)
     .slice(0, 3);
+
+  const [livePricing, setLivePricing] = useState(() => adminStore.getFacilityPricing(slug || facility.slug));
+
+  useEffect(() => {
+    adminStore.fetchPricingAsync().then(() => {
+      setLivePricing(adminStore.getFacilityPricing(slug || facility.slug));
+    });
+
+    const handleUpdate = () => {
+      setLivePricing(adminStore.getFacilityPricing(slug || facility.slug));
+    };
+
+    window.addEventListener('tt_pricing_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('tt_pricing_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [slug, facility.slug]);
 
   return (
     <div className="page-facility-detail">
@@ -59,9 +81,14 @@ export default function FacilityDetail({ slug }) {
               {/* CTAs */}
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                 {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
-                  <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-primary btn-lg">
-                    Inquire / View Menu
-                  </Link>
+                  <>
+                    <Link to="/facilities" className="btn btn-primary btn-lg">
+                      Explore Sports Arenas
+                    </Link>
+                    <Link to="/contact" className="btn btn-outline btn-lg">
+                      Location &amp; Opening Hours
+                    </Link>
+                  </>
                 ) : (
                   <>
                     <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-lg">
@@ -132,60 +159,126 @@ export default function FacilityDetail({ slug }) {
               </ul>
             </div>
 
-            {/* Right Column: Pricing & Booking Architecture */}
+            {/* Right Column: Pricing & Booking Architecture for Sports vs Walk-In Experience for Dining */}
             <div>
-              <h3 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-                Pricing &amp; <span className="text-olive">Reservation Model</span>
-              </h3>
+              {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+                <>
+                  <h3 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                    Walk-In <span className="text-olive">Dining &amp; Counter Orders</span>
+                  </h3>
 
-              <div className="card-arena highlight" style={{ marginBottom: '2rem' }}>
-                <span className="badge badge-orange" style={{ marginBottom: '0.85rem' }}>
-                  Editable Phase 1 Rate Structure
-                </span>
+                  <div className="card-arena highlight" style={{ marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <span className="badge badge-olive">
+                        Walk-In Experience
+                      </span>
+                      <span className="badge badge-orange">
+                        No Booking Required
+                      </span>
+                    </div>
 
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Standard Session:</span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', color: 'var(--brand-cream)', lineHeight: 1 }}>
-                    {facility.pricing.standardRate}
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Operating Hours:</span>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)', lineHeight: 1.2, marginTop: '0.25rem' }}>
+                        7:00 AM – 11:30 PM <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Daily</span>
+                      </div>
+                    </div>
+
+                    <div style={{ 
+                      background: 'var(--bg-surface)', 
+                      padding: '1.25rem', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid var(--border-subtle)',
+                      marginBottom: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <Utensils size={18} className="text-olive" />
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--brand-cream)' }}>Artisan Food &amp; Recovery Smoothies</strong>
+                      </div>
+                      <p style={{ fontSize: '0.88rem', lineHeight: '1.55', color: 'var(--text-secondary)', margin: 0 }}>
+                        Enjoy fresh chef-prepared bowls, wood-fired pizzas, healthy wraps, and cold-pressed juices directly from our counter.
+                      </p>
+                      <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--brand-cream-muted)' }}>
+                        <Coffee size={15} className="text-orange" />
+                        <span>Open-Air Turf Deck &amp; Indoor AC Lounge Seating</span>
+                      </div>
+                    </div>
+
+                    <div style={{ 
+                      background: 'rgba(107, 143, 73, 0.08)', 
+                      padding: '1rem', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid rgba(107, 143, 73, 0.25)',
+                      marginBottom: '1.5rem',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.6rem'
+                    }}>
+                      <Info size={18} className="text-olive" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
+                        <strong style={{ color: 'var(--brand-cream)', display: 'block', marginBottom: '0.2rem' }}>Walk-in Service Model</strong>
+                        Turf &amp; Taste Café operates on a walk-in counter ordering model for all players and visitors. No advance reservation or private event packages are required.
+                      </div>
+                    </div>
+
+                    <Link to="/facilities" className="btn btn-outline btn-block btn-lg">
+                      Explore Sports Arenas &amp; Rates
+                    </Link>
                   </div>
-                </div>
+                </>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                    Pricing &amp; <span className="text-olive">Reservation Model</span>
+                  </h3>
 
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Floodlit / Prime Slot:</span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-olive-bright)', lineHeight: 1 }}>
-                    {facility.pricing.peakRate}
+                  <div className="card-arena highlight" style={{ marginBottom: '2rem' }}>
+                    <span className="badge badge-orange" style={{ marginBottom: '0.85rem' }}>
+                      Editable Phase 1 Rate Structure
+                    </span>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Standard Session ({livePricing.dayHours}):</span>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', color: 'var(--brand-cream)', lineHeight: 1 }}>
+                        {livePricing.dayRate} <span style={{ fontSize: '1rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hour</span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Floodlit / Prime Slot ({livePricing.nightHours}):</span>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--brand-olive-bright)', lineHeight: 1 }}>
+                        {livePricing.nightRate} <span style={{ fontSize: '1rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hour</span>
+                      </div>
+                    </div>
+
+                    <div style={{ 
+                      background: 'var(--bg-surface)', 
+                      padding: '1rem', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid var(--border-subtle)',
+                      marginBottom: '1.5rem' 
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                        <Info size={16} className="text-orange" />
+                        <strong style={{ fontSize: '0.9rem', color: 'var(--brand-cream)' }}>Flexible Payment Options</strong>
+                      </div>
+                      <p style={{ fontSize: '0.86rem', lineHeight: '1.5' }}>
+                        Reserve your preferred slot with a token booking deposit of <strong style={{ color: 'var(--brand-orange)' }}>{livePricing.bookingDeposit}</strong>, or pay in full for express game-day entry.
+                      </p>
+                    </div>
+
+                    <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
+                      <Calendar size={18} /> Reserve This Slot Now
+                    </Link>
+                    <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
+                      {facility.pricing.note}
+                    </p>
                   </div>
-                </div>
-
-                <div style={{ 
-                  background: 'var(--bg-surface)', 
-                  padding: '1rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-subtle)',
-                  marginBottom: '1.5rem' 
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                    <Info size={16} className="text-orange" />
-                    <strong style={{ fontSize: '0.9rem', color: 'var(--brand-cream)' }}>Flexible Payment Options</strong>
-                  </div>
-                  <p style={{ fontSize: '0.86rem', lineHeight: '1.5' }}>
-                    Reserve your slot with <strong>{facility.pricing.bookingAmount}</strong>, or choose <strong>{facility.pricing.fullPayment}</strong> for zero check-in delays.
-                  </p>
-                </div>
-
-                {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
-                  <Link to={`/inquiry?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
-                    Send Dining / Event Inquiry
-                  </Link>
-                ) : (
-                  <Link to={`/booking?facility=${facility.slug}`} className="btn btn-primary btn-block btn-lg">
-                    <Calendar size={18} /> Reserve This Slot Now
-                  </Link>
-                )}
-                <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
-                  {facility.pricing.note}
-                </p>
-              </div>
+                </>
+              )}
 
               {/* Rules & Etiquette */}
               <div className="card-arena">

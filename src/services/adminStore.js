@@ -17,10 +17,10 @@ const INITIAL_BOOKINGS = [];
 
 const DEFAULT_TIMINGS = {
   arenaOpen: '06:00 AM',
-  arenaClose: '11:30 PM',
-  floodlightStart: '04:00 PM',
+  arenaClose: '06:00 AM',
+  floodlightStart: '06:00 PM',
   slotIntervalMins: 60,
-  notes: 'Regular operating schedule across all 7 open-air and indoor sports arenas in Patan, Gujarat.',
+  notes: '24-Hour continuous sports operations: Day Sessions 6:00 AM – 6:00 PM, Night Floodlit Sessions 6:00 PM – 6:00 AM.',
   blockedSlots: []
 };
 
@@ -126,13 +126,29 @@ export const adminStore = {
     return updated;
   },
 
+  // Parse numeric amount safely from formatted string (e.g. "₹1200" -> 1200)
+  parsePrice: (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[^0-9]/g, '');
+    return parseInt(cleaned, 10) || 0;
+  },
+
   // Pricing
   fetchPricingAsync: async () => {
     try {
       const res = await api.getPricing();
       if (res.success && res.pricing && res.pricing.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(res.pricing));
-        return res.pricing;
+        // Merge API pricing with default rich properties so nothing is lost
+        const merged = defaultPricing.map(def => {
+          const apiMatch = res.pricing.find(p => p.facilityId === def.facilityId);
+          return apiMatch ? { ...def, ...apiMatch } : def;
+        });
+        localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(merged));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tt_pricing_updated', { detail: merged }));
+        }
+        return merged;
       }
     } catch (e) {
       console.warn('Backend API offline, loading local pricing:', e);
@@ -143,20 +159,72 @@ export const adminStore = {
   getPricing: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.PRICING);
-      return stored ? JSON.parse(stored) : defaultPricing;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge to guarantee all facilities exist and sanitize legacy timings
+          return defaultPricing.map(def => {
+            const found = parsed.find(p => p.facilityId === def.facilityId);
+            if (!found) return def;
+            const dayHours = (found.dayHours && !found.dayHours.includes('4:00 PM')) ? found.dayHours : def.dayHours;
+            const nightHours = (found.nightHours && !found.nightHours.includes('11:30 PM')) ? found.nightHours : def.nightHours;
+            return { ...def, ...found, dayHours, nightHours };
+          });
+        }
+      }
+      return defaultPricing;
     } catch {
       return defaultPricing;
     }
   },
 
+  getFacilityPricing: (facilityId) => {
+    const list = adminStore.getPricing();
+    const cleanId = String(facilityId || '').toLowerCase().trim();
+    const item = list.find(p => p.facilityId === cleanId) || 
+                 list.find(p => p.facilityId.includes(cleanId) || cleanId.includes(p.facilityId)) || {};
+    
+    const dayNum = adminStore.parsePrice(item.dayRate) || 800;
+    const nightNum = adminStore.parsePrice(item.nightRate) || 1200;
+    const depositNum = adminStore.parsePrice(item.bookingDeposit) || 400;
+
+    return {
+      facilityId: item.facilityId || cleanId,
+      facilityName: item.facilityName || 'Arena Facility',
+      dayRate: `₹${dayNum}`,
+      nightRate: `₹${nightNum}`,
+      bookingDeposit: `₹${depositNum}`,
+      dayHours: (item.dayHours && !item.dayHours.includes('4:00 PM')) ? item.dayHours : '6:00 AM – 6:00 PM',
+      nightHours: (item.nightHours && !item.nightHours.includes('11:30 PM')) ? item.nightHours : '6:00 PM – 6:00 AM (Floodlights)',
+      hourlyRateDayNum: dayNum,
+      hourlyRateNightNum: nightNum,
+      depositNum: depositNum
+    };
+  },
+
   savePricing: async (pricingArray) => {
+    const normalized = pricingArray.map(item => {
+      const dayNum = adminStore.parsePrice(item.dayRate) || 800;
+      const nightNum = adminStore.parsePrice(item.nightRate) || 1200;
+      const depositNum = adminStore.parsePrice(item.bookingDeposit) || 400;
+      return {
+        ...item,
+        dayRate: `₹${dayNum}`,
+        nightRate: `₹${nightNum}`,
+        bookingDeposit: `₹${depositNum}`
+      };
+    });
+
+    localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(normalized));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tt_pricing_updated', { detail: normalized }));
+    }
     try {
-      await api.savePricing(pricingArray);
+      await api.savePricing(normalized);
     } catch (e) {
       console.warn('Could not sync pricing to API:', e);
     }
-    localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(pricingArray));
-    return pricingArray;
+    return normalized;
   },
 
   // Timings
@@ -176,7 +244,14 @@ export const adminStore = {
   getTimings: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.TIMINGS);
-      return stored ? JSON.parse(stored) : DEFAULT_TIMINGS;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.floodlightStart === '04:00 PM' || parsed.arenaClose === '11:30 PM') {
+          return DEFAULT_TIMINGS;
+        }
+        return parsed;
+      }
+      return DEFAULT_TIMINGS;
     } catch {
       return DEFAULT_TIMINGS;
     }
@@ -189,6 +264,9 @@ export const adminStore = {
       console.warn('Could not sync timings to API:', e);
     }
     localStorage.setItem(STORAGE_KEYS.TIMINGS, JSON.stringify(timingsObj));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tt_timings_updated', { detail: timingsObj }));
+    }
     return timingsObj;
   },
 

@@ -30,10 +30,10 @@ export const facilitiesData = [
       'Weekend birthday match celebrations'
     ],
     pricing: {
-      standardRate: '₹___ / hour (Day Hours 6:00 AM - 4:00 PM)',
-      peakRate: '₹___ / hour (Floodlight Prime Hours 4:00 PM - 11:30 PM)',
-      bookingAmount: '₹___ booking amount to reserve slot',
-      fullPayment: '₹___ full payment upon checkout',
+      standardRate: '₹600 / hour (Day Hours 6:00 AM - 6:00 PM)',
+      peakRate: '₹800 / hour (Floodlight Prime Hours 6:00 PM - 6:00 AM)',
+      bookingAmount: '₹200 booking amount to reserve slot',
+      fullPayment: '₹600 - ₹800 full payment upon checkout',
       note: 'Advance slot reservation recommended during Friday to Sunday evenings.'
     },
     rules: [
@@ -74,11 +74,11 @@ export const facilitiesData = [
       'Cardio fitness workouts'
     ],
     pricing: {
-      standardRate: '₹___ / hour (Includes basic skate rental)',
-      peakRate: '₹___ / hour (Weekend prime batches)',
-      bookingAmount: '₹___ booking deposit',
-      fullPayment: '₹___ full session payment',
-      note: 'Monthly coaching subscriptions will be available upon launch.'
+      standardRate: '₹400 / hour (Includes basic skate rental)',
+      peakRate: '₹500 / hour (Weekend prime batches)',
+      bookingAmount: '₹400 booking deposit',
+      fullPayment: '₹400 - ₹500 full session payment',
+      note: 'Protective gear package is included with each ticketed session.'
     },
     rules: [
       'Helmets and protective knee/elbow guards mandatory for all skaters below 16 years.',
@@ -118,10 +118,10 @@ export const facilitiesData = [
       'Corporate wellness tournaments'
     ],
     pricing: {
-      standardRate: '₹___ / hour per court',
-      peakRate: '₹___ / hour (Sunset & night floodlight slots)',
-      bookingAmount: '₹___ advance booking deposit',
-      fullPayment: '₹___ full court payment',
+      standardRate: '₹200 / hour per court',
+      peakRate: '₹350 / hour (Sunset & night floodlight slots)',
+      bookingAmount: '₹100 advance booking deposit',
+      fullPayment: '₹200 - ₹350 full court payment',
       note: 'Paddles and balls can be rented or brought personally.'
     },
     rules: [
@@ -162,10 +162,10 @@ export const facilitiesData = [
       'Pre-tournament warm-up drills'
     ],
     pricing: {
-      standardRate: '₹___ / hour per lane',
-      peakRate: '₹___ / hour (Evening prime practice)',
-      bookingAmount: '₹___ booking amount',
-      fullPayment: '₹___ full session payment',
+      standardRate: '₹500 / hour per lane',
+      peakRate: '₹650 / hour (Evening prime practice)',
+      bookingAmount: '₹250 booking amount',
+      fullPayment: '₹500 - ₹650 full session payment',
       note: 'Combo lane + ball machine bookings available at discounted rates.'
     },
     rules: [
@@ -204,10 +204,10 @@ export const facilitiesData = [
       'Solo batting training without needing a bowling partner'
     ],
     pricing: {
-      standardRate: '₹___ / hour (Includes operator & 100+ deliveries)',
-      peakRate: '₹___ / hour (Prime hours)',
-      bookingAmount: '₹___ booking deposit',
-      fullPayment: '₹___ full session payment',
+      standardRate: '₹500 / hour (Includes operator & 100+ deliveries)',
+      peakRate: '₹650 / hour (Prime hours)',
+      bookingAmount: '₹400 booking deposit',
+      fullPayment: '₹500 - ₹650 full session payment',
       note: 'Custom coaching programs can be requested via our Inquiry page.'
     },
     rules: [
@@ -240,16 +240,14 @@ export const facilitiesData = [
       'Family-friendly gourmet meals prepared in a spotless FSSAI-compliant kitchen'
     ],
     suitableFor: [
-      'Post-game team meals and celebrations',
+      'Post-game team meals and casual dining',
       'Casual work sessions with high-speed Wi-Fi',
-      'Family weekend brunches and dinners',
-      'Live sports match viewing parties with friends'
+      'Family weekend outings and dinners',
+      'Live sports match viewing with friends'
     ],
     pricing: {
-      standardRate: 'A la carte menu (₹___ to ₹___ per item)',
-      packages: 'Party & group meal combos starting at ₹___ / person',
-      bookingAmount: 'Free entry; table reservation deposit of ₹___ for groups of 8+',
-      note: 'Catering and dedicated party deck bookings can be requested on the Inquiry page.'
+      standardRate: 'A la carte dining & fresh beverages',
+      note: 'Walk-in dining only — open-air terrace & AC lounge. No advance booking or reservation required.'
     },
     rules: [
       'Outside food and external beverage delivery strictly not permitted.',
@@ -287,8 +285,10 @@ export const facilitiesData = [
       'Fast bites between practice net intervals'
     ],
     pricing: {
-      standardRate: 'Items starting from ₹___ to ₹___',
-      combos: 'Player hydration combo (Drink + Snack) at ₹___',
+      standardRate: 'Items starting from ₹40 to ₹250',
+      combos: 'Player hydration combo (Drink + Snack) at ₹99',
+      bookingAmount: 'Pay as you order at counter or QR menu',
+      fullPayment: 'UPI, Cash & Cards accepted',
       note: 'Direct counter service — no advance reservation needed.'
     },
     rules: [

@@ -111,9 +111,9 @@ export default function Footer() {
           </div>
           <div className="footer-legal">
             {footerLinks.legal.map((item) => (
-              <a key={item.label} href={item.path} className="footer-legal-link">
+              <Link key={item.label} to={item.path} className="footer-legal-link">
                 {item.label}
-              </a>
+              </Link>
             ))}
             <Link to="/admin" className="footer-legal-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.8, color: 'var(--brand-cream)' }}>
               <Lock size={12} /> Staff Portal

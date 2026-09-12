@@ -6,29 +6,185 @@
 import { api } from './api';
 import { adminStore } from './adminStore';
 
-export const generateTimeSlots = (facilityId, selectedDate) => {
-  const slots = [
-    { time: '06:00 AM – 07:00 AM', category: 'Morning Early', price: '₹___', status: 'available', peak: false },
-    { time: '07:00 AM – 08:00 AM', category: 'Morning Early', price: '₹___', status: 'available', peak: false },
-    { time: '08:00 AM – 09:00 AM', category: 'Morning Prime', price: '₹___', status: 'fast-filling', peak: false },
-    { time: '09:00 AM – 10:00 AM', category: 'Morning', price: '₹___', status: 'available', peak: false },
-    { time: '10:00 AM – 11:00 AM', category: 'Morning', price: '₹___', status: 'available', peak: false },
-    { time: '11:00 AM – 12:00 PM', category: 'Afternoon', price: '₹___', status: 'available', peak: false },
-    { time: '02:00 PM – 03:00 PM', category: 'Afternoon', price: '₹___', status: 'available', peak: false },
-    { time: '03:00 PM – 04:00 PM', category: 'Afternoon', price: '₹___', status: 'available', peak: false },
-    { time: '04:00 PM – 05:00 PM', category: 'Evening Floodlit', price: '₹___', status: 'fast-filling', peak: true },
-    { time: '05:00 PM – 06:00 PM', category: 'Evening Floodlit', price: '₹___', status: 'booked', peak: true },
-    { time: '06:00 PM – 07:00 PM', category: 'Prime Floodlit', price: '₹___', status: 'booked', peak: true },
-    { time: '07:00 PM – 08:00 PM', category: 'Prime Floodlit', price: '₹___', status: 'booked', peak: true },
-    { time: '08:00 PM – 09:00 PM', category: 'Prime Floodlit', price: '₹___', status: 'fast-filling', peak: true },
-    { time: '09:00 PM – 10:00 PM', category: 'Night Floodlit', price: '₹___', status: 'available', peak: true },
-    { time: '10:00 PM – 11:00 PM', category: 'Night Floodlit', price: '₹___', status: 'available', peak: true }
-  ];
-
-  return slots;
+// Helper to convert time strings ("06:00 AM", "4:00 PM", "11:30 PM") to minutes from midnight
+export const parseTimeToMinutes = (timeStr, fallback = 360) => {
+  if (!timeStr) return fallback;
+  const cleaned = String(timeStr).trim();
+  const match = cleaned.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return fallback;
+  let [_, h, m, period] = match;
+  let hours = parseInt(h, 10);
+  const minutes = parseInt(m, 10);
+  if (period.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
 };
 
-export const fetchRealTimeSlots = async (facilityId, selectedDate) => {
+// Helper to format minutes from midnight to 12-hour format ("06:00 AM", "09:00 PM")
+export const formatMinutesToTime = (totalMinutes) => {
+  let hours = Math.floor(totalMinutes / 60) % 24;
+  const minutes = totalMinutes % 60;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  let displayHours = hours % 12;
+  if (displayHours === 0) displayHours = 12;
+  const hh = String(displayHours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  return `${hh}:${mm} ${period}`;
+};
+
+export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
+  const pricing = adminStore.getFacilityPricing(facilityId);
+  const globalTimings = adminStore.getTimings();
+
+  const dayRateNum = pricing.hourlyRateDayNum || 600;
+  const nightRateNum = pricing.hourlyRateNightNum || 800;
+
+  // Extract facility-specific assigned timing boundaries
+  const daySchedule = pricing.dayHours || '6:00 AM – 6:00 PM';
+  const nightSchedule = pricing.nightHours || '6:00 PM – 6:00 AM (Floodlights)';
+
+  // Helper to safely split time ranges by hyphen, en-dash, or em-dash
+  const splitRange = (str) => (str || '').split(/[–—-]/).map(s => s.trim());
+  const dayParts = splitRange(daySchedule);
+  const nightParts = splitRange(nightSchedule);
+
+  // Facility opening time (e.g., 6:00 AM)
+  const openTimeMins = parseTimeToMinutes(dayParts[0], parseTimeToMinutes(globalTimings.arenaOpen, 360));
+
+  // Determine transition between Day and Night/Floodlight:
+  // First priority: read dayParts[1] (e.g. 6:00 PM in "6:00 AM – 6:00 PM")
+  // Second priority: read nightParts[0] (e.g. 6:00 PM in "6:00 PM – 6:00 AM")
+  // Fallback: globalTimings.floodlightStart (default 4:00 PM = 960)
+  let dayEndMins = parseTimeToMinutes(dayParts[1], null);
+  let nightStartMins = parseTimeToMinutes(nightParts[0], null);
+
+  if (dayEndMins === null && nightStartMins === null) {
+    const globalFlood = parseTimeToMinutes(globalTimings.floodlightStart, 960);
+    dayEndMins = globalFlood;
+    nightStartMins = globalFlood;
+  } else if (dayEndMins === null) {
+    dayEndMins = nightStartMins;
+  } else if (nightStartMins === null) {
+    nightStartMins = dayEndMins;
+  }
+
+  // Determine Night End / Facility Close:
+  // Read nightParts[1] (e.g. "6:00 AM (Floodlights)" or "11:30 PM")
+  const rawNightEnd = parseTimeToMinutes(nightParts[1], parseTimeToMinutes(globalTimings.arenaClose, 1410));
+  let nightEndMins = rawNightEnd;
+
+  // If night close time is numerically <= night start (e.g. 6:00 AM <= 6:00 PM),
+  // it means the venue operates overnight / 24 hours into the next morning (+1440 mins)!
+  if (nightEndMins <= nightStartMins) {
+    nightEndMins += 1440;
+  }
+
+  const durationHours = Math.max(1, Math.min(6, Number(duration) || 1));
+  const durationMins = durationHours * 60;
+
+  // Existing reservations for this facility and date
+  const existingBookings = (adminStore.getBookings() || []).filter(b => {
+    const matchFac = b.facilityId === facilityId || (b.facilitySlug && b.facilitySlug === facilityId);
+    const matchDate = b.date === selectedDate;
+    const notCancelled = b.status !== 'Cancelled';
+    return matchFac && matchDate && notCancelled;
+  });
+
+  // Helper to test if a candidate interval overlaps with any existing booking
+  const checkIsBooked = (startM, endM) => {
+    return existingBookings.some(b => {
+      const bTime = b.time || '';
+      const parts = splitRange(bTime);
+      if (parts.length >= 2) {
+        let bStart = parseTimeToMinutes(parts[0]);
+        let bEnd = parseTimeToMinutes(parts[1]);
+        if (bEnd <= bStart) bEnd += 1440;
+        const overlapSameDay = startM < bEnd && endM > bStart;
+        const overlapNextDay = (startM >= 1440) && ((startM - 1440) < bEnd && (endM - 1440) > bStart);
+        return overlapSameDay || overlapNextDay;
+      }
+      return false;
+    });
+  };
+
+  // Build candidate slot start times using an hourly base structure strictly aligned with assigned timings
+  const startTimes = [];
+
+  // 1. DAY SESSIONS: Hourly intervals from openTimeMins up to dayEndMins
+  // Each slot finishes within the assigned day hours (e.g. 6:00 AM - 6:00 PM)
+  for (let t = openTimeMins; t + durationMins <= dayEndMins; t += 60) {
+    startTimes.push(t);
+  }
+
+  // 2. NIGHT / FLOODLIGHT SESSIONS: Hourly intervals starting at nightStartMins up to nightEndMins (supports overnight / 24hr!)
+  for (let t = nightStartMins; t + durationMins <= nightEndMins; t += 60) {
+    if (!startTimes.includes(t)) {
+      startTimes.push(t);
+    }
+  }
+
+  // 3. Final Closing Session: If arena closes on a half-hour (e.g., 11:30 PM or 10:30 PM),
+  // include the session ending right at closing time so the entire operational window is usable
+  const finalStart = nightEndMins - durationMins;
+  if (finalStart >= nightStartMins && !startTimes.includes(finalStart)) {
+    startTimes.push(finalStart);
+  }
+
+  // Sort start times chronologically
+  startTimes.sort((a, b) => a - b);
+
+  // Generate slot objects
+  return startTimes.map((startM) => {
+    const endM = startM + durationMins;
+    const timeLabel = `${formatMinutesToTime(startM)} – ${formatMinutesToTime(endM)}`;
+    
+    // Determine whether this slot is floodlit / night
+    const isPeak = startM >= nightStartMins;
+    const ratePerHour = isPeak ? nightRateNum : dayRateNum;
+    const totalSlotPrice = ratePerHour * durationHours;
+
+    // Categorization
+    let category = 'Day Session';
+    if (!isPeak) {
+      if (startM < 540) { // before 9:00 AM
+        category = 'Morning Early';
+      } else if (startM < 720) { // 9 AM to 12 PM
+        category = 'Morning Prime';
+      } else {
+        category = 'Afternoon Match';
+      }
+    } else {
+      if (startM >= 1440) { // 12:00 AM to 6:00 AM next day
+        category = 'Overnight Floodlit';
+      } else if (startM >= 1260) { // 9:00 PM to 12:00 AM
+        category = 'Late Night Floodlit';
+      } else { // 6:00 PM to 9:00 PM
+        category = 'Prime Floodlit';
+      }
+    }
+
+    const isBooked = checkIsBooked(startM, endM);
+    // Dynamic status indicator: fast-filling for prime evening slots (6 PM to 9 PM)
+    const isPrimeEvening = isPeak && (startM >= 1080 && startM <= 1260);
+    const status = isBooked ? 'booked' : isPrimeEvening ? 'fast-filling' : 'available';
+
+    return {
+      time: timeLabel,
+      startMinutes: startM,
+      endMinutes: endM,
+      category,
+      duration: durationHours,
+      price: `₹${totalSlotPrice}`,
+      totalPriceNum: totalSlotPrice,
+      hourlyRateStr: `₹${ratePerHour}`,
+      hourlyRateNum: ratePerHour,
+      peak: isPeak,
+      status
+    };
+  });
+};
+
+export const fetchRealTimeSlots = async (facilityId, selectedDate, duration = 1) => {
   try {
     const res = await api.getSlotAvailability(facilityId, selectedDate);
     if (res.success && res.slots) {
@@ -37,7 +193,7 @@ export const fetchRealTimeSlots = async (facilityId, selectedDate) => {
   } catch (e) {
     console.warn('Using offline slots generator:', e);
   }
-  return generateTimeSlots(facilityId, selectedDate);
+  return generateTimeSlots(facilityId, selectedDate, duration);
 };
 
 export const submitBookingReservation = async (bookingPayload) => {
@@ -55,7 +211,7 @@ export const submitBookingReservation = async (bookingPayload) => {
     teamName: bookingPayload.customer?.teamName || '',
     duration: bookingPayload.duration || 1,
     paymentType: bookingPayload.paymentType || 'deposit',
-    amount: bookingPayload.paymentType === 'full' ? '₹1200 (Full Paid)' : '₹500 (Token Deposit)',
+    amount: bookingPayload.amount || (bookingPayload.paymentType === 'full' ? 'Full Paid' : 'Token Deposit'),
     status: 'Confirmed',
     createdAt: new Date().toISOString()
   };

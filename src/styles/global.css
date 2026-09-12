@@ -50,9 +50,149 @@ main {
   min-width: 0;
 }
 
+/* Custom Luxury Dark Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(9, 12, 9, 0.95);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(107, 143, 73, 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-olive-bright);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 143, 73, 0.4) rgba(9, 12, 9, 0.95);
+}
+
 ::selection {
   background-color: var(--brand-olive);
   color: #ffffff;
+}
+
+/* Table Styling */
+.table-responsive {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-surface);
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table thead tr {
+  background: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+table th {
+  /* Dense headers */
+  padding: 0 0.75rem;
+  height: 32px;
+  font-size: var(--font-size-data);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-cream-muted);
+  /* 4px-grid: labels left, numbers right */
+}
+
+table td {
+  /* Dense rows — 32px height, 13px text, -1% letter-spacing */
+  padding: 0 0.75rem;
+  height: 32px;
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  font-size: var(--font-size-data);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+/* Hover changes the surface value — no lift, no shadow */
+table tbody tr:hover {
+  background-color: var(--bg-raised);
+}
+
+/* 4px-grid column alignment */
+th.col-label, td.col-label,
+th.col-id, td.col-id,
+th.col-name, td.col-name,
+th.col-text, td.col-text {
+  text-align: left;
+}
+
+th.col-number, td.col-number,
+th.col-amount, td.col-amount,
+th.col-date, td.col-date,
+th.col-time, td.col-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+th.col-icon, td.col-icon {
+  width: 36px;
+  text-align: center;
+  padding: 0 0.25rem;
+}
+
+/* Status icon — grey, no colour pill */
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--font-size-data);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.status-icon svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* Keyboard shortcut chip */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-hairline);
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  opacity: 0.7;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.action-with-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 /* Typography Hierarchy */
@@ -130,32 +270,8 @@ img {
   background-size: 60px 60px;
   mask-image: radial-gradient(circle at 50% 30%, black 40%, transparent 80%);
   -webkit-mask-image: radial-gradient(circle at 50% 30%, black 40%, transparent 80%);
-  opacity: 0.75;
+  opacity: 0.45;
   z-index: 0;
-}
-
-.ambient-glow-olive {
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--brand-olive-glow) 0%, transparent 70%);
-  filter: blur(60px);
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.6;
-}
-
-.ambient-glow-orange {
-  position: absolute;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--brand-orange-dim) 0%, transparent 70%);
-  filter: blur(50px);
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.5;
 }
 
 /* Keyframe Animations */

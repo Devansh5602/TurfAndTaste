@@ -132,6 +132,7 @@ export async function initDatabase() {
           deposit_pct INTEGER DEFAULT 30,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        ALTER TABLE pricing_tiers ADD COLUMN IF NOT EXISTS details_json TEXT;
       `);
 
       // 7. Arena Timings Table
@@ -143,6 +144,35 @@ export async function initDatabase() {
           floodlight_start VARCHAR(50) DEFAULT '04:00 PM',
           slot_interval_mins INTEGER DEFAULT 60,
           notes TEXT,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // 8. Annual Archives Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS annual_archives (
+          id VARCHAR(255) PRIMARY KEY,
+          year INTEGER NOT NULL,
+          start_date VARCHAR(50) NOT NULL,
+          end_date VARCHAR(50) NOT NULL,
+          total_bookings INTEGER NOT NULL,
+          total_revenue INTEGER NOT NULL,
+          deposit_collected INTEGER NOT NULL,
+          file_name VARCHAR(255) NOT NULL,
+          file_path TEXT NOT NULL,
+          pdf_size_bytes INTEGER DEFAULT 0,
+          recipients TEXT,
+          purged_from_db BOOLEAN DEFAULT FALSE,
+          archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          archived_by VARCHAR(100) DEFAULT 'admin'
+        );
+      `);
+
+      // 9. System Settings Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS system_settings (
+          key VARCHAR(100) PRIMARY KEY,
+          value TEXT NOT NULL,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
@@ -203,9 +233,12 @@ export async function initDatabase() {
         `);
       }
 
-      // Ensure clean bookings table for real-time live testing
-      await pgPool.query('TRUNCATE TABLE bookings CASCADE');
-      console.log('🧹 [Supabase DB] Cleaned bookings table for real-time live testing.');
+      // Seed Default Email Distribution List Setting if not exists
+      await pgPool.query(`
+        INSERT INTO system_settings (key, value)
+        VALUES ('archive_email_list', 'admin@turfandtaste.com, accounts@turfandtaste.com')
+        ON CONFLICT (key) DO NOTHING;
+      `);
 
       console.log('✅ [Supabase Cloud DB] Tables & Schema successfully verified!');
     } catch (err) {
@@ -222,6 +255,9 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS inquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, category TEXT DEFAULT 'General', message TEXT NOT NULL, status TEXT DEFAULT 'unread', created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS pricing_tiers (facility_id TEXT PRIMARY KEY, facility_name TEXT NOT NULL, day_rate INTEGER NOT NULL, night_rate INTEGER NOT NULL, weekend_surge INTEGER DEFAULT 15, deposit_pct INTEGER DEFAULT 30, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY DEFAULT 1, arena_open TEXT DEFAULT '06:00 AM', arena_close TEXT DEFAULT '11:30 PM', floodlight_start TEXT DEFAULT '04:00 PM', slot_interval_mins INTEGER DEFAULT 60, notes TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS annual_archives (id TEXT PRIMARY KEY, year INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, total_bookings INTEGER NOT NULL, total_revenue INTEGER NOT NULL, deposit_collected INTEGER NOT NULL, file_name TEXT NOT NULL, file_path TEXT NOT NULL, pdf_size_bytes INTEGER DEFAULT 0, recipients TEXT, purged_from_db INTEGER DEFAULT 0, archived_at DATETIME DEFAULT CURRENT_TIMESTAMP, archived_by TEXT DEFAULT 'admin');
+      CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      INSERT OR IGNORE INTO system_settings (key, value) VALUES ('archive_email_list', 'admin@turfandtaste.com, accounts@turfandtaste.com');
     `);
   }
 }

@@ -18,11 +18,23 @@ import {
 
 export default function Pricing() {
   const [selectedDuration, setSelectedDuration] = useState(1);
-  const [activeTab, setActiveTab] = useState('sports'); // 'sports' or 'combos'
   const [pricingList, setPricingList] = useState(() => adminStore.getPricing());
 
   useEffect(() => {
-    setPricingList(adminStore.getPricing());
+    adminStore.fetchPricingAsync().then((list) => {
+      if (list && list.length > 0) setPricingList(list);
+    });
+
+    const handleUpdate = () => {
+      setPricingList(adminStore.getPricing());
+    };
+
+    window.addEventListener('tt_pricing_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('tt_pricing_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   return (
@@ -65,49 +77,57 @@ export default function Pricing() {
       <section className="section" style={{ paddingTop: '1rem' }}>
         <div className="container">
           <div className="grid grid-3">
-            {pricingList.map((tier) => (
-              <div 
-                key={tier.facilityId} 
-                className={`card-arena ${tier.popular ? 'highlight' : ''}`}
-                style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-              >
-                {/* Header Badge */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <span className={`badge ${tier.popular ? 'badge-orange' : 'badge-olive'}`}>
-                    {tier.badge}
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {selectedDuration} Hour{selectedDuration > 1 ? 's' : ''} Block
-                  </span>
-                </div>
+            {pricingList.map((tier) => {
+              const dayNum = adminStore.parsePrice(tier.dayRate) || 800;
+              const nightNum = adminStore.parsePrice(tier.nightRate) || 1200;
+              const depositNum = adminStore.parsePrice(tier.bookingDeposit) || 400;
 
-                {/* Title */}
-                <h3 style={{ fontSize: '1.6rem', marginBottom: '1.25rem' }}>{tier.facilityName}</h3>
+              const displayDayRate = selectedDuration > 1 ? `₹${dayNum * selectedDuration}` : `₹${dayNum}`;
+              const displayNightRate = selectedDuration > 1 ? `₹${nightNum * selectedDuration}` : `₹${nightNum}`;
 
-                {/* Price Display */}
-                <div style={{
-                  background: 'var(--bg-surface-elevated)',
-                  padding: '1.25rem',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: '1.5rem',
-                  border: '1px solid var(--border-subtle)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Day Hours:</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)' }}>
-                      {tier.dayRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hr</span>
+              return (
+                <div 
+                  key={tier.facilityId} 
+                  className={`card-arena ${tier.popular ? 'highlight' : ''}`}
+                  style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                >
+                  {/* Header Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <span className={`badge ${tier.popular ? 'badge-orange' : 'badge-olive'}`}>
+                      {tier.badge}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {selectedDuration} Hour{selectedDuration > 1 ? 's' : ''} Block
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Floodlight Prime:</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-olive-bright)' }}>
-                      {tier.nightRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hr</span>
-                    </span>
+
+                  {/* Title */}
+                  <h3 style={{ fontSize: '1.6rem', marginBottom: '1.25rem' }}>{tier.facilityName}</h3>
+
+                  {/* Price Display */}
+                  <div style={{
+                    background: 'var(--bg-surface-elevated)',
+                    padding: '1.25rem',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '1.5rem',
+                    border: '1px solid var(--border-subtle)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Day Hours:</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)' }}>
+                        {displayDayRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>{selectedDuration > 1 ? `(${selectedDuration} hrs)` : '/ hr'}</span>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.5rem' }}>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Floodlight Prime:</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-olive-bright)' }}>
+                        {displayNightRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>{selectedDuration > 1 ? `(${selectedDuration} hrs)` : '/ hr'}</span>
+                      </span>
+                    </div>
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.82rem', color: 'var(--brand-orange)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Sparkles size={14} /> Token Booking Amount: <strong>₹{depositNum}</strong>
+                    </div>
                   </div>
-                  <div style={{ marginTop: '0.75rem', fontSize: '0.82rem', color: 'var(--brand-orange)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Sparkles size={14} /> Token Booking Amount: <strong>{tier.bookingDeposit}</strong>
-                  </div>
-                </div>
 
                 {/* Timings */}
                 <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -150,12 +170,13 @@ export default function Pricing() {
                   <Calendar size={16} /> Book for This Sport
                 </Link>
               </div>
-            ))}
+            );
+          })}
           </div>
 
           <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
             <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)' }}>
-              * Official prices will be finalized prior to grand opening. Rates may vary during special festival weekends and late-night floodlight hours.
+              * All rates are transparent with no hidden surcharges. Rates may vary during special festival tournaments and late-night floodlight hours.
             </p>
           </div>
         </div>
@@ -211,7 +232,7 @@ export default function Pricing() {
               Hosting a League or Large Celebration?
             </h2>
             <p style={{ fontSize: '1.05rem', marginBottom: '2rem', maxWidth: '620px', margin: '0 auto 2rem' }}>
-              We tailor custom half-day and full-day arena buyouts including dedicated scoreboards, umpire setups, custom sound, and café meal buffets.
+              We tailor custom half-day and full-day arena buyouts including dedicated scoreboards, umpire setups, custom sound, and tournament coordination.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <Link to="/inquiry" className="btn btn-primary btn-lg">

@@ -56,12 +56,12 @@ export default function About() {
                 <strong>Turf &amp; Taste is that vision realized:</strong> professional sports infrastructure paired with genuine hospitality under one roof.
               </p>
 
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <Link to="/facilities" className="btn btn-primary">
-                  Explore Facilities <ArrowRight size={16} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                <Link to="/booking" className="btn btn-primary btn-lg">
+                  <Calendar size={18} /> Reserve a Slot Online
                 </Link>
-                <Link to="/booking" className="btn btn-outline">
-                  Book a Slot
+                <Link to="/facilities" className="text-action-link">
+                  Explore all 5 facility specifications <ArrowRight size={16} />
                 </Link>
               </div>
             </div>

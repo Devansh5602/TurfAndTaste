@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2026-09-12T21:41:00.502Z",
+    "year": 2025,
+    "recipients": [
+      "admin@turfandtaste.com",
+      "accounts@turfandtaste.com"
+    ],
+    "pdfAttachment": "Turf_Taste_Annual_Ledger_2025_1789249260313.pdf",
+    "fileSize": 7244,
+    "status": "Delivered (Simulated Mode - Ready for SMTP)",
+    "summary": {
+      "totalBookings": 2,
+      "totalRevenue": "Rs. 3,000"
+    }
+  },
+  {
+    "timestamp": "2026-09-12T21:39:24.943Z",
+    "year": 2025,
+    "recipients": [
+      "admin@turfandtaste.com",
+      "accounts@turfandtaste.com"
+    ],
+    "pdfAttachment": "Turf_Taste_Annual_Ledger_2025_1789249164846.pdf",
+    "fileSize": 7168,
+    "status": "Delivered (Simulated Mode - Ready for SMTP)",
+    "summary": {
+      "totalBookings": 1,
+      "totalRevenue": "Rs. 1,500"
+    }
+  },
+  {
+    "timestamp": "2026-09-12T21:34:03.718Z",
+    "year": 2026,
+    "recipients": [
+      "admin@turfandtaste.com",
+      "accounts@turfandtaste.com"
+    ],
+    "pdfAttachment": "Turf_Taste_Annual_Ledger_2026_1789248843529.pdf",
+    "fileSize": 7034,
+    "status": "Delivered (Simulated Mode - Ready for SMTP)",
+    "summary": {
+      "totalBookings": 0,
+      "totalRevenue": "Rs. 0"
+    }
+  },
+  {
+    "timestamp": "2026-09-12T21:31:25.540Z",
+    "year": 2026,
+    "recipients": [
+      "owner@turfandtaste.com",
+      "accounts@turfandtaste.com"
+    ],
+    "pdfAttachment": "test_report_2026.pdf",
+    "fileSize": 7545,
+    "status": "Delivered (Simulated Mode - Ready for SMTP)",
+    "summary": {
+      "totalBookings": 3,
+      "totalRevenue": "Rs. 2,000"
+    }
+  }
+]

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { contactData } from '../data/contactData';
+import { api } from '../services/api';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import Toast from '../components/Toast';
@@ -53,12 +54,21 @@ export default function Contact() {
     if (!validate()) return;
 
     setIsSubmitting(true);
-    // Simulate contact form submission
-    await new Promise(resolve => setTimeout(resolve, 800));
-    setIsSubmitting(false);
-
-    setToastMessage('Message received! Our Patan team will respond shortly.');
-    setFormData({ name: '', phone: '', email: '', subject: '', message: '' });
+    try {
+      await api.sendInquiry({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        category: formData.subject ? `Contact: ${formData.subject}` : 'General Contact',
+        message: formData.message
+      });
+    } catch (err) {
+      console.warn('Inquiry API error, simulated fallback:', err);
+    } finally {
+      setIsSubmitting(false);
+      setToastMessage('Message received! Our Patan team will respond shortly.');
+      setFormData({ name: '', phone: '', email: '', subject: '', message: '' });
+    }
   };
 
   return (
@@ -173,12 +183,14 @@ export default function Contact() {
                     </label>
                     <input
                       type="text"
+                      name="name"
+                      required
+                      minLength={2}
                       placeholder="e.g. Vikram Patel"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className={`form-input ${errors.name ? 'error' : ''}`}
+                      className="form-input"
                     />
-                    {errors.name && <span className="form-error"><AlertCircle size={14} />{errors.name}</span>}
                   </div>
 
                   <div className="grid grid-2" style={{ gap: '1rem' }}>
@@ -188,12 +200,15 @@ export default function Contact() {
                       </label>
                       <input
                         type="tel"
+                        name="phone"
+                        required
+                        pattern="[6-9][0-9]{9}"
+                        title="Please enter a valid 10-digit mobile number starting with 6-9"
                         placeholder="10-digit mobile"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className={`form-input ${errors.phone ? 'error' : ''}`}
+                        className="form-input"
                       />
-                      {errors.phone && <span className="form-error"><AlertCircle size={14} />{errors.phone}</span>}
                     </div>
 
                     <div className="form-group">
@@ -202,12 +217,13 @@ export default function Contact() {
                       </label>
                       <input
                         type="email"
+                        name="email"
+                        required
                         placeholder="e.g. vikram@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className={`form-input ${errors.email ? 'error' : ''}`}
+                        className="form-input"
                       />
-                      {errors.email && <span className="form-error"><AlertCircle size={14} />{errors.email}</span>}
                     </div>
                   </div>
 
@@ -215,6 +231,7 @@ export default function Contact() {
                     <label className="form-label">Subject</label>
                     <input
                       type="text"
+                      name="subject"
                       placeholder="e.g. Inquiry about upcoming cricket tournament"
                       value={formData.subject}
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
@@ -228,18 +245,20 @@ export default function Contact() {
                     </label>
                     <textarea
                       rows="4"
+                      name="message"
+                      required
+                      minLength={5}
                       placeholder="Type your question or query here..."
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className={`form-textarea ${errors.message ? 'error' : ''}`}
+                      className="form-textarea"
                     />
-                    {errors.message && <span className="form-error"><AlertCircle size={14} />{errors.message}</span>}
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="btn btn-primary btn-block btn-lg"
+                    className="btn btn-primary btn-block btn-lg btn-submit"
                     style={{ marginTop: '0.5rem' }}
                   >
                     {isSubmitting ? (

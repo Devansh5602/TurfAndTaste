@@ -5,6 +5,7 @@ import { facilitiesData } from '../data/facilitiesData';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import Toast from '../components/Toast';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { 
   Send, 
   CheckCircle2, 
@@ -21,30 +22,34 @@ import {
 
 export default function Inquiry() {
   const { queryParams } = useRouter();
-  const preselectedFacility = queryParams.get('facility');
+  const rawPreselected = queryParams.get('facility');
+  const validSportsSlugs = facilitiesData.filter(f => f.category !== 'dining').map(f => f.slug);
+  const preselectedFacility = validSportsSlugs.includes(rawPreselected) ? rawPreselected : 'box-cricket';
 
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
     email: '',
     inquiryType: 'group',
-    facility: preselectedFacility || 'box-cricket',
+    facility: preselectedFacility,
     preferredDate: '',
     preferredTime: 'evening',
     groupSize: '12',
+    services: ['floodlights'],
     message: ''
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [inquiryErrorMessage, setInquiryErrorMessage] = useState('');
 
   const inquiryTypes = [
     { value: 'group', label: 'Group Booking / Squad Match' },
     { value: 'corporate', label: 'Corporate Event & Tournament' },
-    { value: 'birthday', label: 'Birthday & Private Celebration' },
+    { value: 'birthday', label: 'Birthday & Sports Arena Celebration' },
     { value: 'practice', label: 'Cricket Practice / Net Batches' },
-    { value: 'cafe', label: 'Café Catering & Party Deck' },
     { value: 'general', label: 'General Availability & Pricing' }
   ];
 
@@ -68,10 +73,14 @@ export default function Inquiry() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
+    setShowConfirmModal(true);
+  };
 
+  const executeInquirySubmit = async () => {
+    setShowConfirmModal(false);
     setIsSubmitting(true);
     try {
       const result = await submitInquiry(formData);
@@ -85,10 +94,11 @@ export default function Inquiry() {
         preferredDate: '',
         preferredTime: 'evening',
         groupSize: '12',
+        services: ['floodlights'],
         message: ''
       });
     } catch (err) {
-      alert(err.message || 'Submission failed. Please try again.');
+      setInquiryErrorMessage(err.message || 'Submission could not be completed. Please verify your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -179,12 +189,14 @@ export default function Inquiry() {
                     </label>
                     <input
                       type="text"
+                      name="fullName"
+                      required
+                      minLength={2}
                       placeholder="e.g. Amit Dave"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      className={`form-input ${errors.fullName ? 'error' : ''}`}
+                      className="form-input"
                     />
-                    {errors.fullName && <span className="form-error"><AlertCircle size={14} />{errors.fullName}</span>}
                   </div>
 
                   <div className="form-group">
@@ -193,12 +205,15 @@ export default function Inquiry() {
                     </label>
                     <input
                       type="tel"
+                      name="phone"
+                      required
+                      pattern="[6-9][0-9]{9}"
+                      title="Enter a valid 10-digit mobile number starting with 6-9"
                       placeholder="10-digit mobile number"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className={`form-input ${errors.phone ? 'error' : ''}`}
+                      className="form-input"
                     />
-                    {errors.phone && <span className="form-error"><AlertCircle size={14} />{errors.phone}</span>}
                   </div>
                 </div>
 
@@ -210,12 +225,13 @@ export default function Inquiry() {
                     </label>
                     <input
                       type="email"
+                      name="email"
+                      required
                       placeholder="e.g. amit@example.com"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className={`form-input ${errors.email ? 'error' : ''}`}
+                      className="form-input"
                     />
-                    {errors.email && <span className="form-error"><AlertCircle size={14} />{errors.email}</span>}
                   </div>
 
                   <div className="form-group">
@@ -241,10 +257,10 @@ export default function Inquiry() {
                       onChange={(e) => setFormData({ ...formData, facility: e.target.value })}
                       className="form-select"
                     >
-                      {facilitiesData.map(f => (
+                      {facilitiesData.filter(f => f.category !== 'dining').map(f => (
                         <option key={f.slug} value={f.slug}>{f.name}</option>
                       ))}
-                      <option value="multi-facility">Multiple Facilities / Entire Arena</option>
+                      <option value="multi-facility">Multiple Sports Facilities / Entire Arena</option>
                     </select>
                   </div>
 
@@ -292,6 +308,44 @@ export default function Inquiry() {
                   </div>
                 </div>
 
+                {/* Event Requirements & Services Requested Checkboxes */}
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label className="form-label" style={{ marginBottom: '0.65rem' }}>
+                    Requested Services &amp; Arena Add-ons (Optional)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
+                    {[
+                      { id: 'floodlights', label: 'Floodlit Arena Lighting' },
+                      { id: 'officials', label: 'Match Officials / Umpire Support' },
+                      { id: 'sound', label: 'PA Sound System & Announcer Mic' },
+                      { id: 'catering', label: 'Café Refreshments & Beverage Station' },
+                      { id: 'photo', label: 'Match Photography & Highlights' }
+                    ].map(item => {
+                      const isChecked = (formData.services || []).includes(item.id);
+                      return (
+                        <label 
+                          key={item.id} 
+                          className="checkbox-card"
+                          style={{ padding: '0.75rem 0.9rem', fontSize: '0.86rem' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const curr = formData.services || [];
+                              const updated = e.target.checked
+                                ? [...curr, item.id]
+                                : curr.filter(x => x !== item.id);
+                              setFormData({ ...formData, services: updated });
+                            }}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Message */}
                 <div className="form-group">
                   <label className="form-label">
@@ -299,12 +353,14 @@ export default function Inquiry() {
                   </label>
                   <textarea
                     rows="4"
+                    name="message"
+                    required
+                    minLength={5}
                     placeholder="Tell us about your event, tournament format, equipment needs, or café catering requirements..."
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    className={`form-textarea ${errors.message ? 'error' : ''}`}
+                    className="form-textarea"
                   />
-                  {errors.message && <span className="form-error"><AlertCircle size={14} />{errors.message}</span>}
                 </div>
 
                 {/* Backend Integration Note */}
@@ -329,7 +385,7 @@ export default function Inquiry() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn btn-primary btn-block btn-lg"
+                  className="btn btn-primary btn-block btn-lg btn-submit"
                 >
                   {isSubmitting ? (
                     'Submitting Inquiry...'
@@ -344,6 +400,61 @@ export default function Inquiry() {
           </div>
         </div>
       </section>
+
+      {/* INQUIRY SUBMISSION CONFIRMATION MODAL */}
+      <ConfirmationModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={executeInquirySubmit}
+        title="Review & Confirm Inquiry"
+        type="info"
+        message="Please verify your group or event inquiry details before submitting to our arena management team."
+        details={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.88rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.35rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Event Type:</span>
+              <strong style={{ color: 'var(--brand-cream)' }}>
+                {inquiryTypes.find(t => t.value === formData.inquiryType)?.label || formData.inquiryType}
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.35rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Target Arena:</span>
+              <strong style={{ color: 'var(--brand-olive-bright)', textTransform: 'capitalize' }}>
+                {formData.facility.replace(/-/g, ' ')}
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.35rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Contact Person:</span>
+              <strong style={{ color: 'var(--brand-cream)' }}>{formData.fullName} ({formData.phone})</strong>
+            </div>
+            {formData.preferredDate && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.35rem' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Date &amp; Time Window:</span>
+                <span style={{ color: 'var(--brand-cream-muted)' }}>{formData.preferredDate} ({formData.preferredTime})</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.2rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Expected Squad Size:</span>
+              <span style={{ color: 'var(--brand-orange)', fontWeight: 600 }}>{formData.groupSize} Guests / Players</span>
+            </div>
+          </div>
+        }
+        confirmText="Confirm & Send Request"
+        cancelText="Edit Details"
+        isLoading={isSubmitting}
+      />
+
+      {/* ERROR NOTICE MODAL */}
+      <ConfirmationModal
+        isOpen={!!inquiryErrorMessage}
+        onClose={() => setInquiryErrorMessage('')}
+        onConfirm={() => setInquiryErrorMessage('')}
+        title="Inquiry Notice"
+        type="danger"
+        message={inquiryErrorMessage}
+        confirmText="Understood"
+        cancelText="Close"
+      />
     </div>
   );
 }

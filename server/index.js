@@ -10,6 +10,7 @@ import bookingRoutes from './routes/bookings.js';
 import paymentRoutes from './routes/payments.js';
 import inquiryRoutes from './routes/inquiries.js';
 import pricingRoutes from './routes/pricing.js';
+import archiveRoutes from './routes/archives.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,26 +45,29 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/archives', archiveRoutes);
 app.use('/api', pricingRoutes); // Alias for /api/timings
 
 // 404 Handler for undefined API routes
-app.use('/api/*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ success: false, error: 'API endpoint not found' });
 });
 
-// Start Express Server
-app.listen(PORT, () => {
-  console.log(`
+// Start Express Server when not on Vercel serverless
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`
   ======================================================
   🏟️  Turf & Taste - Backend Server Running!
   ======================================================
   🚀 Server URL : http://localhost:${PORT}
-  📁 Database   : server/data/turf_and_taste.db
+  📁 Database   : Supabase Cloud PostgreSQL
   🔐 Admin Login: POST http://localhost:${PORT}/api/admin/login
   📅 Bookings   : GET  http://localhost:${PORT}/api/bookings
   💳 Payments   : POST http://localhost:${PORT}/api/payments/create-order
   ======================================================
-  `);
-});
+    `);
+  });
+}
 
 export default app;

@@ -60,8 +60,8 @@
   position: relative;
   border-radius: var(--radius-xl);
   overflow: hidden;
+  /* Depth from border only — accent colour makes the image stand out */
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-lg), var(--glow-olive);
   aspect-ratio: 16 / 11;
   background-color: var(--bg-surface);
 }
@@ -83,13 +83,13 @@
   position: absolute;
   background: var(--bg-glass);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--border-strong);
-  padding: 0.85rem 1.25rem;
+  border: 1px solid var(--border-hairline);
+  padding: 0.65rem 1rem;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  box-shadow: var(--shadow-md);
+  gap: 0.75rem;
+  /* No shadow — glass bg + hairline border provides depth */
   z-index: 3;
 }
 
@@ -112,6 +112,33 @@
 .hero-floating-stat span {
   font-size: 0.78rem;
   color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .hero-floating-stat {
+    padding: 0.45rem 0.75rem;
+    gap: 0.5rem;
+  }
+  .hero-floating-stat strong {
+    font-size: 0.8rem;
+  }
+  .hero-floating-stat span {
+    font-size: 0.68rem;
+  }
+  .hero-floating-stat.left {
+    bottom: 0.6rem;
+    left: 0.6rem;
+  }
+  .hero-floating-stat.right {
+    top: 0.6rem;
+    right: 0.6rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .hero-floating-stat.right {
+    display: none;
+  }
 }
 
 /* Brand Pillars */
@@ -143,14 +170,15 @@
 
 .pillar-box {
   background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
-  transition: transform var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .pillar-box:hover {
-  transform: translateY(-4px);
+  /* No lift — bg surface change only */
+  background-color: var(--bg-raised);
   border-color: var(--brand-olive-border);
 }
 
@@ -184,6 +212,130 @@
   line-height: 1.5;
 }
 
+/* -------------------------------------------------------------
+   90/10 SECONDARY ACTION LINK & REAL SOCIAL PROOF QUOTE
+------------------------------------------------------------- */
+.text-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.text-action-link:hover {
+  color: var(--brand-cream);
+}
+
+.text-action-link svg {
+  transition: transform var(--transition-fast);
+}
+
+.text-action-link:hover svg {
+  transform: translateX(4px);
+  color: var(--brand-orange);
+}
+
+/* Authentic Customer Proof Quote Card */
+.proof-quote-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-hairline);
+  border-left: 3px solid var(--brand-olive-bright);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-top: 2rem;
+  /* No shadow — left-border accent provides visual anchoring */
+}
+
+.proof-quote-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--brand-cream);
+  font-style: normal;
+  margin-bottom: 1rem;
+}
+
+.proof-quote-author {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.proof-metric-badge {
+  background: var(--brand-olive-dim);
+  border: 1px solid var(--brand-olive-border);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  text-align: right;
+}
+
+.proof-metric-badge strong {
+  display: block;
+  color: var(--brand-olive-bright);
+  font-size: 0.88rem;
+  font-family: var(--font-body);
+}
+
+.proof-metric-badge span {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* Annotated Showcase replacing generic circle icons */
+.annotated-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.annotated-item {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  transition: all var(--transition-fast);
+}
+
+.annotated-item:hover {
+  border-color: var(--brand-olive-border);
+  background: #141b14;
+}
+
+.annotated-badge {
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-olive-bright);
+  background: var(--brand-olive-dim);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.annotated-item strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--brand-cream);
+  margin-bottom: 0.25rem;
+}
+
+.annotated-item p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
 /* Feature numbers in Why Choose Us */
 .feature-num {
   font-family: var(--font-display);
@@ -196,12 +348,11 @@
 /* Experience Highlight (From Pitch to Plate) */
 .experience-highlight-card {
   background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-xl);
   overflow: hidden;
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
-  box-shadow: var(--shadow-md);
 }
 
 @media (max-width: 900px) {
@@ -285,13 +436,12 @@
 /* Promotional Banner */
 .promo-banner-card {
   background: linear-gradient(135deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-xl);
   padding: clamp(2.5rem, 6vw, 4.5rem);
   text-align: center;
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
 }
 
 .promo-badge {
@@ -426,29 +576,24 @@
 @media (max-width: 768px) {
   .date-picker-scroll {
     scroll-snap-type: x mandatory;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
   }
   
   .date-pill-btn {
     scroll-snap-align: start;
-    min-width: 72px;
-    min-height: 64px;
-    padding: 0.6rem 0.5rem;
+    min-width: 52px;
+    min-height: 48px;
+    padding: 0.35rem 0.5rem;
   }
 
-  .slots-grid {
-    display: grid !important;
+  .compact-slots-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.75rem !important;
+    gap: 0.45rem !important;
   }
 
-  .slot-btn {
-    padding: 0.85rem 0.6rem !important;
-    min-height: 54px !important;
-  }
-
-  .slot-btn .slot-time {
-    font-size: 0.82rem !important;
+  .slot-chip {
+    padding: 0.45rem 0.5rem !important;
+    min-height: 44px !important;
   }
 
   /* Admin & Booking Tables Mobile Responsive Scroll Wrapper */
@@ -466,12 +611,14 @@
 }
 
 @media (max-width: 480px) {
-  .slots-grid {
-    grid-template-columns: 1fr !important;
+  .compact-slots-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.4rem !important;
   }
 
   .date-pill-btn {
-    min-width: 64px;
+    min-width: 50px;
+    padding: 0.3rem 0.45rem;
   }
 }
 
@@ -490,13 +637,12 @@
     background: var(--bg-surface-elevated);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border-strong);
+    border-top: 1px solid var(--border-hairline);
     padding: 0.9rem 1.25rem;
     z-index: 999;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
-    animation: slideUpMobile 0.25s ease-out forwards;
+    animation: slideUpMobile 0.15s ease-out forwards;
   }
 
   .mobile-checkout-sticky-bar .info-wrap {

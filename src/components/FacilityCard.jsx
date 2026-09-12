@@ -52,10 +52,10 @@ export default function FacilityCard({ facility }) {
 
           {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
             <Link 
-              to={`/inquiry?facility=${facility.slug}`} 
+              to={`/facilities/${facility.slug}`} 
               className="btn btn-secondary btn-sm"
             >
-              Inquire / Menu
+              Walk-in Dining
             </Link>
           ) : (
             <Link 

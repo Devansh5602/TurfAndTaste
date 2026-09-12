@@ -3,12 +3,10 @@
  * Handles communication with Express API server & SQLite database (http://localhost:5000/api)
  */
 
-const API_BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-  ? '/api' 
-  : 'http://localhost:5000/api';
+const API_BASE_URL = '/api';
 
 const getAuthHeaders = () => {
-  const token = sessionStorage.getItem('tt_admin_jwt');
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('tt_admin_jwt') : null;
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
@@ -183,6 +181,63 @@ export const api = {
         ...getAuthHeaders()
       },
       body: JSON.stringify(timingsObj)
+    });
+    return await res.json();
+  },
+
+  // Annual Archives & Database Cleanup
+  getArchiveYears: async () => {
+    const res = await fetch(`${API_BASE_URL}/archives/years`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  getArchivePreview: async (year) => {
+    const res = await fetch(`${API_BASE_URL}/archives/preview?year=${year}`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  generateAnnualArchive: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/archives/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
+  emailAnnualArchive: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/archives/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
+  purgeAnnualData: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/archives/purge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
+  getArchiveVault: async () => {
+    const res = await fetch(`${API_BASE_URL}/archives`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  getArchiveSettings: async () => {
+    const res = await fetch(`${API_BASE_URL}/archives/settings`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  updateArchiveSettings: async (settings) => {
+    const res = await fetch(`${API_BASE_URL}/archives/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(settings)
     });
     return await res.json();
   }

@@ -15,7 +15,7 @@
 
 .navbar-header.scrolled {
   background-color: var(--bg-surface);
-  box-shadow: var(--shadow-md);
+  /* Depth from border only — no drop shadow */
   padding: 0.65rem 0;
   border-bottom-color: var(--brand-olive-border);
 }
@@ -42,7 +42,6 @@
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--brand-olive);
-  box-shadow: 0 0 12px var(--brand-olive-glow);
   transition: transform var(--transition-fast);
 }
 
@@ -112,7 +111,6 @@
   height: 2px;
   background-color: var(--brand-olive-bright);
   border-radius: var(--radius-full);
-  box-shadow: var(--glow-olive);
 }
 
 /* Actions */
@@ -123,7 +121,7 @@
 }
 
 .btn-nav-cta {
-  box-shadow: var(--glow-orange);
+  /* Accent colour on CTA only — no glow shadow */
 }
 
 /* Theme Toggle Button */
@@ -182,6 +180,50 @@
   border-color: var(--brand-olive);
 }
 
+@media (max-width: 480px) {
+  .navbar-header {
+    padding: 0.45rem 0;
+  }
+  .navbar-brand {
+    gap: 0.5rem;
+  }
+  .navbar-logo-img {
+    width: 38px;
+    height: 38px;
+  }
+  .navbar-brand-title {
+    font-size: 1.3rem;
+  }
+  .navbar-brand-tagline {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+  .mobile-actions {
+    gap: 0.4rem !important;
+  }
+  .theme-toggle-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .mobile-menu-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .navbar-brand-tagline {
+    display: none;
+  }
+  .navbar-brand-title {
+    font-size: 1.15rem;
+  }
+  .navbar-logo-img {
+    width: 32px;
+    height: 32px;
+  }
+}
+
 /* Mobile Drawer */
 .mobile-drawer-overlay {
   position: fixed;
@@ -204,8 +246,8 @@
   z-index: 999;
   display: flex;
   flex-direction: column;
-  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: var(--shadow-lg);
+  /* Depth from border-left only — no drop shadow */
+  transition: right var(--transition-smooth);
   padding: 1.5rem;
 }
 
@@ -373,10 +415,10 @@
 }
 
 .social-pill:hover {
-  background: var(--brand-olive-dim);
-  border-color: var(--brand-olive);
+  background: var(--bg-raised);
+  border-color: var(--brand-olive-border);
   color: var(--brand-cream);
-  transform: translateY(-2px);
+  /* No translateY lift — background change only */
 }
 
 .footer-col-title {

@@ -5,23 +5,12 @@ export default function Toast({ message, type = 'success', onClose }) {
   if (!message) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '2rem',
-      right: '2rem',
-      zIndex: 2000,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.75rem',
-      background: 'var(--bg-surface-elevated)',
-      color: 'var(--text-primary)',
-      padding: '1rem 1.4rem',
-      borderRadius: 'var(--radius-lg)',
-      border: `1px solid ${type === 'success' ? 'var(--brand-olive)' : 'var(--brand-orange)'}`,
-      boxShadow: 'var(--shadow-lg)',
-      animation: 'fadeIn 0.3s ease-out forwards',
-      maxWidth: '420px'
-    }}>
+    <div 
+      className="app-toast-container"
+      style={{
+        border: `1px solid ${type === 'success' ? 'var(--brand-olive)' : 'var(--brand-orange)'}`
+      }}
+    >
       {type === 'success' ? (
         <CheckCircle size={22} className="text-olive" />
       ) : (

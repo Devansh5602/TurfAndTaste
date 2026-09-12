@@ -26,9 +26,9 @@ export const footerLinks = {
     { label: 'Patan Location & Directions', path: '/contact' }
   ],
   legal: [
-    { label: 'Terms & Conditions', path: '#terms' },
-    { label: 'Arena Rules & Safety', path: '#safety' },
-    { label: 'Privacy Policy', path: '#privacy' },
-    { label: 'Refund & Cancellation', path: '#cancellation' }
+    { label: 'Terms & Conditions', path: '/contact' },
+    { label: 'Arena Rules & Safety', path: '/about' },
+    { label: 'Privacy Policy', path: '/contact' },
+    { label: 'Refund & Cancellation', path: '/contact' }
   ]
 };
