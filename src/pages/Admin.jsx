@@ -143,43 +143,6 @@ export default function Admin() {
     };
   }, []);
 
-  // Keyboard Shortcuts:
-  // - ⌘K / Ctrl+K: focus search filter
-  // - C: create new walk-in
-  // - X: export filtered CSV
-  // - Z: undo deletion (when undo window is active)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const handleKeyDown = (e) => {
-      if (undoState && (e.key === 'z' || e.key === 'Z')) {
-        e.preventDefault();
-        handleUndoDelete();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        return;
-      }
-
-      const activeEl = document.activeElement;
-      const isInputFocused = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
-      if (isInputFocused) return;
-
-      if (e.key === 'c' || e.key === 'C') {
-        e.preventDefault();
-        setShowWalkInModal(true);
-      } else if (e.key === 'x' || e.key === 'X') {
-        e.preventDefault();
-        handleExportCSV();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthenticated, filteredBookings, undoState]);
-
   const loadData = async () => {
     const fetchedBookings = await adminStore.fetchBookingsAsync();
     const fetchedPricing = await adminStore.fetchPricingAsync();
@@ -746,6 +709,43 @@ export default function Admin() {
     const itemsToDelete = bookings.filter(b => selectedBookings.includes(b.id));
     executeDeleteWithUndo(itemsToDelete);
   };
+
+  // Keyboard Shortcuts:
+  // - ⌘K / Ctrl+K: focus search filter
+  // - C: create new walk-in
+  // - X: export filtered CSV
+  // - Z: undo deletion (when undo window is active)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const handleKeyDown = (e) => {
+      if (undoState && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        handleUndoDelete();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+      if (isInputFocused) return;
+
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        setShowWalkInModal(true);
+      } else if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault();
+        handleExportCSV();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAuthenticated, filteredBookings, undoState]);
 
   // Toggle Popular / Featured for Pricing Tier
   const handleTogglePopular = (facilityId, isPopular) => {
