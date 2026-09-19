@@ -64,7 +64,7 @@ function RouteRenderer() {
 export default function App() {
   return (
     <RouterProvider>
-      <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: 'var(--safe-bottom)' }}>
         <Navbar />
         <main style={{ flex: 1 }}>
           <RouteRenderer />

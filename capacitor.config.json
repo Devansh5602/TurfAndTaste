@@ -12,12 +12,14 @@
       "backgroundColor": "#0B0F0B",
       "showSpinner": false,
       "androidScaleType": "CENTER_CROP",
-      "splashFullScreen": true,
-      "splashImmersive": true
+      "splashFullScreen": false,
+      "splashImmersive": false
     },
     "StatusBar": {
+      "overlays": false,
+      "overlaysWebView": false,
       "style": "DARK",
-      "backgroundColor": "#090c09"
+      "backgroundColor": "#090C09"
     }
   }
 }

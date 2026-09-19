@@ -638,7 +638,7 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--border-hairline);
-    padding: 0.9rem 1.25rem;
+    padding: 0.9rem 1.25rem calc(0.9rem + var(--safe-bottom));
     z-index: 999;
     align-items: center;
     justify-content: space-between;

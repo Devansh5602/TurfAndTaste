@@ -16,7 +16,7 @@
 .navbar-header.scrolled {
   background-color: var(--bg-surface);
   /* Depth from border only — no drop shadow */
-  padding: 0.65rem 0;
+  padding: calc(0.65rem + var(--safe-top)) 0 0.65rem;
   border-bottom-color: var(--brand-olive-border);
 }
 
@@ -182,7 +182,7 @@
 
 @media (max-width: 480px) {
   .navbar-header {
-    padding: 0.45rem 0;
+    padding: calc(0.5rem + var(--safe-top)) 0 0.5rem;
   }
   .navbar-brand {
     gap: 0.5rem;
@@ -335,7 +335,7 @@
   background-color: var(--bg-surface);
   border-top: 1px solid var(--border-strong);
   padding-top: clamp(4rem, 7vw, 6rem);
-  padding-bottom: 2.5rem;
+  padding-bottom: calc(2.5rem + var(--safe-bottom));
   position: relative;
   z-index: 10;
 }

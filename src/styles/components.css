@@ -898,7 +898,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: calc(1.5rem + var(--safe-top)) 1.5rem calc(1.5rem + var(--safe-bottom));
   z-index: 1000;
   animation: modalFadeIn 0.22s ease-out forwards;
 }
@@ -1397,7 +1397,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 @media (max-width: 768px) {
   .app-toast-container {
-    bottom: 5.5rem;
+    bottom: calc(5.5rem + var(--safe-bottom));
     right: 1rem;
     left: 1rem;
     max-width: calc(100vw - 2rem);
