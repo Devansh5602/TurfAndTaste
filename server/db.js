@@ -177,6 +177,20 @@ export async function initDatabase() {
         );
       `);
 
+      // 10. Blocked Slots Table
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS blocked_slots (
+          id SERIAL PRIMARY KEY,
+          facility_id VARCHAR(255) NOT NULL,
+          date VARCHAR(50) NOT NULL,
+          time_slot VARCHAR(255) NOT NULL,
+          reason TEXT,
+          blocked_by VARCHAR(100) DEFAULT 'admin',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (facility_id, date, time_slot)
+        );
+      `);
+
       // Seed Default Admin
       const adminRes = await pgPool.query('SELECT count(*) as count FROM admins');
       if (parseInt(adminRes.rows[0].count, 10) === 0) {
@@ -257,6 +271,7 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY DEFAULT 1, arena_open TEXT DEFAULT '06:00 AM', arena_close TEXT DEFAULT '11:30 PM', floodlight_start TEXT DEFAULT '04:00 PM', slot_interval_mins INTEGER DEFAULT 60, notes TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS annual_archives (id TEXT PRIMARY KEY, year INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, total_bookings INTEGER NOT NULL, total_revenue INTEGER NOT NULL, deposit_collected INTEGER NOT NULL, file_name TEXT NOT NULL, file_path TEXT NOT NULL, pdf_size_bytes INTEGER DEFAULT 0, recipients TEXT, purged_from_db INTEGER DEFAULT 0, archived_at DATETIME DEFAULT CURRENT_TIMESTAMP, archived_by TEXT DEFAULT 'admin');
       CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS blocked_slots (id INTEGER PRIMARY KEY AUTOINCREMENT, facility_id TEXT NOT NULL, date TEXT NOT NULL, time_slot TEXT NOT NULL, reason TEXT, blocked_by TEXT DEFAULT 'admin', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(facility_id, date, time_slot));
       INSERT OR IGNORE INTO system_settings (key, value) VALUES ('archive_email_list', 'admin@turfandtaste.com, accounts@turfandtaste.com');
     `);
   }

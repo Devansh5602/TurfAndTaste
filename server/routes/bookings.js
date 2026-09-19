@@ -147,19 +147,27 @@ router.get('/slots', async (req, res) => {
     ];
 
     let bookedSlots = [];
+    let blockedSlots = [];
     if (facilityId) {
       const existing = await dbAsync.all(
         "SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled'",
         [facilityId, targetDate]
       );
       bookedSlots = existing.map(e => e.time_slot);
+
+      const blocked = await dbAsync.all(
+        "SELECT time_slot, reason FROM blocked_slots WHERE facility_id = ? AND date = ?",
+        [facilityId, targetDate]
+      );
+      blockedSlots = blocked.map(b => b.time_slot);
     }
 
     const slotsWithStatus = allSlots.map(slot => {
       const isBooked = bookedSlots.includes(slot.time);
+      const isBlocked = blockedSlots.includes(slot.time);
       return {
         ...slot,
-        status: isBooked ? 'booked' : (slot.peak ? 'fast-filling' : 'available')
+        status: isBooked ? 'booked' : (isBlocked ? 'maintenance' : (slot.peak ? 'fast-filling' : 'available'))
       };
     });
 
@@ -177,18 +185,68 @@ router.post('/', async (req, res) => {
   try {
     const payload = req.body;
 
+    const customerName = (payload.customer?.name || payload.customerName || '').trim();
+    const customerPhone = (payload.customer?.phone || payload.customerPhone || '').trim();
+    const customerEmail = (payload.customer?.email || payload.customerEmail || '').trim();
+    const date = (payload.date || '').trim();
+    const timeSlot = (payload.slot?.time || payload.time || '').trim();
+    const facilityId = (payload.facilityId || '').trim();
+    const facilityName = (payload.facilityName || '').trim() || facilityId;
+
+    // Strict Validation
+    if (!customerName || customerName.length < 2) {
+      return res.status(400).json({ success: false, error: 'Customer name is required (minimum 2 characters).' });
+    }
+
+    const cleanPhone = customerPhone.replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, error: 'A valid 10-digit customer phone number is required.' });
+    }
+
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ success: false, error: 'Valid booking date (YYYY-MM-DD) is required.' });
+    }
+
+    if (!timeSlot) {
+      return res.status(400).json({ success: false, error: 'Booking time slot is required.' });
+    }
+
+    if (!facilityId) {
+      return res.status(400).json({ success: false, error: 'Facility selection is required.' });
+    }
+
+    // Double-Booking Prevention: Check if slot is already reserved
+    const existingBooking = await dbAsync.get(
+      "SELECT id, customer_name FROM bookings WHERE facility_id = ? AND date = ? AND time_slot = ? AND booking_status != 'Cancelled'",
+      [facilityId, date, timeSlot]
+    );
+
+    if (existingBooking) {
+      return res.status(409).json({
+        success: false,
+        error: `The time slot "${timeSlot}" on ${date} is already reserved. Please select an available slot.`
+      });
+    }
+
+    // Check if slot is blocked by Admin
+    const blockedSlot = await dbAsync.get(
+      "SELECT id, reason FROM blocked_slots WHERE facility_id = ? AND date = ? AND time_slot = ?",
+      [facilityId, date, timeSlot]
+    );
+
+    if (blockedSlot) {
+      return res.status(409).json({
+        success: false,
+        error: `This time slot is temporarily blocked for facility maintenance${blockedSlot.reason ? ` (${blockedSlot.reason})` : ''}. Please choose another slot.`
+      });
+    }
+
     const id = payload.id || `TT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const facilityId = payload.facilityId || 'box-cricket';
-    const facilityName = payload.facilityName || 'Box Cricket Arena';
-    const date = payload.date || new Date().toISOString().split('T')[0];
-    const timeSlot = payload.slot?.time || payload.time || '06:00 PM – 07:00 PM';
-    const customerName = payload.customer?.name || payload.customerName || 'Guest Player';
-    const customerPhone = payload.customer?.phone || payload.customerPhone || 'N/A';
-    const customerEmail = payload.customer?.email || payload.customerEmail || 'N/A';
     const teamName = payload.customer?.teamName || payload.teamName || '';
     const duration = payload.duration || 1;
     const paymentType = payload.paymentType || 'deposit';
     const amountPaid = payload.amount || (paymentType === 'full' ? '₹1200 (Full Paid)' : '₹500 (Token Deposit)');
+    const paymentStatus = payload.paymentStatus || (payload.paymentMethod === 'Venue' ? 'Pending' : 'Paid');
     const paymentId = payload.paymentId || `pay_mock_${Date.now()}`;
     const bookingStatus = payload.status || 'Confirmed';
 
@@ -197,11 +255,11 @@ router.post('/', async (req, res) => {
         id, facility_id, facility_name, date, time_slot, customer_name,
         customer_phone, customer_email, team_name, duration, payment_type,
         amount_paid, payment_status, booking_status, payment_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, facilityId, facilityName, date, timeSlot, customerName,
         customerPhone, customerEmail, teamName, duration, paymentType,
-        amountPaid, bookingStatus, paymentId
+        amountPaid, paymentStatus, bookingStatus, paymentId
       ]
     );
 
@@ -221,6 +279,7 @@ router.post('/', async (req, res) => {
         duration,
         paymentType,
         amount: amountPaid,
+        paymentStatus,
         status: bookingStatus,
         paymentId
       },
@@ -254,14 +313,72 @@ router.put('/:id/status', async (req, res) => {
 });
 
 /**
- * DELETE /api/bookings/:id
- * Delete or Cancel a booking
+ * GET /api/bookings/blocked-slots
+ * Get list of currently blocked slots
  */
-router.delete('/:id', authenticateAdminToken, async (req, res) => {
+router.get('/blocked-slots', authenticateAdminToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    await dbAsync.run('DELETE FROM bookings WHERE id = ?', [id]);
-    res.json({ success: true, deletedId: id, message: 'Booking removed from system' });
+    const { facilityId, date } = req.query;
+    let query = 'SELECT * FROM blocked_slots WHERE 1=1';
+    const params = [];
+    if (facilityId) {
+      query += ' AND facility_id = ?';
+      params.push(facilityId);
+    }
+    if (date) {
+      query += ' AND date = ?';
+      params.push(date);
+    }
+    query += ' ORDER BY date DESC, time_slot ASC';
+    const blocked = await dbAsync.all(query, params);
+    res.json({ success: true, blockedSlots: blocked });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/bookings/block-slot
+ * Admin blocks a slot for maintenance or private tournament
+ */
+router.post('/block-slot', authenticateAdminToken, async (req, res) => {
+  try {
+    const { facilityId, date, timeSlot, reason } = req.body;
+    if (!facilityId || !date || !timeSlot) {
+      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
+    }
+
+    await dbAsync.run(
+      `INSERT INTO blocked_slots (facility_id, date, time_slot, reason, blocked_by)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (facility_id, date, time_slot) DO UPDATE
+       SET reason = EXCLUDED.reason`,
+      [facilityId, date, timeSlot, reason || 'Maintenance', req.admin?.username || 'admin']
+    );
+
+    res.json({ success: true, message: `Slot ${timeSlot} on ${date} successfully blocked.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/bookings/unblock-slot
+ * Admin releases a blocked slot
+ */
+router.delete('/unblock-slot', authenticateAdminToken, async (req, res) => {
+  try {
+    const { facilityId, date, timeSlot } = req.body;
+    if (!facilityId || !date || !timeSlot) {
+      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
+    }
+
+    await dbAsync.run(
+      'DELETE FROM blocked_slots WHERE facility_id = ? AND date = ? AND time_slot = ?',
+      [facilityId, date, timeSlot]
+    );
+
+    res.json({ success: true, message: `Slot ${timeSlot} on ${date} unblocked and released.` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
