@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Turf &amp; Taste</string>
+    <string name="title_activity_main">Turf &amp; Taste</string>
+    <string name="package_name">com.turfandtaste.app</string>
+    <string name="custom_url_scheme">com.turfandtaste.app</string>
+</resources>

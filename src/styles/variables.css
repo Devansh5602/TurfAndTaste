@@ -64,6 +64,12 @@
   --glow-orange: 0 0 24px rgba(232, 103, 38, 0.32);
 
   --court-line-color: rgba(107, 143, 73, 0.14);
+
+  /* Safe-area insets for native mobile (Capacitor / notch devices) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* Light Theme */
@@ -111,4 +117,9 @@
   --glow-orange: 0 0 20px rgba(213, 89, 25, 0.2);
 
   --court-line-color: rgba(72, 101, 48, 0.1);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }

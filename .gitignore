@@ -2,6 +2,24 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tmp
 .env
 .env.*
 .DS_Store
+
+# Native Platform Build Artifacts
+android/build/
+android/app/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/release-signing.properties
+*.keystore
+*.jks
+ios/App/Pods/
+ios/App/build/
+ios/App/App.xcworkspace/xcuserdata/
+
+# IDE
+.idea/
+*.iml

@@ -358,6 +358,29 @@ npm run preview
 
 ---
 
+## 📱 Mobile Apps (Android & iOS)
+
+Turf & Taste reuses 100% of its React frontend, API layer, routing, and styling in native Android and iOS mobile applications using **Capacitor**.
+
+### Quick Build Commands
+
+```bash
+# 1. Sync web assets into Android and iOS projects
+npm run cap:sync
+
+# 2. Compile and package the Android debug APK (one-step)
+npm run cap:build:apk
+# Output: android/app/build/outputs/apk/debug/app-debug.apk
+
+# 3. Generate Android App Bundle (.aab) for Google Play Store
+npm run cap:build:bundle
+# Output: android/app/build/outputs/bundle/release/app-release.aab
+```
+
+For complete instructions on generating upload keystores, signing releases, and deploying to the **Google Play Console** and **Apple App Store**, see [`MOBILE_APP_GUIDE.md`](./MOBILE_APP_GUIDE.md).
+
+---
+
 ## 📄 License
 
 This project is proprietary and confidential.  

@@ -1,9 +1,17 @@
 /**
  * Turf & Taste - Central API Gateway Client
- * Handles communication with Express API server & SQLite database (http://localhost:5000/api)
+ * Handles communication with Express API server & Supabase PostgreSQL
+ *
+ * API_BASE_URL resolves to:
+ *   - Web (Vite dev):     '/api'           (proxied to localhost:5000)
+ *   - Android emulator:   'http://10.0.2.2:5000/api'
+ *   - Physical device:    'http://<LAN-IP>:5000/api'
+ *   - Production:         'https://api.turfandtaste.com/api'
+ *
+ * Set VITE_API_URL in .env or .env.local to override.
  */
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const getAuthHeaders = () => {
   const token = typeof window !== 'undefined' ? sessionStorage.getItem('tt_admin_jwt') : null;

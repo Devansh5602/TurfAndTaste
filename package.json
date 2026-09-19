@@ -7,9 +7,21 @@
     "dev": "vite",
     "backend": "node server/index.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "vite build && npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios",
+    "cap:build:apk": "npm run cap:sync && cd android && .\\gradlew.bat assembleDebug",
+    "cap:build:bundle": "npm run cap:sync && cd android && .\\gradlew.bat bundleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

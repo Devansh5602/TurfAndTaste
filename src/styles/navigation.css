@@ -10,7 +10,7 @@
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-subtle);
   transition: all var(--transition-normal);
-  padding: 0.85rem 0;
+  padding: calc(0.85rem + var(--safe-top)) 0 0.85rem;
 }
 
 .navbar-header.scrolled {
@@ -248,7 +248,7 @@
   flex-direction: column;
   /* Depth from border-left only — no drop shadow */
   transition: right var(--transition-smooth);
-  padding: 1.5rem;
+  padding: calc(1.5rem + var(--safe-top)) 1.5rem calc(1.5rem + var(--safe-bottom));
 }
 
 .mobile-drawer.open {
