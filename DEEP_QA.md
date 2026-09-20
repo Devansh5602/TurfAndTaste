@@ -158,26 +158,52 @@ npm run cap:build:bundle
 
 ## 7. Current Project QA State
 
-- **Last Full Deep QA Pass:** 2026-09-19 (Pass 1 — Full Audit & System Invariants Verified)
+- **Last Full Deep QA Pass:** 2026-09-20 (Pass 2 — Code-Level Audit, CSS Defect Fixes, Build Verification)
 - **Current Active Branch:** `feature/mobile-app`
-- **Web Build Status:** `PASSED` (Vite 6 production build, 0 errors, 1,875 modules)
-- **Android Native Build Status:** `PASSED` (`app-debug.apk` built cleanly with Gradle 8.14.3 & JDK 21 in 13s)
+- **Web Build Status:** `PASSED` (Vite 6 production build, 0 errors, 1,875 modules, 7.22s)
+- **Android Native Build Status:** `PASSED` (`app-debug.apk` 11.2MB, Gradle 8.14.3 / AGP 8.13.0 / JDK 21, 47s)
 - **Automated Regression Suite:** 22/22 tests passing (`scratch/test_deep_qa.mjs`)
 
 ### Pass 1 Audit Findings & Resolutions
 
 | Category | Finding / Defect | Root Cause | Fix Applied | Status |
 |---|---|---|---|---|
-| **Mobile Overlap** | System notification bar & 3-button navigation bar overlapped app content | Immersive splash mode, default `overlaysWebView: true`, mobile media query stripping `--safe-top` | Injected native `WindowInsets` padding in `MainActivity.java`, added safe areas to navbar/footer/sticky bar, set `overlays: false` | ✅ FIXED |
-| **Gradle JVM** | Android Studio sync failure: Gradle 8.14.3 incompatible with JVM 25 | Android Studio selected bundled `jbr-25` by default | Configured `org.gradle.java.home` in `gradle.properties` and `#JAVA_HOME` in `.idea/gradle.xml` to JDK 21 LTS | ✅ FIXED |
-| **Booking Validation** | Incomplete booking requests accepted with dummy "Guest Player" data | Missing request body validation in `POST /api/bookings` | Added strict validation requiring valid customer name, 10-digit phone, date, time slot, and facility | ✅ FIXED |
+| **Mobile Overlap** | System notification bar & 3-button navigation bar overlapped app content | Immersive splash mode, default `overlays: false`, mobile media query stripping `--safe-top` | Injected native `WindowInsets` padding in `MainActivity.java`, added safe areas to navbar/footer/sticky bar | ✅ FIXED |
+| **Gradle JVM** | Android Studio sync failure: Gradle 8.14.3 incompatible with JVM 25 | Android Studio selected bundled `jbr-25` by default | Configured `org.gradle.java.home` in `gradle.properties` to JDK 21 LTS | ✅ FIXED |
+| **Booking Validation** | Incomplete booking requests accepted with dummy data | Missing request body validation in `POST /api/bookings` | Added strict validation requiring valid customer name, 10-digit phone, date, time slot, and facility | ✅ FIXED |
 | **Double-Booking** | Concurrent or duplicate bookings possible on the same facility time slot | Missing conflict check prior to database insertion | Added pre-insert conflict query rejecting double bookings with HTTP 409 Conflict | ✅ FIXED |
 | **Database Schema** | `relation "blocked_slots" does not exist` on slot maintenance operations | Table creation missing in PostgreSQL and SQLite migrations | Added `CREATE TABLE IF NOT EXISTS blocked_slots` migration in `server/db.js` | ✅ FIXED |
 | **Slot Governance** | Missing REST endpoints for admin slot blocking / unblocking | Incomplete booking route coverage | Implemented `GET /blocked-slots`, `POST /block-slot`, and `DELETE /unblock-slot` | ✅ FIXED |
 | **Slot Listing State** | Blocked maintenance slots did not reflect on public customer slot query | `GET /api/bookings/slots` only checked `bookings` table | Joined `blocked_slots` into availability generator, flagging maintenance slots | ✅ FIXED |
 
+### Pass 2 Audit Findings & Resolutions (2026-09-20)
+
+| Category | Finding / Defect | Severity | Root Cause | Fix Applied | Status |
+|---|---|---|---|---|---|
+| **Animation** | `fadeIn` keyframe referenced in 2 places (toast, drawer overlay) but never defined — animation silently fails | P2 | Missing `@keyframes fadeIn` definition | Added `@keyframes fadeIn` to `components.css` | ✅ FIXED |
+| **Light Mode** | `form-input:hover` and `select:hover` used hardcoded dark `#161e16` background — breaks light theme | P2 | Hardcoded color instead of design token | Replaced with `var(--bg-surface-elevated)` in both rules | ✅ FIXED |
+| **Design Consistency** | `selection-card:hover` and `checkbox-card:hover` used `translateY(-1px)` lift, contradicting the explicit no-lift rule in every other component | P3 | Inconsistent application of design rule | Removed `transform: translateY(-1px)` — now background-change only | ✅ FIXED |
+| **Design Consistency** | `annotated-item:hover` used hardcoded `#141b14` instead of design token | P3 | Hardcoded color | Replaced with `var(--bg-raised)` design token | ✅ FIXED |
+| **Responsive** | `section-hero` min-height used `calc(100vh - 80px)` — hardcoded 80px navbar offset wrong on all screen sizes; mobile browser chrome collapse/expand causes overflow | P2 | Incorrect viewport unit | Changed to `100dvh` with `100vh` fallback for older browsers | ✅ FIXED |
+| **Accessibility** | `FacilityCard` "Book Slot", "Details", and "Walk-in Dining" buttons had no `aria-label` — screen readers could not distinguish which facility was targeted | P2 | Missing accessible names on repeated CTA patterns | Added descriptive `aria-label` attributes with facility name to all 3 button variants | ✅ FIXED |
+
+### Pass 2 — Verified Correct (No Fix Needed)
+
+| Item | Result |
+|---|---|
+| Image paths (`/images/*.jpg`) | ✅ All files exist in `public/images/` |
+| SEO meta tags | ✅ Title, description, OG tags, viewport-fit=cover all present in `index.html` |
+| Google Fonts loading | ✅ Bebas Neue, Outfit, Playfair Display preconnected and loaded |
+| Capacitor safe-area CSS vars | ✅ Applied to navbar, mobile drawer, footer, mobile checkout bar |
+| Mobile touch targets | ✅ Buttons min 44px height enforced in `@media (max-width: 768px)` |
+| iOS zoom prevention | ✅ `font-size: 16px` enforced on all form inputs in mobile media query |
+| Reduced motion | ✅ `@media (prefers-reduced-motion: reduce)` present in `global.css` |
+| Focus-visible states | ✅ `outline: 2px solid var(--brand-orange)` applied globally |
+| Keyboard scrollbars | ✅ `scrollbar-width: thin` + custom colors for Firefox |
+| Android Gradle regression | ✅ AGP reverted to 8.13.0 / Gradle 8.14.3 after Android Studio auto-upgrade broke build |
+
 ### Known Environment Limitations
 
-1. **Playwright Browser Subagent Tool:** The automated headless browser runner encountered a Playwright driver package 404 (`playwright-1.57.0-win32_x64.zip` from Microsoft CDN). All UI, API, and build validations were executed directly via Node.js native test suites, Vite dev server, and native Gradle CLI.
+1. **Playwright Browser Subagent Tool:** The automated headless browser runner encounters a Playwright driver package 404 (`playwright-1.57.0-win32_x64.zip` from Microsoft CDN). All UI, API, and build validations are executed via Node.js native test suites, Vite dev server, and native Gradle CLI.
 2. **iOS Compilation:** Native Xcode compilation requires macOS. Web assets and Capacitor iOS configurations are validated and synced via `npx cap sync`.
-3. **Android Emulator Virtualization:** Android Virtual Device `medium_phone` is created and ready. Starting the emulator on Windows requires the Intel AEHD hypervisor driver (`silent_install.bat`) with Windows administrator privileges. Physical Android USB debugging is operational.
+3. **Android Emulator Virtualization:** Android Virtual Device `medium_phone` is created and ready. Starting the emulator on Windows requires the Intel AEHD hypervisor driver with Windows administrator privileges. Physical Android USB debugging is operational.

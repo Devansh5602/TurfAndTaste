@@ -3,11 +3,12 @@ import { facilitiesData, facilityCategories } from '../data/facilitiesData';
 import FacilityCard from '../components/FacilityCard';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
-import { Search, Sparkles } from 'lucide-react';
+import { Search, Sparkles, ChevronDown, ChevronUp, Shield, Activity, Clock, CheckCircle2 } from 'lucide-react';
 
 export default function Facilities() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSpecId, setExpandedSpecId] = useState(null);
 
   const filteredFacilities = facilitiesData.filter(facility => {
     const matchesCategory = selectedCategory === 'all' || facility.category === selectedCategory;
@@ -17,98 +18,180 @@ export default function Facilities() {
     return matchesCategory && matchesSearch;
   });
 
+  const toggleSpec = (id) => {
+    setExpandedSpecId(prev => prev === id ? null : id);
+  };
+
   return (
     <div className="page-facilities">
-      {/* Header */}
-      <section className="section" style={{ position: 'relative', overflow: 'hidden', paddingBottom: '2.5rem' }}>
+      {/* Header Bar */}
+      <section className="facilities-hero-section">
         <CourtBackground />
         <div className="container" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-          <span className="badge badge-olive" style={{ marginBottom: '1rem' }}>
-            Destination Portfolio
+          <span className="badge badge-green" style={{ marginBottom: '0.75rem' }}>
+            Sports & Dining Portfolio
           </span>
-          <h1 style={{ marginBottom: '1rem' }}>
-            Our <span className="text-olive">Facilities</span>
+          <h1 className="facilities-main-title">
+            Our <span className="text-green">Facilities</span>
           </h1>
-          <p style={{ maxWidth: '720px', margin: '0 auto', fontSize: '1.2rem', lineHeight: '1.6' }}>
-            Built to international athletic standards. Explore our tournament turfs, high-speed practice lanes, skating track, and signature dining lounge.
+          <p className="facilities-main-sub">
+            Built to international athletic standards in Patan. Explore tournament turfs, high-speed practice lanes, skating track, and signature café.
           </p>
 
-          {/* Filter & Search Controls */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginTop: '2.5rem'
-          }}>
-            {/* Category Tabs */}
-            <div className="tabs-container">
+          {/* Quick Search & Filter Controls */}
+          <div className="facilities-filter-controls">
+            {/* Search Input */}
+            <div className="facilities-search-box">
+              <Search size={16} className="text-muted facilities-search-icon" />
+              <input
+                type="text"
+                placeholder="Search courts, turfs, nets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="form-input facilities-search-input"
+              />
+            </div>
+
+            {/* Category Scroll Strip */}
+            <div className="facilities-category-strip">
               {facilityCategories.map(cat => (
                 <button
                   key={cat.id}
-                  className={`tab-btn ${selectedCategory === cat.id ? 'active' : ''}`}
+                  className={`cat-pill-btn ${selectedCategory === cat.id ? 'active' : ''}`}
                   onClick={() => setSelectedCategory(cat.id)}
                 >
                   {cat.label}
                 </button>
               ))}
             </div>
-
-            {/* Quick Search */}
-            <div style={{ position: 'relative', minWidth: '240px' }}>
-              <input
-                type="text"
-                placeholder="Search amenities..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="form-input"
-                style={{ paddingLeft: '2.4rem', height: '42px', borderRadius: 'var(--radius-full)' }}
-              />
-              <Search 
-                size={16} 
-                className="text-muted" 
-                style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} 
-              />
-            </div>
           </div>
         </div>
       </section>
 
-      {/* Facilities Cards Grid */}
-      <section className="section" style={{ paddingTop: '1rem' }}>
+      {/* Facilities Cards Section */}
+      <section className="section-sm" style={{ paddingTop: '1.25rem' }}>
         <div className="container">
-          {filteredFacilities.length > 0 ? (
-            <div className="grid grid-3">
-              {filteredFacilities.map(facility => (
-                <FacilityCard key={facility.id} facility={facility} />
-              ))}
+          {selectedCategory === 'all' && !searchQuery.trim() ? (
+            /* Structured Activity Category Groups for First-Time Discoverability */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+              {/* Group 1: Tournament Sports Arenas */}
+              <div>
+                <div className="facility-group-header" style={{ marginTop: 0 }}>
+                  <div>
+                    <h2 className="facility-group-title">
+                      <span>🏆</span> Competitive Sports Arenas
+                    </h2>
+                    <p className="facility-group-desc">Tournament synthetic turfs, cushioned pickleball, and smooth speed skating</p>
+                  </div>
+                  <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>3 Venues</span>
+                </div>
+                <div className="grid grid-3">
+                  {facilitiesData.filter(f => f.category === 'sports').map(facility => (
+                    <FacilityCard key={facility.id} facility={facility} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Group 2: Athletic Performance & Training */}
+              <div>
+                <div className="facility-group-header">
+                  <div>
+                    <h2 className="facility-group-title">
+                      <span>🎯</span> Performance Training &amp; Practice Lanes
+                    </h2>
+                    <p className="facility-group-desc">Full bowler run-up nets and 150 km/h programmable bowling machine</p>
+                  </div>
+                  <span className="badge badge-orange" style={{ fontSize: '0.72rem' }}>2 Lanes</span>
+                </div>
+                <div className="grid grid-2">
+                  {facilitiesData.filter(f => f.category === 'practice').map(facility => (
+                    <FacilityCard key={facility.id} facility={facility} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Group 3: Café, Dugouts & Nutrition */}
+              <div>
+                <div className="facility-group-header">
+                  <div>
+                    <h2 className="facility-group-title">
+                      <span>☕</span> Café, Dugouts &amp; Player Fuel
+                    </h2>
+                    <p className="facility-group-desc">Espresso bar, protein smoothies, woodfired pizzas, and pavilion seating</p>
+                  </div>
+                  <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>2 Spaces</span>
+                </div>
+                <div className="grid grid-2">
+                  {facilitiesData.filter(f => f.category === 'dining').map(facility => (
+                    <FacilityCard key={facility.id} facility={facility} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : filteredFacilities.length > 0 ? (
+            <div>
+              <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                  Found <strong>{filteredFacilities.length}</strong> matching venue{filteredFacilities.length > 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem' }}
+                >
+                  Show All Activities
+                </button>
+              </div>
+              <div className="grid grid-3">
+                {filteredFacilities.map(facility => (
+                  <FacilityCard key={facility.id} facility={facility} />
+                ))}
+              </div>
             </div>
           ) : (
-            <div style={{
-              textAlign: 'center',
-              padding: '4rem 2rem',
-              background: 'var(--bg-surface)',
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-subtle)'
-            }}>
-              <p style={{ fontSize: '1.2rem', color: 'var(--brand-cream)' }}>
-                No facilities matched your search criteria.
+            <div className="facility-not-found-card">
+              <p style={{ fontSize: '1.1rem', color: 'var(--brand-cream)', margin: 0, fontWeight: 700 }}>
+                No venues matched "{searchQuery}".
               </p>
-              <button 
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.4rem 0 1rem' }}>
+                Try exploring one of our popular sports or reset your search:
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedCategory('sports'); setSearchQuery(''); }}
+                  className="btn btn-outline btn-sm"
+                >
+                  🏏 Competitive Sports
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedCategory('practice'); setSearchQuery(''); }}
+                  className="btn btn-outline btn-sm"
+                >
+                  🎯 Performance Training
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedCategory('dining'); setSearchQuery(''); }}
+                  className="btn btn-outline btn-sm"
+                >
+                  ☕ Café &amp; Dining
+                </button>
+              </div>
+              <button
                 onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}
-                className="btn btn-outline btn-sm"
-                style={{ marginTop: '1rem' }}
+                className="btn btn-primary btn-sm"
               >
-                Reset Filters
+                Reset Filters &amp; View All Sports
               </button>
             </div>
           )}
         </div>
       </section>
 
-      {/* Facility Specs Comparison Summary */}
-      <section className="section" style={{ background: 'var(--bg-surface)' }}>
+      {/* Facility Specs Comparison: Mobile-First Accordion Cards */}
+      <section className="section-sm facilities-specs-section" style={{ background: 'var(--bg-surface)' }}>
         <div className="container">
           <SectionHeading
             badge="Engineering Standards"
@@ -118,57 +201,64 @@ export default function Facilities() {
             center
           />
 
-          <div style={{ overflowX: 'auto', marginTop: '2.5rem' }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              background: 'var(--bg-surface-elevated)',
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
-              border: '1px solid var(--border-strong)',
-              fontSize: '0.94rem'
-            }}>
-              <thead>
-                <tr style={{ background: 'var(--brand-olive-dim)', borderBottom: '1px solid var(--border-strong)', textAlign: 'left' }}>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Facility</th>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Surface / Atmosphere</th>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Indian Standards &amp; Regulations</th>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Dimensions / Capacity</th>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Lighting &amp; Features</th>
-                  <th style={{ padding: '1rem 1.25rem', color: 'var(--brand-cream)' }}>Ideal For</th>
-                </tr>
-              </thead>
-              <tbody>
-                {facilitiesData.map((item, idx) => (
-                  <tr 
-                    key={item.id} 
-                    style={{ 
-                      borderBottom: idx === facilitiesData.length - 1 ? 'none' : '1px solid var(--border-subtle)',
-                      transition: 'background-color 0.2s'
-                    }}
+          <div className="specs-accordion-list" style={{ marginTop: '1.5rem' }}>
+            {facilitiesData.map((item) => {
+              const isOpen = expandedSpecId === item.id;
+              return (
+                <div key={item.id} className={`spec-card ${isOpen ? 'open' : ''}`}>
+                  <button
+                    className="spec-card-header"
+                    onClick={() => toggleSpec(item.id)}
+                    aria-expanded={isOpen}
                   >
-                    <td style={{ padding: '1.1rem 1.25rem', fontWeight: 600, color: 'var(--brand-cream)' }}>
-                      {item.name}
-                    </td>
-                    <td style={{ padding: '1.1rem 1.25rem', color: 'var(--text-secondary)' }}>
-                      {item.specs.surface || item.specs.speedRange || item.specs.menuPillars || item.specs.beverages}
-                    </td>
-                    <td style={{ padding: '1.1rem 1.25rem', color: 'var(--brand-olive-bright)', fontWeight: 500 }}>
-                      {item.specs.regulations || 'Compliant with Indian Athletic Facility Standards'}
-                    </td>
-                    <td style={{ padding: '1.1rem 1.25rem', color: 'var(--text-secondary)' }}>
-                      {item.specs.dimensions || item.specs.seating || item.specs.location}
-                    </td>
-                    <td style={{ padding: '1.1rem 1.25rem', color: 'var(--text-secondary)' }}>
-                      {item.specs.lighting || item.specs.ambience || item.specs.speed}
-                    </td>
-                    <td style={{ padding: '1.1rem 1.25rem', color: 'var(--brand-cream)' }}>
-                      {item.suitableFor[0]}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    <div className="spec-card-title-group">
+                      <span className="spec-card-name">{item.name}</span>
+                      <span className="badge badge-surface" style={{ fontSize: '0.68rem' }}>
+                        {item.category === 'dining' ? 'Café' : 'Court Specs'}
+                      </span>
+                    </div>
+                    <div className="spec-chevron">
+                      {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="spec-card-body">
+                      <div className="spec-item-row">
+                        <span className="spec-item-label">Surface / Ambience:</span>
+                        <span className="spec-item-val text-green">
+                          {item.specs.surface || item.specs.speedRange || item.specs.menuPillars || item.specs.beverages || 'Standard'}
+                        </span>
+                      </div>
+                      <div className="spec-item-row">
+                        <span className="spec-item-label">Regulations:</span>
+                        <span className="spec-item-val">
+                          {item.specs.regulations || 'Compliant with Indian Athletic Facility Standards'}
+                        </span>
+                      </div>
+                      <div className="spec-item-row">
+                        <span className="spec-item-label">Dimensions / Area:</span>
+                        <span className="spec-item-val">
+                          {item.specs.dimensions || item.specs.seating || item.specs.location || 'Standard Dimension'}
+                        </span>
+                      </div>
+                      <div className="spec-item-row">
+                        <span className="spec-item-label">Lighting & Setup:</span>
+                        <span className="spec-item-val">
+                          {item.specs.lighting || item.specs.ambience || item.specs.speed || 'Full Lighting Setup'}
+                        </span>
+                      </div>
+                      <div className="spec-item-row">
+                        <span className="spec-item-label">Ideal For:</span>
+                        <span className="spec-item-val" style={{ color: 'var(--brand-cream)' }}>
+                          {item.suitableFor ? item.suitableFor.join(', ') : 'All Players'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

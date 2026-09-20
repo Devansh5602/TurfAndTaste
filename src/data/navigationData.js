@@ -1,10 +1,10 @@
 export const navLinks = [
   { label: 'Home', path: '/' },
-  { label: 'About', path: '/about' },
   { label: 'Facilities', path: '/facilities' },
-  { label: 'Pricing', path: '/pricing' },
   { label: 'Booking', path: '/booking' },
-  { label: 'Inquiry', path: '/inquiry' },
+  { label: 'My Bookings', path: '/my-bookings' },
+  { label: 'Pricing', path: '/pricing' },
+  { label: 'About', path: '/about' },
   { label: 'Contact', path: '/contact' }
 ];
 

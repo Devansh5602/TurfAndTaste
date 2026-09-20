@@ -1,125 +1,213 @@
-/* Turf & Taste - Global Design Tokens */
+/* ============================================================
+   Turf & Taste — Design System Tokens v2 (App-Grade)
+   Modern Dark Sports App: Dream11 / BCCI / BookMyShow style
+   ============================================================ */
 :root {
-  /* Fonts */
+  /* ── Fonts ── */
   --font-display: 'Bebas Neue', Impact, sans-serif;
   --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-accent: 'Playfair Display', Georgia, serif;
 
-  /* Transitions — capped at 150ms, no bounce */
-  --transition-fast: 0.08s ease-out;
-  --transition-normal: 0.12s ease-out;
-  --transition-smooth: 0.15s ease-out;
+  /* ── Transitions ── */
+  --transition-fast: 0.1s ease-out;
+  --transition-normal: 0.15s ease-out;
+  --transition-smooth: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-spring: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Radii */
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 26px;
+  /* ── Border Radii ── */
+  --radius-xs:   6px;
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --radius-xl:   28px;
+  --radius-card: 20px;
   --radius-full: 9999px;
 
-  /* Default / Dark Theme (Primary Brand Experience) */
-  --bg-base: #090c09;
-  --bg-surface: #111611;
-  --bg-surface-elevated: #182018;
-  /* Third background value: hover changes the surface, not the elevation */
-  --bg-raised: rgba(255, 255, 255, 0.035);
-  /* Hairline border separates bg layers — 1px at 8% white */
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --bg-glass: rgba(17, 22, 17, 0.85);
-  --bg-input: #131913;
-  /* Dense data text size (13px) */
-  --font-size-data: 0.8125rem;
+  /* ── Spacing Scale ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
 
-  --brand-olive: #6b8f49;
-  --brand-olive-bright: #82ab58;
-  --brand-olive-light: #98c36b;
-  --brand-olive-dim: rgba(107, 143, 73, 0.16);
-  --brand-olive-glow: rgba(107, 143, 73, 0.35);
-  --brand-olive-border: rgba(107, 143, 73, 0.3);
+  /* ── Typography Scale (Normalized Mobile-First) ── */
+  --text-xs:    0.75rem;   /* 12px - badges, tags */
+  --text-sm:    0.85rem;   /* 13.6px - secondary text, meta */
+  --text-base:  0.95rem;   /* 15.2px - default readable body */
+  --text-md:    1.05rem;   /* 16.8px - card titles, emphasized body */
+  --text-lg:    1.25rem;   /* 20px - section headers */
+  --text-xl:    1.5rem;    /* 24px - page titles */
+  --text-2xl:   2rem;      /* 32px - display headings */
 
-  --brand-cream: #f4ede0;
-  --brand-cream-muted: #d0c7b2;
-  --brand-cream-dim: rgba(244, 237, 224, 0.1);
+  /* ── Standard Control Heights (Touch friendly >=44px) ── */
+  --btn-height:        48px;
+  --btn-height-sm:     38px;
+  --btn-height-lg:     52px;
+  --input-height:      48px;
+  --touch-target-min:  44px;
 
-  --text-primary: #fbfaf6;
-  --text-secondary: #adb6a8;
-  --text-muted: #798575;
+  /* ── Navigation heights ── */
+  --nav-height-mobile:  64px;
+  --nav-height-desktop: 68px;
+  --tab-bar-height:     68px; /* bottom tab bar */
 
-  --brand-orange: #e86726;
-  --brand-orange-bright: #ff7938;
-  --brand-orange-dim: rgba(232, 103, 38, 0.18);
-  --brand-orange-glow: rgba(232, 103, 38, 0.4);
+  /* ══════════════════════════════════════════════
+     DARK THEME — Primary Brand Experience
+     Base: Near-black with warm green undertone
+     ══════════════════════════════════════════════ */
 
-  --brand-crimson: #b32629;
-  --brand-crimson-dim: rgba(179, 38, 41, 0.2);
+  /* Backgrounds */
+  --bg-base:             #050807;
+  --bg-surface:          #0D1410;
+  --bg-surface-elevated: #152018;
+  --bg-surface-high:     #1C2B20;
+  --bg-raised:           rgba(255, 255, 255, 0.04);
+  --bg-glass:            rgba(13, 20, 16, 0.88);
+  --bg-overlay:          rgba(3, 5, 4, 0.85);
+  --bg-input:            #111A14;
+  --bg-card:             #0D1410;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(107, 143, 73, 0.35);
-  --border-highlight: rgba(130, 171, 88, 0.6);
+  /* Borders */
+  --border-hairline:  rgba(255, 255, 255, 0.07);
+  --border-subtle:    rgba(255, 255, 255, 0.10);
+  --border-strong:    rgba(74, 222, 128, 0.22);
+  --border-highlight: rgba(74, 222, 128, 0.55);
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
-  --glow-olive: 0 0 30px rgba(107, 143, 73, 0.28);
-  --glow-orange: 0 0 24px rgba(232, 103, 38, 0.32);
+  /* ── Primary Accent: Neon Green ── */
+  --brand-green:        #4ADE80;
+  --brand-green-bright: #6EE79A;
+  --brand-green-deep:   #22C55E;
+  --brand-green-dim:    rgba(74, 222, 128, 0.12);
+  --brand-green-glow:   rgba(74, 222, 128, 0.28);
+  --brand-green-border: rgba(74, 222, 128, 0.25);
 
-  --court-line-color: rgba(107, 143, 73, 0.14);
+  /* ── Legacy olive aliases (for components not yet updated) ── */
+  --brand-olive:        var(--brand-green-deep);
+  --brand-olive-bright: var(--brand-green);
+  --brand-olive-light:  var(--brand-green-bright);
+  --brand-olive-dim:    var(--brand-green-dim);
+  --brand-olive-glow:   var(--brand-green-glow);
+  --brand-olive-border: var(--brand-green-border);
 
-  /* Safe-area insets for native mobile (Capacitor / notch devices) */
-  --safe-top: env(safe-area-inset-top, 0px);
+  /* ── Secondary Accent: Vivid Orange ── */
+  --brand-orange:        #F97316;
+  --brand-orange-bright: #FB923C;
+  --brand-orange-dim:    rgba(249, 115, 22, 0.14);
+  --brand-orange-glow:   rgba(249, 115, 22, 0.35);
+
+  /* ── Danger ── */
+  --brand-crimson:     #EF4444;
+  --brand-crimson-dim: rgba(239, 68, 68, 0.15);
+
+  /* ── Text ── */
+  --text-primary:   #F0F7F1;
+  --text-secondary: #8FA98F;
+  --text-muted:     #4D6B52;
+  --brand-cream:        #F0F7F1;
+  --brand-cream-muted:  #8FA98F;
+  --brand-cream-dim:    rgba(240, 247, 241, 0.08);
+
+  /* ── Shadows / Glows ── */
+  --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.7);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.55);
+
+  --glow-green:  0 0 24px rgba(74, 222, 128, 0.25);
+  --glow-olive:  0 0 24px rgba(74, 222, 128, 0.25);
+  --glow-orange: 0 0 20px rgba(249, 115, 22, 0.30);
+
+  /* ── Pattern ── */
+  --court-line-color: rgba(74, 222, 128, 0.08);
+
+  /* ── Safe Areas (Capacitor / Notch / Island) ── */
+  --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+
+  /* ── Z-index Stack ── */
+  --z-base:     1;
+  --z-card:     10;
+  --z-sticky:   100;
+  --z-nav:      900;
+  --z-drawer:   999;
+  --z-modal:    1000;
+  --z-toast:    2000;
+  --z-tab-bar:  950;
+
+  /* ── Misc ── */
+  --font-size-data: 0.8125rem;
 }
 
-/* Light Theme */
+/* ══════════════════════════════════════════════
+   LIGHT THEME
+   ══════════════════════════════════════════════ */
 [data-theme="light"] {
-  --bg-base: #f6f4ee;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #ede8dc;
-  --bg-raised: rgba(0, 0, 0, 0.028);
-  --border-hairline: rgba(0, 0, 0, 0.08);
-  --bg-glass: rgba(255, 255, 255, 0.9);
-  --bg-input: #ffffff;
-  --font-size-data: 0.8125rem;
+  --bg-base:             #F5F8F5;
+  --bg-surface:          #FFFFFF;
+  --bg-surface-elevated: #EDF3EE;
+  --bg-surface-high:     #E2EDE3;
+  --bg-raised:           rgba(0, 0, 0, 0.035);
+  --bg-glass:            rgba(255, 255, 255, 0.92);
+  --bg-overlay:          rgba(240, 248, 241, 0.9);
+  --bg-input:            #FFFFFF;
+  --bg-card:             #FFFFFF;
 
-  --brand-olive: #486530;
-  --brand-olive-bright: #567a39;
-  --brand-olive-light: #6a9446;
-  --brand-olive-dim: rgba(72, 101, 48, 0.12);
-  --brand-olive-glow: rgba(72, 101, 48, 0.25);
-  --brand-olive-border: rgba(72, 101, 48, 0.25);
+  --border-hairline:  rgba(0, 0, 0, 0.07);
+  --border-subtle:    rgba(0, 0, 0, 0.10);
+  --border-strong:    rgba(34, 197, 94, 0.30);
+  --border-highlight: rgba(34, 197, 94, 0.55);
 
-  --brand-cream: #141b12;
-  --brand-cream-muted: #3a4537;
-  --brand-cream-dim: rgba(20, 27, 18, 0.06);
+  --brand-green:        #16A34A;
+  --brand-green-bright: #22C55E;
+  --brand-green-deep:   #15803D;
+  --brand-green-dim:    rgba(22, 163, 74, 0.10);
+  --brand-green-glow:   rgba(22, 163, 74, 0.20);
+  --brand-green-border: rgba(22, 163, 74, 0.25);
 
-  --text-primary: #121811;
-  --text-secondary: #485346;
-  --text-muted: #748171;
+  --brand-olive:        var(--brand-green-deep);
+  --brand-olive-bright: var(--brand-green);
+  --brand-olive-light:  var(--brand-green-bright);
+  --brand-olive-dim:    var(--brand-green-dim);
+  --brand-olive-glow:   var(--brand-green-glow);
+  --brand-olive-border: var(--brand-green-border);
 
-  --brand-orange: #d55919;
-  --brand-orange-bright: #e76725;
-  --brand-orange-dim: rgba(213, 89, 25, 0.12);
-  --brand-orange-glow: rgba(213, 89, 25, 0.28);
+  --brand-orange:        #EA580C;
+  --brand-orange-bright: #F97316;
+  --brand-orange-dim:    rgba(234, 88, 12, 0.10);
+  --brand-orange-glow:   rgba(234, 88, 12, 0.22);
 
-  --brand-crimson: #a62023;
-  --brand-crimson-dim: rgba(166, 32, 35, 0.12);
+  --brand-crimson:     #DC2626;
+  --brand-crimson-dim: rgba(220, 38, 38, 0.10);
 
-  --border-subtle: rgba(20, 27, 18, 0.1);
-  --border-strong: rgba(72, 101, 48, 0.3);
-  --border-highlight: rgba(86, 122, 57, 0.5);
+  --text-primary:   #0D1F12;
+  --text-secondary: #3D5C42;
+  --text-muted:     #7BA080;
+  --brand-cream:        #0D1F12;
+  --brand-cream-muted:  #3D5C42;
+  --brand-cream-dim:    rgba(13, 31, 18, 0.06);
 
-  --shadow-sm: 0 2px 8px rgba(20, 27, 18, 0.06);
-  --shadow-md: 0 8px 24px rgba(20, 27, 18, 0.08);
-  --shadow-lg: 0 16px 40px rgba(20, 27, 18, 0.12);
-  --glow-olive: 0 0 24px rgba(72, 101, 48, 0.16);
-  --glow-orange: 0 0 20px rgba(213, 89, 25, 0.2);
+  --shadow-xs: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-sm: 0 2px 12px rgba(0,0,0,0.08);
+  --shadow-md: 0 8px 28px rgba(0,0,0,0.10);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.12);
+  --shadow-card: 0 2px 16px rgba(0,0,0,0.08);
 
-  --court-line-color: rgba(72, 101, 48, 0.1);
+  --glow-green:  0 0 20px rgba(22, 163, 74, 0.15);
+  --glow-olive:  0 0 20px rgba(22, 163, 74, 0.15);
+  --glow-orange: 0 0 18px rgba(234, 88, 12, 0.18);
 
-  --safe-top: env(safe-area-inset-top, 0px);
+  --court-line-color: rgba(22, 163, 74, 0.08);
+
+  --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --font-size-data: 0.8125rem;
 }

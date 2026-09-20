@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from '../context/RouterContext';
+import { useRouter, Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { generateTimeSlots, submitBookingReservation } from '../services/bookingService';
 import { adminStore } from '../services/adminStore';
@@ -39,6 +39,15 @@ import {
   Zap
 } from 'lucide-react';
 
+const BOOKABLE_ACTIVITIES = [
+  { slug: 'all', label: 'All Activities', icon: '🏆', count: 5 },
+  { slug: 'box-cricket', label: 'Box Cricket', icon: '🏏', count: 1 },
+  { slug: 'pickleball', label: 'Pickleball', icon: '🎾', count: 1 },
+  { slug: 'skating', label: 'Skating Rink', icon: '⛸️', count: 1 },
+  { slug: 'cricket-nets', label: 'Cricket Nets', icon: '🏏', count: 1 },
+  { slug: 'ball-machine', label: 'Bowling Machine', icon: '🎯', count: 1 }
+];
+
 export default function Booking() {
   const { navigate, queryParams } = useRouter();
   const preselectedFacility = queryParams.get('facility');
@@ -47,7 +56,8 @@ export default function Booking() {
   const [currentStep, setCurrentStep] = useState(1);
   const wizardRef = useRef(null);
 
-  // Booking State
+  // Booking State & Activity Discovery Filter
+  const [activityFilter, setActivityFilter] = useState('all');
   const [selectedFacility, setSelectedFacility] = useState(
     preselectedFacility || 'box-cricket'
   );
@@ -172,15 +182,33 @@ export default function Booking() {
   const payableNow = paymentType === 'deposit' ? depositAmount : totalAmount;
   const balanceDueAtDesk = Math.max(0, totalAmount - payableNow);
 
-  // Reset selected slot if facility, date, or duration changes
-  useEffect(() => {
-    setSelectedSlot(null);
-  }, [selectedFacility, selectedDate, selectedDuration]);
+  const handleSelectFacility = (slug) => {
+    if (selectedFacility !== slug) {
+      setSelectedFacility(slug);
+      setSelectedSlot(null); // only reset slot when facility actually changes
+    }
+    setErrors(prev => ({ ...prev, facility: null }));
+  };
+
+  const handleSelectDate = (iso) => {
+    if (selectedDate !== iso) {
+      setSelectedDate(iso);
+      setSelectedSlot(null); // only reset slot when date actually changes
+    }
+  };
+
+  const handleSelectDuration = (hrs) => {
+    if (selectedDuration !== hrs) {
+      setSelectedDuration(hrs);
+      setSelectedSlot(null); // only reset slot when duration actually changes
+    }
+  };
 
   // Sync with URL query parameter
   useEffect(() => {
-    if (preselectedFacility) {
+    if (preselectedFacility && preselectedFacility !== selectedFacility) {
       setSelectedFacility(preselectedFacility);
+      setSelectedSlot(null);
     }
   }, [preselectedFacility]);
 
@@ -188,6 +216,7 @@ export default function Booking() {
 
   // Stepper Step Navigation
   const goToStep = (stepNum) => {
+    setErrors({});
     setCurrentStep(stepNum);
     if (wizardRef.current) {
       wizardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -195,12 +224,17 @@ export default function Booking() {
   };
 
   const handleStep1Next = () => {
+    if (!selectedFacility) {
+      setErrors({ facility: 'Please select an arena to continue.' });
+      return;
+    }
+    setErrors({});
     goToStep(2);
   };
 
   const handleStep2Next = () => {
     if (!selectedSlot) {
-      setErrors({ slot: 'Please select an available time slot before proceeding to player details.' });
+      setErrors({ slot: 'Please select an available time slot.' });
       return;
     }
     setErrors({});
@@ -230,17 +264,25 @@ export default function Booking() {
   };
 
   const handleStepClick = (targetStep) => {
+    // When returning to previous step, preserve all selected data!
     if (targetStep < currentStep) {
       goToStep(targetStep);
       return;
     }
+    if (targetStep === currentStep) return;
+
+    // Jumping forward: validate prerequisites
     if (targetStep === 2) {
+      if (!selectedFacility) {
+        setErrors({ facility: 'Please select an arena to continue.' });
+        return;
+      }
       goToStep(2);
       return;
     }
     if (targetStep === 3) {
       if (!selectedSlot) {
-        setErrors({ slot: 'Please select an available time slot first.' });
+        setErrors({ slot: 'Please select an available time slot.' });
         return;
       }
       goToStep(3);
@@ -248,10 +290,11 @@ export default function Booking() {
     }
     if (targetStep === 4) {
       if (!selectedSlot) {
-        goToStep(2);
+        setErrors({ slot: 'Please select an available time slot.' });
         return;
       }
-      if (!customer.name.trim() || !customer.phone.trim() || !customer.email.trim()) {
+      if (!customer.name.trim() || !customer.phone.trim() || !customer.email.trim() || !customer.agreedRules) {
+        setErrors({ form: 'Please complete all required details first.' });
         goToStep(3);
         return;
       }
@@ -422,147 +465,273 @@ export default function Booking() {
       <section className="section" ref={wizardRef} style={{ position: 'relative', zIndex: 2, paddingTop: '0.75rem', paddingBottom: '1.75rem' }}>
         <div className="container" style={{ maxWidth: '1060px' }}>
           
-          {/* Compact Header Bar (Zero screen-height waste) */}
-          <div className="booking-top-header">
-            <h1 className="booking-title">
-              Book Your <span className="text-olive">Arena Slot</span>
-            </h1>
-            <div className="booking-header-badges">
-              <span className="badge badge-olive" style={{ fontSize: '0.7rem', padding: '3px 8px' }}>Instant WhatsApp Pass</span>
-              <span className="badge badge-orange" style={{ fontSize: '0.7rem', padding: '3px 8px' }}>24/7 Operations</span>
+          {/* Mobile-First Step Progress Header */}
+          <div className="booking-step-progress-header">
+            <div className="booking-step-progress-meta">
+              <span className="booking-step-number-tag">
+                STEP {currentStep} OF 4
+              </span>
+              <span className="booking-step-venue-tag">
+                {currentFacilityData.name}
+              </span>
+            </div>
+            <div className="booking-step-title-row">
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  className="booking-step-header-back-btn"
+                  onClick={() => goToStep(currentStep - 1)}
+                  aria-label="Previous step"
+                  title="Go back"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              )}
+              <h1 className="booking-step-main-title">
+                {currentStep === 1 && 'Select Arena'}
+                {currentStep === 2 && 'Select Date & Time'}
+                {currentStep === 3 && 'Your Details'}
+                {currentStep === 4 && 'Review & Confirm'}
+              </h1>
             </div>
           </div>
 
-          {/* Stepper Progress Bar (Segmented with ZERO overhang) */}
-          <div className="booking-stepper">
+          {/* Stepper Progress Bar: [✓ Arena] — [2 Slot] — [3 Details] — [4 Summary] */}
+          <nav className="booking-stepper" aria-label="Booking steps progress">
             {/* Step 1 */}
             <button
               type="button"
-              className={`stepper-node ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}
+              className={`stepper-pill ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}
               onClick={() => handleStepClick(1)}
-              aria-label="Step 1: Select Arena"
+              aria-label="Step 1: Arena"
+              aria-current={currentStep === 1 ? 'step' : undefined}
             >
-              <div className="stepper-node-circle">
-                {currentStep > 1 ? <Check size={14} strokeWidth={3} /> : 1}
-              </div>
-              <span className="stepper-node-label">1. Arena</span>
+              <span className="stepper-pill-icon">
+                {currentStep > 1 ? <Check size={12} strokeWidth={3} /> : '1'}
+              </span>
+              <span className="stepper-pill-label">Arena</span>
             </button>
 
-            {/* Connector 1-2 */}
-            <div className={`stepper-connector ${currentStep > 1 ? 'filled' : ''}`} />
+            <div className={`stepper-divider ${currentStep > 1 ? 'filled' : ''}`} />
 
             {/* Step 2 */}
             <button
               type="button"
-              className={`stepper-node ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}
+              className={`stepper-pill ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : currentStep < 2 ? 'future' : ''}`}
               onClick={() => handleStepClick(2)}
-              aria-label="Step 2: Date & Slot"
+              aria-label="Step 2: Slot"
+              aria-current={currentStep === 2 ? 'step' : undefined}
             >
-              <div className="stepper-node-circle">
-                {currentStep > 2 ? <Check size={14} strokeWidth={3} /> : 2}
-              </div>
-              <span className="stepper-node-label">2. Slot</span>
+              <span className="stepper-pill-icon">
+                {currentStep > 2 ? <Check size={12} strokeWidth={3} /> : '2'}
+              </span>
+              <span className="stepper-pill-label">Slot</span>
             </button>
 
-            {/* Connector 2-3 */}
-            <div className={`stepper-connector ${currentStep > 2 ? 'filled' : ''}`} />
+            <div className={`stepper-divider ${currentStep > 2 ? 'filled' : ''}`} />
 
             {/* Step 3 */}
             <button
               type="button"
-              className={`stepper-node ${currentStep === 3 ? 'active' : ''} ${currentStep > 3 ? 'completed' : ''}`}
+              className={`stepper-pill ${currentStep === 3 ? 'active' : ''} ${currentStep > 3 ? 'completed' : currentStep < 3 ? 'future' : ''}`}
               onClick={() => handleStepClick(3)}
-              aria-label="Step 3: Player Details"
+              aria-label="Step 3: Details"
+              aria-current={currentStep === 3 ? 'step' : undefined}
             >
-              <div className="stepper-node-circle">
-                {currentStep > 3 ? <Check size={14} strokeWidth={3} /> : 3}
-              </div>
-              <span className="stepper-node-label">3. Details</span>
+              <span className="stepper-pill-icon">
+                {currentStep > 3 ? <Check size={12} strokeWidth={3} /> : '3'}
+              </span>
+              <span className="stepper-pill-label">Details</span>
             </button>
 
-            {/* Connector 3-4 */}
-            <div className={`stepper-connector ${currentStep > 3 ? 'filled' : ''}`} />
+            <div className={`stepper-divider ${currentStep > 3 ? 'filled' : ''}`} />
 
             {/* Step 4 */}
             <button
               type="button"
-              className={`stepper-node ${currentStep === 4 ? 'active' : ''}`}
+              className={`stepper-pill ${currentStep === 4 ? 'active' : ''} ${currentStep < 4 ? 'future' : ''}`}
               onClick={() => handleStepClick(4)}
-              aria-label="Step 4: Summary & Pay"
+              aria-label="Step 4: Summary"
+              aria-current={currentStep === 4 ? 'step' : undefined}
             >
-              <div className="stepper-node-circle">
+              <span className="stepper-pill-icon">
                 4
-              </div>
-              <span className="stepper-node-label">4. Summary</span>
+              </span>
+              <span className="stepper-pill-label">Summary</span>
             </button>
-          </div>
+          </nav>
 
           <form onSubmit={handleBookingSubmit}>
             {/* STEP 1: Select Arena & Sport */}
             {currentStep === 1 && (
               <div className="card-arena" style={{ padding: '1.25rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--brand-cream)', fontWeight: 700 }}>Select Arena &amp; Sport</h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.25rem', fontSize: '0.78rem', flexWrap: 'wrap' }}>
-                      <span style={{ color: 'var(--brand-cream-muted)' }}>24/7 Operations:</span>
-                      <span style={{ color: 'var(--brand-olive-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <Sun size={13} /> Day (6:00 AM – 6:00 PM)
-                      </span>
-                      <span style={{ color: 'var(--border-strong)' }}>&bull;</span>
-                      <span style={{ color: 'var(--brand-orange)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <Moon size={13} /> Night Floodlit (6:00 PM – 6:00 AM)
-                      </span>
-                    </div>
+                {errors.facility && (
+                  <div className="booking-validation-banner">
+                    <AlertCircle size={15} />
+                    <span>{errors.facility}</span>
                   </div>
-                  <span className="badge badge-olive" style={{ fontSize: '0.74rem', padding: '0.25rem 0.65rem' }}>Step 1 of 4</span>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.78rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--brand-cream-muted)' }}>24/7 Operations:</span>
+                    <span style={{ color: 'var(--brand-green)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Sun size={13} /> Day (6:00 AM – 6:00 PM)
+                    </span>
+                    <span style={{ color: 'var(--border-strong)' }}>&bull;</span>
+                    <span style={{ color: 'var(--brand-orange)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Moon size={13} /> Night Floodlit (6:00 PM – 6:00 AM)
+                    </span>
+                  </div>
+                  <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>
+                    Tap an Arena below
+                  </span>
                 </div>
 
-                <div className="arena-select-grid">
-                  {facilitiesData.filter(f => f.category !== 'dining').map(f => {
+                {/* Activity Inventory Summary Banner */}
+                <div className="activity-summary-banner">
+                  <div className="activity-summary-left">
+                    <div className="activity-summary-icon">
+                      <Trophy size={18} />
+                    </div>
+                    <div>
+                      <h2 className="activity-summary-title">5 Sports &amp; Practice Grounds in Patan</h2>
+                      <p className="activity-summary-sub">Filter by activity below to view available arenas and hourly rates</p>
+                    </div>
+                  </div>
+                  <span className="badge badge-green" style={{ fontSize: '0.72rem', flexShrink: 0 }}>
+                    Multi-Sport Hub
+                  </span>
+                </div>
+
+                {/* Activity Discovery Bar (Horizontal Sport Filter Pills) */}
+                <div className="activity-discovery-bar" role="tablist" aria-label="Filter by Sport">
+                  {BOOKABLE_ACTIVITIES.map(act => (
+                    <button
+                      key={act.slug}
+                      type="button"
+                      className={`activity-pill-btn ${activityFilter === act.slug ? 'active' : ''}`}
+                      onClick={() => {
+                        setActivityFilter(act.slug);
+                        if (act.slug !== 'all') {
+                          handleSelectFacility(act.slug);
+                        }
+                      }}
+                      role="tab"
+                      aria-selected={activityFilter === act.slug}
+                    >
+                      <span>{act.icon}</span>
+                      <span>{act.label}</span>
+                      <span className="activity-pill-count">{act.count}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {activityFilter !== 'all' && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.35rem 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    <span>Showing venue for <strong>{BOOKABLE_ACTIVITIES.find(a => a.slug === activityFilter)?.label}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setActivityFilter('all')}
+                      style={{ background: 'none', border: 'none', color: 'var(--brand-green)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', padding: 0 }}
+                    >
+                      Show All 5 Sports
+                    </button>
+                  </div>
+                )}
+
+                <div className="arena-card-list">
+                  {facilitiesData
+                    .filter(f => f.category !== 'dining')
+                    .filter(f => activityFilter === 'all' || f.slug === activityFilter)
+                    .map(f => {
                     const isSelected = selectedFacility === f.slug;
                     const fPricing = adminStore.getFacilityPricing(f.slug);
                     return (
-                      <button
-                        type="button"
+                      <div
                         key={f.id}
-                        onClick={() => setSelectedFacility(f.slug)}
-                        className={`arena-select-tile ${isSelected ? 'selected' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleSelectFacility(f.slug)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectFacility(f.slug); }}
+                        className={`arena-card-row ${isSelected ? 'selected' : ''}`}
+                        aria-pressed={isSelected}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <span style={{ fontSize: '0.66rem', color: isSelected ? 'var(--brand-cream)' : 'var(--brand-olive-bright)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-                            {f.tag}
-                          </span>
-                          {isSelected && (
-                            <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--brand-olive-bright)', color: '#090C09', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <Check size={12} strokeWidth={3} />
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <strong style={{ fontSize: '0.94rem', color: 'var(--brand-cream)', display: 'block', lineHeight: 1.25, marginBottom: '0.35rem' }}>
-                            {f.name}
-                          </strong>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.75rem' }}>
-                            <span style={{ color: isSelected ? 'var(--brand-cream)' : 'var(--brand-olive-bright)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                              <Sun size={12} style={{ color: 'var(--brand-olive-bright)', flexShrink: 0 }} /> Day: {fPricing.dayRate}/hr
-                            </span>
-                            <span style={{ color: isSelected ? '#ffb088' : 'var(--brand-orange)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                              <Moon size={12} style={{ color: 'var(--brand-orange)', flexShrink: 0 }} /> Night: {fPricing.nightRate}/hr
-                            </span>
+                        {/* Facility Photo Header */}
+                        <div className="arena-card-row-top">
+                          <img
+                            src={f.image}
+                            alt={f.name}
+                            className="arena-card-row-image"
+                            loading="lazy"
+                          />
+                          <div className="arena-card-row-gradient" />
+                          <div className="arena-card-row-tags">
+                            <span className="arena-card-tag">{f.tag}</span>
+                            {isSelected && (
+                              <span className="arena-card-selected-badge">
+                                <Check size={12} strokeWidth={3} /> Selected
+                              </span>
+                            )}
                           </div>
                         </div>
-                      </button>
+
+                        {/* Card Body & Details */}
+                        <div className="arena-card-row-body">
+                          <div className="arena-card-row-header">
+                            <h3 className="arena-card-row-title">{f.name}</h3>
+                            <p className="arena-card-row-desc">{f.shortDesc}</p>
+                          </div>
+
+                          {/* Pricing Comparison Strip */}
+                          <div className="arena-card-pricing-strip">
+                            <div className="arena-card-price-item">
+                              <span className="arena-card-price-label">
+                                <Sun size={12} style={{ color: 'var(--brand-green)' }} /> Day Session
+                              </span>
+                              <span className="arena-card-price-val day">
+                                {fPricing.dayRate}/hr
+                              </span>
+                            </div>
+                            <div className="arena-card-price-item">
+                              <span className="arena-card-price-label">
+                                <Moon size={12} style={{ color: 'var(--brand-orange)' }} /> Night Lights
+                              </span>
+                              <span className="arena-card-price-val night">
+                                {fPricing.nightRate}/hr
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Explicit Action Button */}
+                          <button
+                            type="button"
+                            className="arena-card-action-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectFacility(f.slug);
+                            }}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check size={16} strokeWidth={3} /> Arena Selected
+                              </>
+                            ) : (
+                              'Select This Arena'
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
 
                 <div className="stepper-nav-bar">
-                  <div style={{ fontSize: '0.85rem', color: 'var(--brand-cream-muted)' }}>
-                    Selected: <strong style={{ color: 'var(--brand-cream)' }}>{currentFacilityData.name}</strong>
-                  </div>
+                  <Link to="/facilities" className="btn btn-outline btn-sm">
+                    <ChevronLeft size={15} /> Back to Venues
+                  </Link>
                   <button type="button" className="btn btn-primary" onClick={handleStep1Next} style={{ padding: '0.55rem 1.45rem' }}>
-                    Next: Select Date &amp; Slot <ArrowRight size={15} />
+                    Select Date &amp; Slot <ArrowRight size={15} />
                   </button>
                 </div>
               </div>
@@ -571,11 +740,35 @@ export default function Booking() {
             {/* STEP 2: Choose Date & Time Slot (Compact & Screen Fitting) */}
             {currentStep === 2 && (
               <div className="card-arena" style={{ padding: '1.25rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
+                {errors.slot && (
+                  <div className="booking-validation-banner">
+                    <AlertCircle size={15} />
+                    <span>{errors.slot}</span>
+                  </div>
+                )}
+
                 {/* Header Strip */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.55rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--brand-cream)', fontWeight: 700 }}>Choose Date &amp; Slot</h2>
-                    <span className="badge badge-olive" style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}>{currentFacilityData.name}</span>
+                    <span className="badge badge-green" style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}>{currentFacilityData.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => goToStep(1)}
+                      style={{
+                        background: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '0.2rem 0.65rem',
+                        fontSize: '0.74rem',
+                        color: 'var(--brand-green)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      Switch Sport <ChevronRight size={12} />
+                    </button>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Duration:</span>
@@ -584,15 +777,15 @@ export default function Booking() {
                         <button
                           type="button"
                           key={hrs}
-                          onClick={() => { setSelectedDuration(hrs); setSelectedSlot(null); }}
+                          onClick={() => handleSelectDuration(hrs)}
                           style={{
-                            background: selectedDuration === hrs ? 'var(--brand-olive)' : 'transparent',
-                            color: selectedDuration === hrs ? '#fff' : 'var(--text-secondary)',
+                            background: selectedDuration === hrs ? 'var(--brand-green)' : 'transparent',
+                            color: selectedDuration === hrs ? '#000' : 'var(--text-secondary)',
                             border: 'none',
                             borderRadius: 'var(--radius-full)',
                             padding: '0.2rem 0.7rem',
                             fontSize: '0.78rem',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             transition: 'all var(--transition-fast)'
                           }}
@@ -613,9 +806,8 @@ export default function Booking() {
                       className="date-nav-btn"
                       title="Previous dates"
                       aria-label="Previous dates"
-                      style={{ width: '26px', height: '26px', flexShrink: 0 }}
                     >
-                      <ChevronLeft size={15} />
+                      <ChevronLeft size={16} />
                     </button>
 
                     <div ref={dateScrollRef} className="date-picker-scroll" style={{ padding: '0.1rem 0' }}>
@@ -623,25 +815,27 @@ export default function Booking() {
                         <button
                           type="button"
                           key={item.iso}
-                          onClick={() => setSelectedDate(item.iso)}
+                          onClick={() => handleSelectDate(item.iso)}
                           className="date-pill-btn"
                           style={{
                             flexShrink: 0,
-                            padding: '0.28rem 0.48rem',
+                            padding: '0.35rem 0.55rem',
                             borderRadius: 'var(--radius-sm)',
-                            border: `1.5px solid ${selectedDate === item.iso ? 'var(--brand-olive-bright)' : 'var(--border-subtle)'}`,
-                            background: selectedDate === item.iso ? 'var(--brand-olive)' : 'var(--bg-surface-elevated)',
-                            color: selectedDate === item.iso ? '#ffffff' : 'var(--text-primary)',
+                            border: `1.5px solid ${selectedDate === item.iso ? 'var(--brand-green)' : 'var(--border-subtle)'}`,
+                            background: selectedDate === item.iso ? 'var(--brand-green)' : 'var(--bg-surface-elevated)',
+                            color: selectedDate === item.iso ? '#000000' : 'var(--text-primary)',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             cursor: 'pointer',
-                            minWidth: '50px',
+                            minWidth: '52px',
+                            minHeight: '48px',
+                            justifyContent: 'center',
                             transition: 'all var(--transition-fast)'
                           }}
                         >
-                          <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.85 }}>{item.dayName}</span>
-                          <span style={{ fontSize: '0.96rem', fontWeight: 700, lineHeight: 1.1 }}>{item.dayNum}</span>
+                          <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.85, fontWeight: selectedDate === item.iso ? 700 : 500 }}>{item.dayName}</span>
+                          <span style={{ fontSize: '0.96rem', fontWeight: 800, lineHeight: 1.1 }}>{item.dayNum}</span>
                           <span style={{ fontSize: '0.62rem', opacity: 0.85 }}>{item.month}</span>
                         </button>
                       ))}
@@ -653,9 +847,8 @@ export default function Booking() {
                       className="date-nav-btn"
                       title="Next dates"
                       aria-label="Next dates"
-                      style={{ width: '26px', height: '26px', flexShrink: 0 }}
                     >
-                      <ChevronRight size={15} />
+                      <ChevronRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -689,13 +882,6 @@ export default function Booking() {
                     <span className="session-rate-badge text-orange">{facilityPricing.nightRate}/hr</span>
                   </button>
                 </div>
-
-                {/* Slot Error Warning */}
-                {errors.slot && (
-                  <div className="form-error" style={{ marginBottom: '0.5rem', padding: '0.4rem 0.65rem', background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.3)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <AlertCircle size={13} /> {errors.slot}
-                  </div>
-                )}
 
                 {/* Compact Slot Chips Grid (Screen-Fitting with 24-Hour Day + Night) */}
                 <div className="compact-slots-scroll">
@@ -861,13 +1047,45 @@ export default function Booking() {
                   </div>
                 )}
 
+                {/* Cross-Discovery: Explore Alternative Sports */}
+                <div className="cross-discovery-section" style={{ marginTop: '1.25rem', paddingTop: '1rem' }}>
+                  <div className="cross-discovery-header">
+                    <h4 className="cross-discovery-title" style={{ fontSize: '0.88rem' }}>
+                      <Sparkles size={14} className="text-green" /> Looking for another sport or training lane?
+                    </h4>
+                  </div>
+                  <div className="cross-discovery-grid">
+                    {facilitiesData
+                      .filter(f => f.category !== 'dining' && f.slug !== selectedFacility)
+                      .slice(0, 3)
+                      .map(other => (
+                        <button
+                          key={other.id}
+                          type="button"
+                          className="cross-discovery-card"
+                          onClick={() => {
+                            handleSelectFacility(other.slug);
+                            setActivityFilter(other.slug);
+                          }}
+                        >
+                          <img src={other.image} alt={other.name} className="cross-discovery-img" style={{ width: '44px', height: '44px' }} />
+                          <div className="cross-discovery-info">
+                            <span className="cross-discovery-name" style={{ fontSize: '0.84rem' }}>{other.name}</span>
+                            <span className="cross-discovery-meta" style={{ fontSize: '0.74rem' }}>{other.pricing?.standardRate?.split('(')[0] || other.tag}</span>
+                          </div>
+                          <ChevronRight size={15} className="text-muted" />
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
                 {/* Stepper Nav Bar */}
                 <div className="stepper-nav-bar">
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => goToStep(1)}>
-                    <ChevronLeft size={15} /> Back: Arena
+                    <ChevronLeft size={15} /> Change Arena
                   </button>
                   <button type="button" className="btn btn-primary" onClick={handleStep2Next} style={{ padding: '0.55rem 1.35rem' }}>
-                    Next: Squad Details <ArrowRight size={15} />
+                    Continue to Details <ArrowRight size={15} />
                   </button>
                 </div>
               </div>
@@ -876,6 +1094,12 @@ export default function Booking() {
             {/* STEP 3: Player & Squad Details */}
             {currentStep === 3 && (
               <div className="card-arena" style={{ padding: '1rem 1.25rem', borderRadius: 'var(--radius-lg)' }}>
+                {Object.keys(errors).length > 0 && (
+                  <div className="booking-validation-banner">
+                    <AlertCircle size={15} />
+                    <span>Please complete all required fields below to proceed.</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.45rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                   <div>
                     <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Player &amp; Squad Details</h2>
@@ -888,7 +1112,7 @@ export default function Booking() {
 
                 <div className="grid grid-2" style={{ gap: '0.65rem', marginBottom: '0.65rem' }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ marginBottom: '0.35rem' }}>
                       Full Name <span className="required">*</span>
                     </label>
                     <input
@@ -900,12 +1124,11 @@ export default function Booking() {
                       value={customer.name}
                       onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
                       className="form-input"
-                      style={{ padding: '0.45rem 0.65rem', fontSize: '16px' }}
                     />
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ marginBottom: '0.35rem' }}>
                       Phone (WhatsApp) <span className="required">*</span>
                     </label>
                     <input
@@ -918,14 +1141,13 @@ export default function Booking() {
                       value={customer.phone}
                       onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                       className="form-input"
-                      style={{ padding: '0.45rem 0.65rem', fontSize: '16px' }}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-2" style={{ gap: '0.65rem', marginBottom: '0.65rem' }}>
+                <div className="grid grid-2" style={{ gap: '0.85rem', marginBottom: '0.85rem' }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ marginBottom: '0.35rem' }}>
                       Email Address <span className="required">*</span>
                     </label>
                     <input
@@ -936,12 +1158,11 @@ export default function Booking() {
                       value={customer.email}
                       onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
                       className="form-input"
-                      style={{ padding: '0.45rem 0.65rem', fontSize: '16px' }}
                     />
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ marginBottom: '0.35rem' }}>
                       Team Name (Optional)
                     </label>
                     <input
@@ -950,13 +1171,12 @@ export default function Booking() {
                       value={customer.teamName}
                       onChange={(e) => setCustomer({ ...customer, teamName: e.target.value })}
                       className="form-input"
-                      style={{ padding: '0.45rem 0.65rem', fontSize: '16px' }}
                     />
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '0.65rem' }}>
-                  <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+                  <label className="form-label" style={{ marginBottom: '0.35rem' }}>
                     Special Requests (Optional)
                   </label>
                   <input
@@ -965,7 +1185,6 @@ export default function Booking() {
                     value={customer.notes}
                     onChange={(e) => setCustomer({ ...customer, notes: e.target.value })}
                     className="form-input"
-                    style={{ padding: '0.45rem 0.65rem', fontSize: '16px' }}
                   />
                 </div>
 
@@ -1010,10 +1229,10 @@ export default function Booking() {
                 {/* Stepper Nav Bar */}
                 <div className="stepper-nav-bar">
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => goToStep(2)}>
-                    <ChevronLeft size={15} /> Back: Slot
+                    <ChevronLeft size={15} /> Change Slot
                   </button>
                   <button type="button" className="btn btn-primary" onClick={handleStep3Next} style={{ padding: '0.55rem 1.35rem' }}>
-                    Next: Review Summary &amp; Pay <ArrowRight size={15} />
+                    Review &amp; Pay <ArrowRight size={15} />
                   </button>
                 </div>
               </div>
@@ -1361,7 +1580,7 @@ export default function Booking() {
                 {/* Stepper Nav Bar & Pay CTA */}
                 <div className="stepper-nav-bar" style={{ marginTop: '0.35rem', paddingTop: '0.65rem' }}>
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => goToStep(3)}>
-                    <ChevronLeft size={15} /> Back: Details
+                    <ChevronLeft size={15} /> Edit Details
                   </button>
 
                   <button
@@ -1528,6 +1747,38 @@ export default function Booking() {
                 >
                   <CalendarIcon size={15} /> Book Another Slot
                 </button>
+              </div>
+
+              {/* While You're Here: Discover Other Activities */}
+              <div className="cross-discovery-section" style={{ marginTop: '1rem', paddingTop: '0.85rem' }}>
+                <div className="cross-discovery-header">
+                  <h4 className="cross-discovery-title" style={{ fontSize: '0.86rem' }}>
+                    <Sparkles size={14} className="text-green" /> While You're Here... Explore More at Turf &amp; Taste
+                  </h4>
+                </div>
+                <div className="cross-discovery-grid">
+                  {facilitiesData
+                    .filter(f => f.slug !== (confirmationData.facilitySlug || confirmationData.facilityId))
+                    .slice(0, 3)
+                    .map(other => (
+                      <button
+                        key={other.id}
+                        type="button"
+                        className="cross-discovery-card"
+                        onClick={() => {
+                          handleReturnHome();
+                          navigate(`/booking?facility=${other.slug}`);
+                        }}
+                      >
+                        <img src={other.image} alt={other.name} className="cross-discovery-img" style={{ width: '42px', height: '42px' }} />
+                        <div className="cross-discovery-info">
+                          <span className="cross-discovery-name" style={{ fontSize: '0.82rem' }}>{other.name}</span>
+                          <span className="cross-discovery-meta" style={{ fontSize: '0.72rem' }}>{other.pricing?.standardRate?.split('(')[0] || other.tag}</span>
+                        </div>
+                        <ChevronRight size={14} className="text-muted" />
+                      </button>
+                    ))}
+                </div>
               </div>
             </div>
           </div>
