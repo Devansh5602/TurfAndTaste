@@ -44,9 +44,8 @@ import {
 
 export default function Admin() {
   // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('tt_admin_authenticated') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,8 +58,8 @@ export default function Admin() {
   const [pricingList, setPricingList] = useState([]);
   const [timings, setTimings] = useState({
     arenaOpen: '06:00 AM',
-    arenaClose: '11:30 PM',
-    floodlightStart: '04:00 PM',
+    arenaClose: '06:00 AM',
+    floodlightStart: '06:00 PM',
     slotIntervalMins: 60,
     notes: ''
   });
@@ -97,7 +96,7 @@ export default function Admin() {
     date: new Date().toISOString().split('T')[0],
     time: '06:00 PM – 07:00 PM',
     paymentType: 'full',
-    amount: '₹1200'
+    amount: '₹800'
   });
 
   // Annual Archives & Data Vault States
@@ -130,18 +129,29 @@ export default function Admin() {
   const undoIntervalRef = useRef(null);
   const pendingDeleteIdsRef = useRef(null);
 
-  // Load data on mount
+  // A browser flag is not an authenticated session. Validate the persisted token before exposing management data.
   useEffect(() => {
+    let cancelled = false;
+    api.verifyAdminToken()
+      .then((result) => {
+        if (!cancelled) setIsAuthenticated(Boolean(result?.success));
+      })
+      .finally(() => {
+        if (!cancelled) setIsAuthChecking(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
     loadData();
     loadArchiveData();
 
     return () => {
       if (undoIntervalRef.current) clearInterval(undoIntervalRef.current);
-      if (pendingDeleteIdsRef.current && pendingDeleteIdsRef.current.length > 0) {
-        pendingDeleteIdsRef.current.forEach(id => adminStore.deleteBooking(id));
-      }
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const loadData = async () => {
     const fetchedBookings = await adminStore.fetchBookingsAsync();
@@ -339,11 +349,9 @@ export default function Admin() {
     const result = await adminStore.loginAdmin('admin', passwordInput.trim());
     if (result.success) {
       setIsAuthenticated(true);
-      sessionStorage.setItem('tt_admin_authenticated', 'true');
       setPasswordError('');
       setPasswordInput('');
       showToast('Welcome to Turf & Taste Management Portal!');
-      loadData();
     } else {
       setPasswordError(result.error || 'Incorrect password. Please verify and try again.');
     }
@@ -360,7 +368,6 @@ export default function Admin() {
       onConfirm: () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         setIsAuthenticated(false);
-        sessionStorage.removeItem('tt_admin_authenticated');
         sessionStorage.removeItem('tt_admin_jwt');
         showToast('Logged out of Admin Portal.', 'info');
       }
@@ -387,9 +394,13 @@ export default function Admin() {
       cancelText: 'Keep Current Status',
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        const updated = await adminStore.updateBookingStatus(booking.id, newStatus);
-        setBookings(updated);
-        showToast(`Booking ${booking.id} status updated to "${newStatus}".`);
+        try {
+          const updated = await adminStore.updateBookingStatus(booking.id, newStatus);
+          setBookings(updated);
+          showToast(`Booking ${booking.id} status updated to "${newStatus}".`);
+        } catch (error) {
+          showToast(error.message || 'Booking status could not be updated.', 'error');
+        }
       }
     });
   };
@@ -406,7 +417,13 @@ export default function Admin() {
 
     if (idsToDelete && idsToDelete.length > 0) {
       for (const id of idsToDelete) {
-        await adminStore.deleteBooking(id);
+        try {
+          await adminStore.deleteBooking(id);
+        } catch (error) {
+          showToast(error.message || `Booking ${id} could not be deleted.`, 'error');
+          await loadData();
+          break;
+        }
       }
     }
   };
@@ -492,20 +509,24 @@ export default function Admin() {
       createdAt: new Date().toISOString()
     };
 
-    await adminStore.saveBooking(newBooking);
-    await loadData();
-    setShowWalkInModal(false);
-    setWalkIn({
-      facilityId: 'box-cricket',
-      facilityName: 'Box Cricket Arena',
-      customerName: '',
-      customerPhone: '',
-      date: new Date().toISOString().split('T')[0],
-      time: '06:00 PM – 07:00 PM',
-      paymentType: 'full',
-      amount: '₹1200'
-    });
-    showToast(`Walk-in reservation ${newBooking.id} created successfully!`);
+    try {
+      await adminStore.saveBooking(newBooking);
+      await loadData();
+      setShowWalkInModal(false);
+      setWalkIn({
+        facilityId: 'box-cricket',
+        facilityName: 'Box Cricket Arena',
+        customerName: '',
+        customerPhone: '',
+        date: new Date().toISOString().split('T')[0],
+        time: '06:00 PM – 07:00 PM',
+        paymentType: 'full',
+        amount: '₹800'
+      });
+      showToast(`Walk-in reservation ${newBooking.id} created successfully!`);
+    } catch (error) {
+      setWalkInError(error.message || 'Walk-in reservation could not be created. Please retry.');
+    }
   };
 
   // Pricing Change Handlers
@@ -540,9 +561,13 @@ export default function Admin() {
       cancelText: 'Cancel',
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        const updated = await adminStore.savePricing(pricingList);
-        setPricingList(updated);
-        showToast('All facility rates & deposits saved to cloud database and live customer site!');
+        try {
+          const updated = await adminStore.savePricing(pricingList);
+          setPricingList(updated);
+          showToast('All facility rates & deposits saved to cloud database and live customer site!');
+        } catch (error) {
+          showToast(error.message || 'Pricing could not be saved. Please retry.', 'error');
+        }
       }
     });
   };
@@ -567,8 +592,12 @@ export default function Admin() {
       cancelText: 'Cancel',
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        await adminStore.saveTimings(timings);
-        showToast('Operating schedule & floodlight hours updated!');
+        try {
+          await adminStore.saveTimings(timings);
+          showToast('Operating schedule & floodlight hours updated!');
+        } catch (error) {
+          showToast(error.message || 'Operating schedule could not be saved. Please retry.', 'error');
+        }
       }
     });
   };
@@ -693,12 +722,17 @@ export default function Admin() {
       type: 'info',
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        for (const id of selectedBookings) {
-          await adminStore.updateBookingStatus(id, newStatus);
+        try {
+          for (const id of selectedBookings) {
+            await adminStore.updateBookingStatus(id, newStatus);
+          }
+          setBookings(prev => prev.map(b => selectedBookings.includes(b.id) ? { ...b, status: newStatus } : b));
+          setSelectedBookings([]);
+          showToast(`Updated ${selectedBookings.length} booking(s) to "${newStatus}".`);
+        } catch (error) {
+          await loadData();
+          showToast(error.message || 'One or more bookings could not be updated.', 'error');
         }
-        setBookings(prev => prev.map(b => selectedBookings.includes(b.id) ? { ...b, status: newStatus } : b));
-        setSelectedBookings([]);
-        showToast(`Updated ${selectedBookings.length} booking(s) to "${newStatus}".`);
       }
     });
   };
@@ -768,6 +802,14 @@ export default function Admin() {
   }, [bookings]);
 
   // If Not Authenticated, show Password entry modal
+  if (isAuthChecking) {
+    return (
+      <div className="page-admin" role="status" aria-live="polite" style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: '2rem', textAlign: 'center' }}>
+        <div><RefreshCw size={28} className="text-olive spin" /><p style={{ marginTop: '0.8rem', color: 'var(--text-secondary)' }}>Checking secure management access…</p></div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="page-admin-auth section" style={{ 
@@ -921,7 +963,6 @@ export default function Admin() {
               </button>
             </form>
 
-            {/* Quick default credential info */}
             <div style={{
               marginTop: '1.5rem',
               paddingTop: '1.15rem',
@@ -932,17 +973,7 @@ export default function Admin() {
               flexDirection: 'column',
               gap: '0.3rem'
             }}>
-              <div>
-                Default setup password: <code style={{ 
-                  background: 'rgba(107, 143, 73, 0.2)', 
-                  color: 'var(--brand-olive-bright)', 
-                  padding: '2px 6px', 
-                  borderRadius: '4px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }} onClick={() => setPasswordInput('Turfandtaste2026')}>Turfandtaste2026</code>
-              </div>
-              <span style={{ fontSize: '0.73rem', opacity: 0.75 }}>Click to autofill or type above</span>
+              <span style={{ fontSize: '0.73rem', opacity: 0.75 }}>Use the password configured by your organization. Access is verified by the management service.</span>
             </div>
           </div>
         </div>
@@ -1432,7 +1463,7 @@ export default function Admin() {
                               onChange={(e) => handlePriceFieldChange(tier.facilityId, 'dayHours', e.target.value)}
                               className="form-input"
                               style={{ fontSize: '0.85rem' }}
-                              placeholder="e.g. 6:00 AM – 4:00 PM"
+                              placeholder="e.g. 6:00 AM – 6:00 PM"
                             />
                           </div>
                           <div>
@@ -1445,7 +1476,7 @@ export default function Admin() {
                               onChange={(e) => handlePriceFieldChange(tier.facilityId, 'nightHours', e.target.value)}
                               className="form-input"
                               style={{ fontSize: '0.85rem' }}
-                              placeholder="e.g. 4:00 PM – 11:30 PM"
+                        placeholder="e.g. 6:00 PM – 6:00 AM"
                             />
                           </div>
                         </div>
@@ -1518,7 +1549,7 @@ export default function Admin() {
                         value={timings.arenaClose || ''}
                         onChange={(e) => setTimings({ ...timings, arenaClose: e.target.value })}
                         className="form-input"
-                        placeholder="e.g. 11:30 PM"
+                        placeholder="e.g. 06:00 AM"
                       />
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>Final slot conclude hour</span>
                     </div>
@@ -1532,7 +1563,7 @@ export default function Admin() {
                         value={timings.floodlightStart || ''}
                         onChange={(e) => setTimings({ ...timings, floodlightStart: e.target.value })}
                         className="form-input"
-                        placeholder="e.g. 04:00 PM"
+                        placeholder="e.g. 06:00 PM"
                       />
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>When evening floodlight rates take effect</span>
                     </div>
@@ -2281,6 +2312,14 @@ export default function Admin() {
                     <option value="07:00 PM – 08:00 PM">07:00 PM – 08:00 PM (Prime)</option>
                     <option value="08:00 PM – 09:00 PM">08:00 PM – 09:00 PM (Prime)</option>
                     <option value="09:00 PM – 10:00 PM">09:00 PM – 10:00 PM</option>
+                    <option value="10:00 PM – 11:00 PM">10:00 PM – 11:00 PM</option>
+                    <option value="11:00 PM – 12:00 AM">11:00 PM – 12:00 AM</option>
+                    <option value="12:00 AM – 01:00 AM">12:00 AM – 01:00 AM</option>
+                    <option value="01:00 AM – 02:00 AM">01:00 AM – 02:00 AM</option>
+                    <option value="02:00 AM – 03:00 AM">02:00 AM – 03:00 AM</option>
+                    <option value="03:00 AM – 04:00 AM">03:00 AM – 04:00 AM</option>
+                    <option value="04:00 AM – 05:00 AM">04:00 AM – 05:00 AM</option>
+                    <option value="05:00 AM – 06:00 AM">05:00 AM – 06:00 AM</option>
                   </select>
                 </div>
               </div>

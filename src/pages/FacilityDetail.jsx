@@ -180,7 +180,7 @@ export default function FacilityDetail({ slug }) {
                     <div style={{ marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Operating Hours:</span>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)', lineHeight: 1.2, marginTop: '0.25rem' }}>
-                        7:00 AM – 11:30 PM <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Daily</span>
+                        7:00 AM – 11:00 PM <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Daily</span>
                       </div>
                     </div>
 
@@ -237,7 +237,7 @@ export default function FacilityDetail({ slug }) {
 
                   <div className="card-arena highlight" style={{ marginBottom: '2rem' }}>
                     <span className="badge badge-orange" style={{ marginBottom: '0.85rem' }}>
-                      Editable Phase 1 Rate Structure
+                      Current Facility Rates
                     </span>
 
                     <div style={{ marginBottom: '1.25rem' }}>

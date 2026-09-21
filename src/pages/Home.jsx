@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { adminStore } from '../services/adminStore';
+import { api } from '../services/api';
 import FacilityCard from '../components/FacilityCard';
 import SectionHeading from '../components/SectionHeading';
 import {
@@ -15,7 +16,6 @@ const QUICK_PLAY_FACILITIES = [
     slug: 'box-cricket',
     name: 'Box Cricket',
     image: '/images/box_cricket.jpg',
-    startingPrice: '₹800',
     desc: '72-ft enclosed tournament turf with anti-glare floodlights',
     availability: 'Slots Open Today',
     badge: 'Most Popular',
@@ -25,7 +25,6 @@ const QUICK_PLAY_FACILITIES = [
     slug: 'pickleball',
     name: 'Pickleball',
     image: '/images/pickleball.jpg',
-    startingPrice: '₹400',
     desc: 'Cushioned regulation USA Pickleball court with pro nets',
     availability: 'Slots Open Today',
     badge: 'Trending',
@@ -35,7 +34,6 @@ const QUICK_PLAY_FACILITIES = [
     slug: 'cricket-nets',
     name: 'Cricket Nets',
     image: '/images/cricket_nets.jpg',
-    startingPrice: '₹300',
     desc: 'Dual dedicated practice lanes with full bowler run-up',
     availability: 'Slots Open Today',
     badge: 'Training',
@@ -45,7 +43,6 @@ const QUICK_PLAY_FACILITIES = [
     slug: 'ball-machine',
     name: 'Bowling Machine',
     image: '/images/ball_machine.jpg',
-    startingPrice: '₹500',
     desc: '60–150 km/h programmable speed, swing, and spin lane',
     availability: 'Slots Open Today',
     badge: 'Pro Lane',
@@ -55,7 +52,6 @@ const QUICK_PLAY_FACILITIES = [
     slug: 'skating',
     name: 'Skating Rink',
     image: '/images/skating_rink.jpg',
-    startingPrice: '₹200',
     desc: 'Smooth polished concrete arena for speed and roller skating',
     availability: 'Slots Open Today',
     badge: 'All Ages',
@@ -80,7 +76,7 @@ const WHY_US_FEATURES = [
   },
   {
     title: 'Instant Slot Lock',
-    desc: 'Reserve your court in 60 seconds with just a ₹200 deposit via UPI or Card.',
+    desc: 'Reserve your court in 60 seconds with a token deposit via UPI or card.',
     icon: Calendar,
     color: '#EAB308',
     bg: 'rgba(234,179,8,0.12)'
@@ -103,10 +99,21 @@ export default function Home() {
   });
 
   const [latestBooking, setLatestBooking] = useState(null);
+  const [, setPricingVersion] = useState(0);
 
   useEffect(() => {
-    const checkUpcoming = () => {
-      const list = adminStore.getBookings() || [];
+    const checkUpcoming = async () => {
+      const phone = String(localStorage.getItem('turf_user_phone') || '').replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(phone)) {
+        setLatestBooking(null);
+        return;
+      }
+      const response = await api.getBookingHistory({ phone });
+      if (!response.success) {
+        setLatestBooking(null);
+        return;
+      }
+      const list = response.history || [];
       const todayStr = new Date().toISOString().split('T')[0];
       const upcoming = list.find(b => {
         const s = (b.status || '').toLowerCase();
@@ -115,12 +122,22 @@ export default function Home() {
       setLatestBooking(upcoming || null);
     };
 
-    checkUpcoming();
-    adminStore.fetchBookingsAsync().then(checkUpcoming);
+    checkUpcoming().catch(() => setLatestBooking(null));
 
-    const onStorage = () => checkUpcoming();
+    const onStorage = () => checkUpcoming().catch(() => setLatestBooking(null));
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  useEffect(() => {
+    const refreshPricing = () => setPricingVersion(version => version + 1);
+    adminStore.fetchPricingAsync().then(refreshPricing);
+    window.addEventListener('tt_pricing_updated', refreshPricing);
+    window.addEventListener('storage', refreshPricing);
+    return () => {
+      window.removeEventListener('tt_pricing_updated', refreshPricing);
+      window.removeEventListener('storage', refreshPricing);
+    };
   }, []);
 
   const sports = facilitiesData.filter(f => f.category !== 'dining');
@@ -177,7 +194,7 @@ export default function Home() {
               <MapPin size={12} /> Patan, Gujarat
             </span>
             <span className="badge badge-orange">
-              <Clock size={12} /> Open 6:00 AM – 11:30 PM
+              <Clock size={12} /> Sports Open 24 Hours
             </span>
           </div>
 
@@ -188,7 +205,7 @@ export default function Home() {
           </h1>
 
           <p className="home-hero-sub">
-            Tournament turf, automated batting nets & courts. Lock your slot with a ₹200 deposit.
+            Tournament turf, automated batting nets, courts, café and snack dugouts. Lock your slot with a token deposit.
           </p>
 
           {/* Primary CTA and Secondary Action */}
@@ -204,20 +221,13 @@ export default function Home() {
           {/* First-Time User Discovery Strip: Complete Platform Inventory at a Glance */}
           <div className="home-hero-inventory-strip" style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--brand-green)', fontWeight: 700, display: 'block', marginBottom: '0.45rem' }}>
-              All 6 Venues &amp; Activities in Patan:
+              All {facilitiesData.length} Venues &amp; Activities in Patan:
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {[
-                { name: 'Box Cricket', icon: '🏏', slug: 'box-cricket' },
-                { name: 'Pickleball', icon: '🎾', slug: 'pickleball' },
-                { name: 'Skating Rink', icon: '⛸️', slug: 'skating' },
-                { name: 'Bowling Machine', icon: '🎯', slug: 'ball-machine' },
-                { name: 'Practice Nets', icon: '🏏', slug: 'cricket-nets' },
-                { name: 'Café & Lounge', icon: '☕', slug: 'cafe', isCafe: true }
-              ].map(item => (
+              {facilitiesData.map(item => (
                 <Link
                   key={item.slug}
-                  to={item.isCafe ? `/facilities/${item.slug}` : `/booking?facility=${item.slug}`}
+                  to={item.category === 'dining' ? `/facilities/${item.slug}` : `/booking?facility=${item.slug}`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -234,8 +244,8 @@ export default function Home() {
                   }}
                   className="hero-inventory-pill"
                 >
-                  <span>{item.icon}</span>
-                  <span style={{ fontWeight: 600 }}>{item.name}</span>
+                  <span>{item.category === 'dining' ? '☕' : item.slug === 'pickleball' ? '🎾' : item.slug === 'skating' ? '⛸️' : item.slug === 'ball-machine' ? '🎯' : '🏏'}</span>
+                  <span style={{ fontWeight: 600 }}>{item.name.replace(' Arena', '').replace(' Courts', '')}</span>
                 </Link>
               ))}
             </div>
@@ -307,7 +317,9 @@ export default function Home() {
           </div>
 
           <div className="quick-play-grid">
-            {QUICK_PLAY_FACILITIES.map((facility) => (
+            {QUICK_PLAY_FACILITIES.map((facility) => {
+              const livePricing = adminStore.getFacilityPricing(facility.slug);
+              return (
               <Link
                 key={facility.slug}
                 to={`/booking?facility=${facility.slug}`}
@@ -324,7 +336,7 @@ export default function Home() {
                   <div className="quick-play-img-gradient" />
                   <span className="quick-play-badge">{facility.badge}</span>
                   <div className="quick-play-price-tag">
-                    From <strong>{facility.startingPrice}</strong>/hr
+                    From <strong>{livePricing.dayRate}</strong>/hr
                   </div>
                 </div>
 
@@ -345,7 +357,8 @@ export default function Home() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

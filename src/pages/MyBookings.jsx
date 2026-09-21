@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from '../context/RouterContext';
-import { adminStore } from '../services/adminStore';
+import { api } from '../services/api';
 import {
   Calendar, Clock, MapPin, Tag, ChevronRight, CheckCircle2,
   AlertCircle, XCircle, QrCode, Phone, Share2, ArrowRight,
@@ -13,30 +13,46 @@ export default function MyBookings() {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [phoneFilter, setPhoneFilter] = useState(() => {
-    return localStorage.getItem('turf_user_phone') || '';
+    return (localStorage.getItem('turf_user_phone') || '').replace(/\D/g, '').slice(-10);
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
 
-  const loadBookings = () => {
-    const list = adminStore.getBookings() || [];
-    setBookings(list);
+  const loadBookings = async () => {
+    const phone = phoneFilter.replace(/\D/g, '');
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setBookings([]);
+      setLookupError('Enter the 10-digit mobile number used when you booked to retrieve your passes.');
+      return;
+    }
+
+    setIsLoading(true);
+    setLookupError('');
+    try {
+      const result = await api.getBookingHistory({ phone });
+      if (!result.success) throw new Error(result.error || 'We could not load your bookings.');
+      setBookings(result.history || []);
+      localStorage.setItem('turf_user_phone', phone);
+    } catch (error) {
+      setBookings([]);
+      setLookupError(error.message || 'We could not load your bookings. Please retry.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    loadBookings();
-    adminStore.fetchBookingsAsync().then(() => loadBookings());
-
-    // Listen to storage events
-    const onStorage = () => loadBookings();
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    if (/^[6-9]\d{9}$/.test(phoneFilter.replace(/\D/g, ''))) loadBookings();
+    else setLookupError('Enter the 10-digit mobile number used when you booked to retrieve your passes.');
+  // Phone changes deliberately trigger a fresh customer-scoped history lookup.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await adminStore.fetchBookingsAsync();
-    loadBookings();
-    setTimeout(() => setIsRefreshing(false), 500);
+    await loadBookings();
+    setIsRefreshing(false);
   };
 
   // Helper to categorize bookings
@@ -145,6 +161,30 @@ export default function MyBookings() {
             )}
           </div>
 
+          <div className="bookings-search-wrap" style={{ marginTop: '0.65rem' }}>
+            <Phone size={16} className="bookings-search-icon text-muted" />
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="10-digit mobile used for this booking"
+              value={phoneFilter}
+              onChange={(e) => setPhoneFilter(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              className="bookings-search-input"
+              aria-label="Booking mobile number"
+            />
+            <button
+              onClick={loadBookings}
+              className="btn btn-primary btn-sm"
+              disabled={isLoading}
+              style={{ margin: '0.25rem', flexShrink: 0 }}
+            >
+              {isLoading ? 'Checking…' : 'Find passes'}
+            </button>
+          </div>
+
+          {lookupError && <p role="alert" style={{ color: 'var(--brand-orange)', fontSize: '0.82rem', margin: '0.55rem 0 0' }}>{lookupError}</p>}
+
           {/* Segmented Control Tabs */}
           <div className="bookings-segmented-tabs" role="tablist">
             <button
@@ -177,7 +217,12 @@ export default function MyBookings() {
 
       {/* Bookings List Section */}
       <div className="container" style={{ paddingTop: '1.25rem', paddingBottom: '3rem' }}>
-        {categorizedBookings.length > 0 ? (
+        {isLoading ? (
+          <div className="booking-empty-state" aria-live="polite">
+            <RefreshCw size={30} className="text-green rotating" />
+            <h3 className="booking-empty-title">Finding your passes…</h3>
+          </div>
+        ) : categorizedBookings.length > 0 ? (
           <div className="bookings-list">
             {categorizedBookings.map((booking) => {
               const facName = booking.facility || booking.facilityName || 'Sports Arena';

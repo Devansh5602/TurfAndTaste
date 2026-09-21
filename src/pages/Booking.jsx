@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
-import { generateTimeSlots, submitBookingReservation } from '../services/bookingService';
+import { generateTimeSlots, fetchRealTimeSlots, submitBookingReservation } from '../services/bookingService';
 import { adminStore } from '../services/adminStore';
 import { 
   initializePaymentOrder, 
   openRazorpayCheckout, 
-  verifyPaymentSignature,
-  confirmDirectUpiPayment
+  verifyPaymentSignature
 } from '../services/paymentService';
 import CourtBackground from '../components/CourtBackground';
 import SectionHeading from '../components/SectionHeading';
@@ -152,6 +151,9 @@ export default function Booking() {
   };
 
   const [pricingUpdateTick, setPricingUpdateTick] = useState(0);
+  const [liveSlots, setLiveSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [slotsError, setSlotsError] = useState('');
 
   useEffect(() => {
     adminStore.fetchPricingAsync().then(() => setPricingUpdateTick(t => t + 1));
@@ -167,8 +169,28 @@ export default function Booking() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingSlots(true);
+    setSlotsError('');
+    fetchRealTimeSlots(selectedFacility, selectedDate, selectedDuration)
+      .then(({ slots: nextSlots, isLive }) => {
+        if (!cancelled) {
+          setLiveSlots(nextSlots);
+          if (!isLive) setSlotsError('Live availability is temporarily unavailable. Your final slot request will be checked before payment.');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSlotsError('Live availability is temporarily unavailable. Please confirm your slot before payment.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingSlots(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedFacility, selectedDate, selectedDuration, pricingUpdateTick]);
+
   // Time slots generated based on facility, date, selected duration, and live pricing/timings
-  const slots = generateTimeSlots(selectedFacility, selectedDate, selectedDuration);
+  const slots = liveSlots.length > 0 ? liveSlots : generateTimeSlots(selectedFacility, selectedDate, selectedDuration);
   const daySlots = slots.filter(s => !s.peak);
   const nightSlots = slots.filter(s => s.peak);
 
@@ -181,6 +203,7 @@ export default function Booking() {
   const depositAmount = adminStore.parsePrice(facilityPricing.bookingDeposit) || Math.round(totalAmount * 0.35);
   const payableNow = paymentType === 'deposit' ? depositAmount : totalAmount;
   const balanceDueAtDesk = Math.max(0, totalAmount - payableNow);
+  const isPaymentPending = confirmationData?.paymentStatus === 'Pending verification';
 
   const handleSelectFacility = (slug) => {
     if (selectedFacility !== slug) {
@@ -351,20 +374,24 @@ export default function Booking() {
       customer
     };
 
-    // Path A: Instant UPI & QR Code Payment
+    // Path A: direct UPI reference. It reserves the slot for staff review; only gateway callbacks mark a payment paid.
     if (selectedPaymentGateway === 'upi') {
+      if (upiUtrInput.trim().length < 8) {
+        setIsSubmitting(false);
+        setBookingErrorMessage('Enter the UPI transaction reference after completing payment so our team can verify it.');
+        return;
+      }
       try {
-        const verifyRes = await confirmDirectUpiPayment({
-          bookingId: targetRef,
-          bookingPayload: payload,
-          amount: payableNow,
-          paymentType,
-          upiRef: upiUtrInput.trim() || `upi_${Date.now()}`
+        const reservation = await submitBookingReservation({
+          ...payload,
+          paymentId: upiUtrInput.trim(),
+          paymentStatus: 'Pending verification',
+          status: 'Payment Review'
         });
 
         setConfirmationData({
-          id: targetRef,
-          bookingReference: targetRef,
+          id: reservation.bookingReference,
+          bookingReference: reservation.bookingReference,
           facility: currentFacilityData.name,
           facilitySlug: selectedFacility,
           facilityId: selectedFacility,
@@ -373,14 +400,14 @@ export default function Booking() {
           slot: selectedSlot,
           paymentType,
           amount: payload.amount,
-          paymentId: verifyRes.paymentId,
-          orderId: `order_upi_${Date.now()}`,
+          paymentId: upiUtrInput.trim(),
+          paymentStatus: 'Pending verification',
           customer,
-          status: 'Confirmed'
+          status: 'Payment Review'
         });
       } catch (err) {
         console.error('[UPI Payment Error]:', err);
-        setBookingErrorMessage('UPI reservation confirmation failed: ' + (err.message || 'Please retry.'));
+        setBookingErrorMessage('We could not submit your UPI reference: ' + (err.message || 'Please retry.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -883,6 +910,13 @@ export default function Booking() {
                   </button>
                 </div>
 
+                <div
+                  aria-live="polite"
+                  style={{ minHeight: '1.25rem', margin: '0.55rem 0', fontSize: '0.76rem', color: slotsError ? 'var(--brand-orange)' : 'var(--text-muted)' }}
+                >
+                  {isLoadingSlots ? 'Refreshing live availability…' : slotsError || 'Live availability updated for this selection.'}
+                </div>
+
                 {/* Compact Slot Chips Grid (Screen-Fitting with 24-Hour Day + Night) */}
                 <div className="compact-slots-scroll">
                   {activeSessionTab === 'all' ? (
@@ -899,12 +933,14 @@ export default function Booking() {
                           {daySlots.map((slot, idx) => {
                             const isSelected = selectedSlot?.time === slot.time;
                             const isBooked = slot.status === 'booked';
+                            const isUnavailable = isBooked || slot.status === 'maintenance';
                             const isFast = slot.status === 'fast-filling';
                             return (
                               <button
                                 type="button"
                                 key={`day-slot-${idx}`}
-                                disabled={isBooked}
+                                disabled={isUnavailable}
+                                aria-label={`${slot.time}, ${slot.status}${slot.maintenanceReason ? `: ${slot.maintenanceReason}` : ''}`}
                                 className={`slot-chip ${isSelected ? 'selected' : ''}`}
                                 onClick={() => {
                                   setSelectedSlot(slot);
@@ -946,12 +982,14 @@ export default function Booking() {
                           {nightSlots.map((slot, idx) => {
                             const isSelected = selectedSlot?.time === slot.time;
                             const isBooked = slot.status === 'booked';
+                            const isUnavailable = isBooked || slot.status === 'maintenance';
                             const isFast = slot.status === 'fast-filling';
                             return (
                               <button
                                 type="button"
                                 key={`night-slot-${idx}`}
-                                disabled={isBooked}
+                                disabled={isUnavailable}
+                                aria-label={`${slot.time}, ${slot.status}${slot.maintenanceReason ? `: ${slot.maintenanceReason}` : ''}`}
                                 className={`slot-chip ${isSelected ? 'selected night-selected' : ''}`}
                                 onClick={() => {
                                   setSelectedSlot(slot);
@@ -986,13 +1024,15 @@ export default function Booking() {
                       {(activeSessionTab === 'day' ? daySlots : nightSlots).map((slot, idx) => {
                         const isSelected = selectedSlot?.time === slot.time;
                         const isBooked = slot.status === 'booked';
+                        const isUnavailable = isBooked || slot.status === 'maintenance';
                         const isFast = slot.status === 'fast-filling';
 
                         return (
                           <button
                             type="button"
                             key={`slot-${idx}`}
-                            disabled={isBooked}
+                            disabled={isUnavailable}
+                            aria-label={`${slot.time}, ${slot.status}${slot.maintenanceReason ? `: ${slot.maintenanceReason}` : ''}`}
                             className={`slot-chip ${isSelected ? (slot.peak ? 'selected night-selected' : 'selected') : ''}`}
                             onClick={() => {
                               setSelectedSlot(slot);
@@ -1431,8 +1471,8 @@ export default function Booking() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <strong style={{ fontSize: '0.86rem', color: 'var(--brand-cream)' }}>Instant UPI &amp; QR Code</strong>
-                          <span className="badge badge-olive" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>Popular</span>
+                          <strong style={{ fontSize: '0.86rem', color: 'var(--brand-cream)' }}>UPI payment reference</strong>
+                          <span className="badge badge-olive" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>Staff verified</span>
                         </div>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block' }}>
                           GPay, PhonePe, Paytm, BHIM, QR
@@ -1557,7 +1597,7 @@ export default function Booking() {
                     <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)' }}>
                       <input
                         type="text"
-                        placeholder="12-digit UPI Transaction / UTR Number (optional)"
+                        placeholder="UPI transaction / UTR number (required to reserve)"
                         value={upiUtrInput}
                         onChange={(e) => setUpiUtrInput(e.target.value)}
                         className="form-input"
@@ -1572,7 +1612,7 @@ export default function Booking() {
                   <ShieldCheck size={14} className="text-olive" style={{ flexShrink: 0 }} />
                   <span>
                     {selectedPaymentGateway === 'upi' 
-                      ? 'Direct 0% gateway surcharge UPI confirmation with instant WhatsApp receipt.' 
+                      ? 'Your reference is reviewed by the arena team before payment and booking confirmation.'
                       : '256-bit SSL encrypted checkout powered by Razorpay. Cards, NetBanking, Wallets supported.'}
                   </span>
                 </div>
@@ -1593,7 +1633,7 @@ export default function Booking() {
                       'Processing Reservation...'
                     ) : selectedPaymentGateway === 'upi' ? (
                       <>
-                        <Zap size={17} /> Confirm &amp; Pay ₹{payableNow} via UPI
+                        <Zap size={17} /> Submit UPI Reference for ₹{payableNow}
                       </>
                     ) : (
                       <>
@@ -1625,21 +1665,21 @@ export default function Booking() {
                 width: '60px',
                 height: '60px',
                 borderRadius: '50%',
-                background: 'var(--brand-olive-dim)',
-                border: '2px solid var(--brand-olive)',
-                color: 'var(--brand-olive-bright)',
+                background: isPaymentPending ? 'rgba(232, 103, 38, 0.12)' : 'var(--brand-olive-dim)',
+                border: `2px solid ${isPaymentPending ? 'var(--brand-orange)' : 'var(--brand-olive)'}`,
+                color: isPaymentPending ? 'var(--brand-orange)' : 'var(--brand-olive-bright)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 0.75rem'
               }}>
-                <CheckCircle2 size={34} />
+                {isPaymentPending ? <Clock size={34} /> : <CheckCircle2 size={34} />}
               </div>
-              <span className="badge badge-olive" style={{ marginBottom: '0.4rem' }}>
-                Payment Verified &bull; Slot Confirmed
+              <span className={`badge ${isPaymentPending ? 'badge-orange' : 'badge-olive'}`} style={{ marginBottom: '0.4rem' }}>
+                {isPaymentPending ? 'Payment Review Required' : 'Payment Verified • Slot Confirmed'}
               </span>
               <h2 style={{ fontSize: '1.8rem', margin: '0.2rem 0 0.3rem', color: 'var(--brand-cream)' }}>
-                Booking &amp; Payment Confirmed!
+                {isPaymentPending ? 'Payment Reference Submitted' : 'Booking & Payment Confirmed!'}
               </h2>
               <p style={{ fontSize: '0.92rem', margin: 0, color: 'var(--text-secondary)' }}>
                 Booking Reference: <strong style={{ color: 'var(--brand-cream)', fontFamily: 'monospace' }}>{confirmationData.id || confirmationData.bookingReference}</strong>
@@ -1677,14 +1717,14 @@ export default function Booking() {
                 <div>
                   <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>PAYMENT STATUS</span>
                   <div style={{ fontWeight: 600, color: 'var(--brand-olive-bright)', textTransform: 'capitalize' }}>
-                    {confirmationData.paymentType || confirmationData.details?.paymentType} &bull; Paid
+                    {confirmationData.paymentType || confirmationData.details?.paymentType} &bull; {isPaymentPending ? 'Under review' : 'Paid'}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', marginBottom: '0.75rem' }}>
                 <div>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>AMOUNT PAID</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{isPaymentPending ? 'AMOUNT TO VERIFY' : 'AMOUNT PAID'}</span>
                   <div style={{ fontWeight: 700, color: 'var(--brand-orange)', fontSize: '1.1rem' }}>
                     {confirmationData.amount || confirmationData.details?.amount}
                   </div>
@@ -1719,7 +1759,7 @@ export default function Booking() {
             }}>
               <ShieldCheck size={18} className="text-olive" style={{ flexShrink: 0 }} />
               <span>
-                <strong>Reservation Confirmed:</strong> Your slot has been locked in the arena database. A confirmation pass has been dispatched to WhatsApp.
+                {isPaymentPending ? <><strong>Next step:</strong> Your UPI reference and slot request are recorded. Arena staff will verify payment and send your confirmation.</> : <><strong>Reservation Confirmed:</strong> Your slot has been locked in the arena database. A confirmation pass has been dispatched to WhatsApp.</>}
               </span>
             </div>
 

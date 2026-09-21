@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import dbAsync from '../db.js';
+import { authenticateAdminToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -92,9 +93,7 @@ router.post('/verify', async (req, res) => {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     let isVerified = false;
 
-    if (razorpay_signature === 'direct_upi_verified') {
-      isVerified = true;
-    } else if (keySecret && razorpay_order_id && razorpay_payment_id && razorpay_signature) {
+    if (keySecret && razorpay_order_id && razorpay_payment_id && razorpay_signature) {
       const body = razorpay_order_id + '|' + razorpay_payment_id;
       const expectedSignature = crypto
         .createHmac('sha256', keySecret)
@@ -103,8 +102,7 @@ router.post('/verify', async (req, res) => {
 
       isVerified = expectedSignature === razorpay_signature;
     } else {
-      // In simulation mode without secret
-      isVerified = true;
+      return res.status(503).json({ success: false, error: 'Online payment verification is unavailable. Please use a configured gateway or submit a UPI reference for staff review.' });
     }
 
     if (!isVerified) {
@@ -215,7 +213,7 @@ router.post('/verify', async (req, res) => {
  * GET /api/payments/history
  * Get payment logs
  */
-router.get('/history', async (req, res) => {
+router.get('/history', authenticateAdminToken, async (req, res) => {
   try {
     const payments = await dbAsync.all('SELECT * FROM payments ORDER BY created_at DESC');
     res.json({ success: true, count: payments.length, payments });

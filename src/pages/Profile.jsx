@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useRouter } from '../context/RouterContext';
-import { adminStore } from '../services/adminStore';
+import { api } from '../services/api';
 import ThemeToggle from '../components/ThemeToggle';
 import {
   User, Phone, Mail, BookmarkCheck, CreditCard,
@@ -20,8 +20,8 @@ export default function Profile() {
     } catch {}
     return {
       name: 'Player',
-      phone: localStorage.getItem('turf_user_phone') || '+91 98765 43210',
-      email: localStorage.getItem('turf_user_email') || 'player@turfandtaste.com',
+      phone: localStorage.getItem('turf_user_phone') || '',
+      email: localStorage.getItem('turf_user_email') || '',
       memberSince: '2026',
     };
   });
@@ -31,11 +31,28 @@ export default function Profile() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [totalBookingsCount, setTotalBookingsCount] = useState(0);
+  const [customerBookings, setCustomerBookings] = useState([]);
+  const hasProfileDetails = Boolean(profile.phone && profile.email && profile.name && profile.name !== 'Player');
 
   useEffect(() => {
-    const list = adminStore.getBookings() || [];
-    setTotalBookingsCount(list.length);
-  }, []);
+    const phone = String(profile.phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setTotalBookingsCount(0);
+      setCustomerBookings([]);
+      return;
+    }
+    api.getBookingHistory({ phone })
+      .then(result => {
+        if (!result.success) return;
+        const history = result.history || [];
+        setCustomerBookings(history);
+        setTotalBookingsCount(history.length);
+      })
+      .catch(() => {
+        setTotalBookingsCount(0);
+        setCustomerBookings([]);
+      });
+  }, [profile.phone]);
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
@@ -86,11 +103,11 @@ export default function Profile() {
 
               <div className="profile-contact-row">
                 <Phone size={13} className="text-muted" />
-                <span>{profile.phone}</span>
+                <span>{profile.phone || 'Add a mobile number to find your passes'}</span>
               </div>
               <div className="profile-contact-row">
                 <Mail size={13} className="text-muted" />
-                <span>{profile.email}</span>
+                <span>{profile.email || 'Add an email address for booking updates'}</span>
               </div>
             </div>
           </div>
@@ -103,7 +120,7 @@ export default function Profile() {
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat-box">
-              <span className="profile-stat-number text-green">VIP</span>
+              <span className="profile-stat-number text-green">{hasProfileDetails ? 'Member' : 'Guest'}</span>
               <span className="profile-stat-label">Status Tier</span>
             </div>
             <div className="profile-stat-divider" />
@@ -258,7 +275,10 @@ export default function Profile() {
                   type="tel"
                   className="form-input"
                   value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit Indian mobile number starting with 6–9"
                   required
                 />
               </div>
@@ -323,7 +343,7 @@ export default function Profile() {
               All booking transactions made on Turf & Taste:
             </p>
             <div style={{ maxHeight: '300px', overflowY: 'auto', marginTop: '0.75rem' }}>
-              {(adminStore.getBookings() || []).slice(0, 5).map((b) => (
+              {customerBookings.slice(0, 5).map((b) => (
                 <div key={b.id} style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -341,12 +361,19 @@ export default function Profile() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ color: 'var(--brand-green)', fontWeight: 600, fontSize: '0.9rem' }}>
-                      {b.amount || '₹200 Paid'}
+                      {b.amount || 'Payment pending'}
                     </div>
-                    <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>Success</span>
+                    <span className={`badge ${String(b.paymentStatus || '').toLowerCase() === 'paid' ? 'badge-green' : 'badge-orange'}`} style={{ fontSize: '0.65rem' }}>
+                      {b.paymentStatus || 'Pending'}
+                    </span>
                   </div>
                 </div>
               ))}
+              {customerBookings.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: 0 }}>
+                  Add the mobile number used for your booking to view receipts here.
+                </p>
+              )}
             </div>
             <button className="btn btn-outline" style={{ width: '100%', marginTop: '1.25rem' }} onClick={() => setShowPaymentsModal(false)}>
               Close

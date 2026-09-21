@@ -31,7 +31,9 @@ if (databaseUrl && databaseUrl.startsWith('postgres')) {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  const dbPath = path.join(dataDir, 'turf_and_taste.db');
+  // A caller can opt into a disposable SQLite database for integration tests.
+  // Production and local development retain the established project data path.
+  const dbPath = process.env.SQLITE_DB_PATH || path.join(dataDir, 'turf_and_taste.db');
   try {
     const { default: Database } = await import('better-sqlite3');
     sqliteDb = new Database(dbPath);
@@ -140,8 +142,8 @@ export async function initDatabase() {
         CREATE TABLE IF NOT EXISTS timings (
           id INTEGER PRIMARY KEY DEFAULT 1,
           arena_open VARCHAR(50) DEFAULT '06:00 AM',
-          arena_close VARCHAR(50) DEFAULT '11:30 PM',
-          floodlight_start VARCHAR(50) DEFAULT '04:00 PM',
+          arena_close VARCHAR(50) DEFAULT '06:00 AM',
+          floodlight_start VARCHAR(50) DEFAULT '06:00 PM',
           slot_interval_mins INTEGER DEFAULT 60,
           notes TEXT,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -195,7 +197,10 @@ export async function initDatabase() {
       const adminRes = await pgPool.query('SELECT count(*) as count FROM admins');
       if (parseInt(adminRes.rows[0].count, 10) === 0) {
         const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
-        const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Turfandtaste2026';
+        const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+        if (!defaultPassword) {
+          throw new Error('DEFAULT_ADMIN_PASSWORD must be configured before initializing the first admin account.');
+        }
         const passwordHash = bcrypt.hashSync(defaultPassword, 10);
         await pgPool.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', [defaultUsername, passwordHash]);
         console.log(`[Supabase DB] Default Admin Created -> Username: ${defaultUsername}`);
@@ -219,22 +224,28 @@ export async function initDatabase() {
         }
       }
 
-      // Seed Pricing if empty
-      const pricingRes = await pgPool.query('SELECT count(*) as count FROM pricing_tiers');
-      if (parseInt(pricingRes.rows[0].count, 10) === 0) {
-        const seedPricing = [
-          ['box-cricket', 'Box Cricket Arena', 1200, 1500, 15, 35],
-          ['pickleball', 'Pickleball Courts', 600, 800, 15, 30],
-          ['ball-machine', 'Ball-Shooting Machine Lane', 500, 650, 10, 40],
-          ['skating', 'Skating Rink', 400, 500, 10, 30]
-        ];
-
-        for (const p of seedPricing) {
-          await pgPool.query(
-            'INSERT INTO pricing_tiers (facility_id, facility_name, day_rate, night_rate, weekend_surge, deposit_pct) VALUES ($1, $2, $3, $4, $5, $6)',
-            p
-          );
-        }
+      // Add missing standard tiers without overwriting administrator-configured rates.
+      const seedPricing = [
+        ['box-cricket', 'Box Cricket Arena', 600, 800, 15, 35, 200],
+        ['pickleball', 'Pickleball Courts', 200, 350, 15, 30, 100],
+        ['cricket-nets', 'Cricket Practice Nets', 500, 650, 10, 40, 250],
+        ['ball-machine', 'Ball-Shooting Machine Lane', 500, 650, 10, 40, 400],
+        ['skating', 'Skating Rink', 400, 500, 10, 30, 400]
+      ];
+      for (const p of seedPricing) {
+        const [facilityId, facilityName, dayRate, nightRate, weekendSurge, depositPct, bookingDeposit] = p;
+        const detailsJson = JSON.stringify({
+          facilityId, facilityName, dayRate: `₹${dayRate}`, nightRate: `₹${nightRate}`,
+          bookingDeposit: `₹${bookingDeposit}`, dayHours: '6:00 AM – 6:00 PM',
+          nightHours: '6:00 PM – 6:00 AM (Floodlights)'
+        });
+        await pgPool.query(
+          `INSERT INTO pricing_tiers (facility_id, facility_name, day_rate, night_rate, weekend_surge, deposit_pct, details_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (facility_id) DO UPDATE SET details_json = EXCLUDED.details_json
+           WHERE pricing_tiers.details_json IS NULL`,
+          [...p.slice(0, 6), detailsJson]
+        );
       }
 
       // Seed Timings if empty
@@ -242,7 +253,7 @@ export async function initDatabase() {
       if (parseInt(timingRes.rows[0].count, 10) === 0) {
         await pgPool.query(`
           INSERT INTO timings (id, arena_open, arena_close, floodlight_start, slot_interval_mins, notes)
-          VALUES (1, '06:00 AM', '11:30 PM', '04:00 PM', 60, 'Regular operating schedule across all 7 open-air and indoor sports arenas in Patan, Gujarat.')
+          VALUES (1, '06:00 AM', '06:00 AM', '06:00 PM', 60, '24-hour sports schedule: day sessions 6:00 AM – 6:00 PM and floodlit sessions 6:00 PM – 6:00 AM.')
           ON CONFLICT (id) DO NOTHING
         `);
       }
@@ -267,13 +278,53 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS bookings (id TEXT PRIMARY KEY, facility_id TEXT NOT NULL, facility_name TEXT NOT NULL, date TEXT NOT NULL, time_slot TEXT NOT NULL, customer_name TEXT NOT NULL, customer_phone TEXT NOT NULL, customer_email TEXT, team_name TEXT, duration INTEGER DEFAULT 1, payment_type TEXT DEFAULT 'deposit', amount_paid TEXT NOT NULL, payment_status TEXT DEFAULT 'Paid', booking_status TEXT DEFAULT 'Confirmed', payment_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, booking_id TEXT NOT NULL, razorpay_order_id TEXT, razorpay_payment_id TEXT, razorpay_signature TEXT, amount INTEGER NOT NULL, currency TEXT DEFAULT 'INR', payment_type TEXT DEFAULT 'deposit', status TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS inquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, category TEXT DEFAULT 'General', message TEXT NOT NULL, status TEXT DEFAULT 'unread', created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-      CREATE TABLE IF NOT EXISTS pricing_tiers (facility_id TEXT PRIMARY KEY, facility_name TEXT NOT NULL, day_rate INTEGER NOT NULL, night_rate INTEGER NOT NULL, weekend_surge INTEGER DEFAULT 15, deposit_pct INTEGER DEFAULT 30, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-      CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY DEFAULT 1, arena_open TEXT DEFAULT '06:00 AM', arena_close TEXT DEFAULT '11:30 PM', floodlight_start TEXT DEFAULT '04:00 PM', slot_interval_mins INTEGER DEFAULT 60, notes TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS pricing_tiers (facility_id TEXT PRIMARY KEY, facility_name TEXT NOT NULL, day_rate INTEGER NOT NULL, night_rate INTEGER NOT NULL, weekend_surge INTEGER DEFAULT 15, deposit_pct INTEGER DEFAULT 30, details_json TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY DEFAULT 1, arena_open TEXT DEFAULT '06:00 AM', arena_close TEXT DEFAULT '06:00 AM', floodlight_start TEXT DEFAULT '06:00 PM', slot_interval_mins INTEGER DEFAULT 60, notes TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS annual_archives (id TEXT PRIMARY KEY, year INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, total_bookings INTEGER NOT NULL, total_revenue INTEGER NOT NULL, deposit_collected INTEGER NOT NULL, file_name TEXT NOT NULL, file_path TEXT NOT NULL, pdf_size_bytes INTEGER DEFAULT 0, recipients TEXT, purged_from_db INTEGER DEFAULT 0, archived_at DATETIME DEFAULT CURRENT_TIMESTAMP, archived_by TEXT DEFAULT 'admin');
       CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS blocked_slots (id INTEGER PRIMARY KEY AUTOINCREMENT, facility_id TEXT NOT NULL, date TEXT NOT NULL, time_slot TEXT NOT NULL, reason TEXT, blocked_by TEXT DEFAULT 'admin', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(facility_id, date, time_slot));
       INSERT OR IGNORE INTO system_settings (key, value) VALUES ('archive_email_list', 'admin@turfandtaste.com, accounts@turfandtaste.com');
+      INSERT OR IGNORE INTO timings (id, arena_open, arena_close, floodlight_start, slot_interval_mins, notes)
+      VALUES (1, '06:00 AM', '06:00 AM', '06:00 PM', 60, '24-hour sports schedule: day sessions 6:00 AM – 6:00 PM and floodlit sessions 6:00 PM – 6:00 AM.');
     `);
+
+    const pricingColumns = sqliteDb.prepare('PRAGMA table_info(pricing_tiers)').all();
+    if (!pricingColumns.some(column => column.name === 'details_json')) {
+      sqliteDb.exec('ALTER TABLE pricing_tiers ADD COLUMN details_json TEXT');
+    }
+
+    const seedPricing = [
+      ['box-cricket', 'Box Cricket Arena', 600, 800, 15, 35, 200],
+      ['pickleball', 'Pickleball Courts', 200, 350, 15, 30, 100],
+      ['cricket-nets', 'Cricket Practice Nets', 500, 650, 10, 40, 250],
+      ['ball-machine', 'Ball-Shooting Machine Lane', 500, 650, 10, 40, 400],
+      ['skating', 'Skating Rink', 400, 500, 10, 30, 400]
+    ];
+    const addPricingTier = sqliteDb.prepare(
+      'INSERT OR IGNORE INTO pricing_tiers (facility_id, facility_name, day_rate, night_rate, weekend_surge, deposit_pct, details_json) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    const updatePricingDetails = sqliteDb.prepare('UPDATE pricing_tiers SET details_json = ? WHERE facility_id = ? AND details_json IS NULL');
+    for (const tier of seedPricing) {
+      const [facilityId, facilityName, dayRate, nightRate, weekendSurge, depositPct, bookingDeposit] = tier;
+      const detailsJson = JSON.stringify({
+        facilityId, facilityName, dayRate: `₹${dayRate}`, nightRate: `₹${nightRate}`,
+        bookingDeposit: `₹${bookingDeposit}`, dayHours: '6:00 AM – 6:00 PM',
+        nightHours: '6:00 PM – 6:00 AM (Floodlights)'
+      });
+      addPricingTier.run(facilityId, facilityName, dayRate, nightRate, weekendSurge, depositPct, detailsJson);
+      updatePricingDetails.run(detailsJson, facilityId);
+    }
+
+    const adminCount = sqliteDb.prepare('SELECT count(*) AS count FROM admins').get().count;
+    if (Number(adminCount) === 0) {
+      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+      if (!defaultPassword) {
+        throw new Error('DEFAULT_ADMIN_PASSWORD must be configured before initializing the first admin account.');
+      }
+      const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+      sqliteDb.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)')
+        .run(defaultUsername, bcrypt.hashSync(defaultPassword, 10));
+    }
   }
 }
 

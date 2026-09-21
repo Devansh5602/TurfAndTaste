@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import dbAsync from '../db.js';
 import { generateAnnualLedgerPDF } from '../services/pdfReportGenerator.js';
 import { sendAnnualArchiveEmail } from '../services/emailService.js';
+import { authenticateAdminToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,9 @@ if (!fs.existsSync(ARCHIVES_DIR)) {
 }
 
 const router = express.Router();
+
+// Annual reports, recipient lists, and purge operations are management-only data.
+router.use(authenticateAdminToken);
 
 /**
  * GET /api/archives/settings

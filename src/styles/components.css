@@ -1238,6 +1238,18 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
   margin: 0;
 }
 
+@media (max-width: 480px) {
+  .activity-summary-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0.8rem;
+  }
+  .activity-summary-left { align-items: flex-start; }
+  .activity-summary-title { font-size: 0.84rem; line-height: 1.25; }
+  .activity-summary-sub { line-height: 1.35; }
+  .activity-summary-banner .badge { align-self: flex-start; }
+}
+
 /* Cross-Discovery Recommendation Section (Post-Booking & Empty States) */
 .cross-discovery-section {
   margin-top: 1.5rem;
@@ -1349,4 +1361,3 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
   color: var(--text-secondary);
   margin: 0;
 }
-

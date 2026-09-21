@@ -10,7 +10,6 @@ const STORAGE_KEYS = {
   BOOKINGS: 'tt_bookings_v1',
   PRICING: 'tt_pricing_v1',
   TIMINGS: 'tt_timings_v1',
-  PASSWORD: 'tt_admin_password_v2'
 };
 
 const INITIAL_BOOKINGS = [];
@@ -31,38 +30,23 @@ export const adminStore = {
     try {
       const result = await api.adminLogin(username, password);
       if (result.success) return result;
+      return { success: false, error: result.error || 'Unable to verify management credentials.' };
     } catch {
-      // Fallback local check
+      return { success: false, error: 'The management service is unavailable. Please try again shortly.' };
     }
-
-    const localPassword = adminStore.getAdminPassword();
-    if (password === localPassword) {
-      sessionStorage.setItem('tt_admin_authenticated', 'true');
-      return { success: true, message: 'Authenticated locally' };
-    }
-    return { success: false, error: 'Invalid admin password' };
-  },
-
-  // Authentication Password helpers
-  getAdminPassword: () => {
-    return localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'Turfandtaste2026';
   },
 
   setAdminPassword: async (newPassword, currentPassword) => {
     try {
       const res = await api.changeAdminPassword(currentPassword, newPassword);
-      if (res.success) {
-        localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
-        return res;
-      }
+      return res;
     } catch {
-      // Fallback local save
+      return { success: false, error: 'The management service is unavailable. Password was not changed.' };
     }
-    localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
-    return { success: true, message: 'Password updated locally' };
   },
 
-  // Bookings - Async with Local Storage Fallback
+  // Bookings - browser cache is only a read fallback. Privileged mutations must
+  // succeed on the server before the local view is changed.
   fetchBookingsAsync: async (filters = {}) => {
     try {
       const res = await api.getBookings(filters);
@@ -86,28 +70,17 @@ export const adminStore = {
   },
 
   saveBooking: async (booking) => {
-    try {
-      const res = await api.createBooking(booking);
-      if (res.success) {
-        const list = adminStore.getBookings();
-        localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify([booking, ...list]));
-        return res.booking || booking;
-      }
-    } catch (e) {
-      console.warn('Could not post booking to backend API:', e);
-    }
+    const res = await api.createBooking(booking);
+    if (!res.success) throw new Error(res.error || 'Booking could not be created.');
     const list = adminStore.getBookings();
-    const updated = [booking, ...list];
-    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
-    return booking;
+    const savedBooking = res.booking || booking;
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify([savedBooking, ...list]));
+    return savedBooking;
   },
 
   updateBookingStatus: async (bookingId, newStatus) => {
-    try {
-      await api.updateBookingStatus(bookingId, newStatus);
-    } catch (e) {
-      console.warn('Could not update booking status on server:', e);
-    }
+    const res = await api.updateBookingStatus(bookingId, newStatus);
+    if (!res.success) throw new Error(res.error || 'Booking status could not be updated.');
     const list = adminStore.getBookings();
     const updated = list.map(b => b.id === bookingId ? { ...b, status: newStatus } : b);
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
@@ -115,11 +88,8 @@ export const adminStore = {
   },
 
   deleteBooking: async (bookingId) => {
-    try {
-      await api.deleteBooking(bookingId);
-    } catch (e) {
-      console.warn('Could not delete booking on server:', e);
-    }
+    const res = await api.deleteBooking(bookingId);
+    if (!res.success) throw new Error(res.error || 'Booking could not be deleted.');
     const list = adminStore.getBookings();
     const updated = list.filter(b => b.id !== bookingId);
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updated));
@@ -215,15 +185,10 @@ export const adminStore = {
       };
     });
 
+    const res = await api.savePricing(normalized);
+    if (!res.success) throw new Error(res.error || 'Pricing could not be saved.');
     localStorage.setItem(STORAGE_KEYS.PRICING, JSON.stringify(normalized));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('tt_pricing_updated', { detail: normalized }));
-    }
-    try {
-      await api.savePricing(normalized);
-    } catch (e) {
-      console.warn('Could not sync pricing to API:', e);
-    }
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('tt_pricing_updated', { detail: normalized }));
     return normalized;
   },
 
@@ -258,11 +223,8 @@ export const adminStore = {
   },
 
   saveTimings: async (timingsObj) => {
-    try {
-      await api.saveTimings(timingsObj);
-    } catch (e) {
-      console.warn('Could not sync timings to API:', e);
-    }
+    const res = await api.saveTimings(timingsObj);
+    if (!res.success) throw new Error(res.error || 'Operating schedule could not be saved.');
     localStorage.setItem(STORAGE_KEYS.TIMINGS, JSON.stringify(timingsObj));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('tt_timings_updated', { detail: timingsObj }));
@@ -275,7 +237,6 @@ export const adminStore = {
     localStorage.removeItem(STORAGE_KEYS.BOOKINGS);
     localStorage.removeItem(STORAGE_KEYS.PRICING);
     localStorage.removeItem(STORAGE_KEYS.TIMINGS);
-    localStorage.removeItem(STORAGE_KEYS.PASSWORD);
     sessionStorage.removeItem('tt_admin_jwt');
     sessionStorage.removeItem('tt_admin_authenticated');
     return true;

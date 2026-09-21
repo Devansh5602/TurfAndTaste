@@ -81,15 +81,16 @@ export const api = {
     return await res.json();
   },
 
-  getSlotAvailability: async (facilityId, date) => {
-    const res = await fetch(`${API_BASE_URL}/bookings/slots?facilityId=${facilityId}&date=${date}`);
+  getSlotAvailability: async (facilityId, date, duration = 1) => {
+    const params = new URLSearchParams({ facilityId, date, duration: String(duration) });
+    const res = await fetch(`${API_BASE_URL}/bookings/slots?${params}`);
     return await res.json();
   },
 
   createBooking: async (bookingPayload) => {
     const res = await fetch(`${API_BASE_URL}/bookings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(bookingPayload)
     });
     return await res.json();

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from '../context/RouterContext';
+import { adminStore } from '../services/adminStore';
 import { ArrowRight, Calendar, Clock, Tag } from 'lucide-react';
 
 const SPORT_COLORS = {
@@ -11,6 +12,23 @@ const SPORT_COLORS = {
 export default function FacilityCard({ facility, compact = false }) {
   const colors = SPORT_COLORS[facility.category] || SPORT_COLORS.sports;
   const isDining = facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours';
+  const [livePrice, setLivePrice] = useState(() => isDining ? null : adminStore.getFacilityPricing(facility.id));
+
+  useEffect(() => {
+    if (isDining) return undefined;
+    const refreshPrice = () => setLivePrice(adminStore.getFacilityPricing(facility.id));
+    adminStore.fetchPricingAsync().then(refreshPrice);
+    window.addEventListener('tt_pricing_updated', refreshPrice);
+    window.addEventListener('storage', refreshPrice);
+    return () => {
+      window.removeEventListener('tt_pricing_updated', refreshPrice);
+      window.removeEventListener('storage', refreshPrice);
+    };
+  }, [facility.id, isDining]);
+
+  const priceLabel = isDining
+    ? facility.pricing?.standardRate?.split('/')[0].trim()
+    : livePrice?.dayRate || facility.pricing?.standardRate?.split('/')[0].trim();
 
   return (
     <div className="facility-card">
@@ -35,10 +53,10 @@ export default function FacilityCard({ facility, compact = false }) {
         </span>
 
         {/* Price badge — bottom right */}
-        {facility.pricing?.standardRate && (
+        {priceLabel && (
           <div className="facility-card-price-badge">
-            <span>{facility.pricing.standardRate.split('/')[0].trim()}</span>
-            <span className="price-per">/hr</span>
+            <span>{priceLabel}</span>
+            {!isDining && <span className="price-per">/hr</span>}
           </div>
         )}
       </div>
@@ -58,7 +76,7 @@ export default function FacilityCard({ facility, compact = false }) {
         {/* Operating Hours & Spec highlight */}
         <div className="facility-card-spec-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
           <Clock size={13} style={{ color: colors.text, flexShrink: 0 }} />
-          <span>Hours: <strong>6:00 AM – 11:30 PM</strong></span>
+          <span>Hours: <strong>{isDining ? '7:00 AM – 11:00 PM' : '6:00 AM – 6:00 AM'}</strong></span>
         </div>
 
         {facility.specs && (

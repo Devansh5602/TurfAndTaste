@@ -16,13 +16,28 @@ import Inquiry from './pages/Inquiry';
 import Admin from './pages/Admin';
 import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
+import { facilitiesData } from './data/facilitiesData';
+
+function NotFound() {
+  return (
+    <div className="section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div className="container">
+        <span className="badge badge-orange" style={{ marginBottom: '1rem' }}>404 • Out of Bounds</span>
+        <h1 style={{ marginBottom: '1rem', fontSize: '3rem' }}>Court Not Found</h1>
+        <p style={{ maxWidth: '460px', margin: '0 auto 2rem' }}>This page doesn't exist on the Turf & Taste grounds.</p>
+        <Link to="/" className="btn btn-primary btn-lg">Back to Home</Link>
+      </div>
+    </div>
+  );
+}
 
 function RouteRenderer() {
   const { currentPath } = useRouter();
   const path = currentPath.toLowerCase().replace(/\/$/, '') || '/';
 
   if (path.startsWith('/facilities/')) {
-    return <FacilityDetail slug={path.replace('/facilities/', '')} />;
+    const slug = path.replace('/facilities/', '');
+    return facilitiesData.some(facility => facility.slug === slug) ? <FacilityDetail slug={slug} /> : <NotFound />;
   }
 
   switch (path) {
@@ -37,20 +52,7 @@ function RouteRenderer() {
     case '/inquiry':     return <Inquiry />;
     case '/admin':       return <Admin />;
     default:
-      return (
-        <div className="section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-          <div className="container">
-            <span className="badge badge-orange" style={{ marginBottom: '1rem' }}>404 • Out of Bounds</span>
-            <h1 style={{ marginBottom: '1rem', fontSize: '3rem' }}>Court Not Found</h1>
-            <p style={{ maxWidth: '460px', margin: '0 auto 2rem' }}>
-              This page doesn't exist on the Turf & Taste grounds.
-            </p>
-            <Link to="/" className="btn btn-primary btn-lg">
-              Back to Home
-            </Link>
-          </div>
-        </div>
-      );
+      return <NotFound />;
   }
 }
 
@@ -80,4 +82,3 @@ export default function App() {
     </RouterProvider>
   );
 }
-

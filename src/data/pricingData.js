@@ -107,16 +107,16 @@ export const paymentOptionsInfo = [
   {
     id: 'deposit',
     title: 'Option 1: Booking Amount (Token Deposit)',
-    subtitle: 'Lock in your preferred date and slot with a small token deposit.',
-    description: 'Guarantees your slot reservation immediately. The remaining amount is comfortably settled at our arena reception desk via UPI, cash, or card when your squad arrives for the game.',
+    subtitle: 'Request your preferred date and slot with a small token deposit.',
+    description: 'A UPI reference is reviewed by the arena team before the reservation is confirmed. The remaining amount can be settled at the reception desk on arrival.',
     badge: 'Flexible & Popular',
     recommended: true
   },
   {
     id: 'full',
     title: 'Option 2: 100% Full Payment',
-    subtitle: 'Pay the complete booking fee upfront for express seamless entry.',
-    description: 'Zero wait times on game day. Walk straight onto the pitch or court without any billing stop at reception. Digital receipt and instant check-in pass sent directly to your phone.',
+    subtitle: 'Pay the complete booking fee through the available verified gateway.',
+    description: 'After payment verification, your booking is confirmed and your digital booking pass is available on your phone.',
     badge: 'Express Check-in',
     recommended: false
   }

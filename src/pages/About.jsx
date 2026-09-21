@@ -61,7 +61,7 @@ export default function About() {
                   <Calendar size={18} /> Reserve a Slot Online
                 </Link>
                 <Link to="/facilities" className="text-action-link">
-                  Explore all 5 facility specifications <ArrowRight size={16} />
+                  Explore all facility specifications <ArrowRight size={16} />
                 </Link>
               </div>
             </div>
@@ -215,7 +215,7 @@ export default function About() {
                 <li>Arena court construction and turf certification</li>
                 <li>Automated bowling machine installation &amp; calibration</li>
                 <li>Café interior setup and chef recipe tastings</li>
-                <li>Public web preview &amp; slot inquiry channel</li>
+                <li>Live slot availability, booking requests, and customer pass lookup</li>
               </ul>
             </div>
 
@@ -223,12 +223,12 @@ export default function About() {
               <span className="badge badge-olive" style={{ marginBottom: '0.75rem' }}>
                 Phase 2 (Upcoming)
               </span>
-              <h3 style={{ fontSize: '1.35rem', marginBottom: '0.75rem' }}>Live Booking &amp; Gateways</h3>
+              <h3 style={{ fontSize: '1.35rem', marginBottom: '0.75rem' }}>Gateway Automation &amp; Service</h3>
               <ul style={{ paddingLeft: '1.25rem', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                <li>Live real-time slot calendar booking with instant lock</li>
-                <li>Integrated UPI &amp; Razorpay payment gateways</li>
-                <li>Customer portal for booking history &amp; reschedule requests</li>
-                <li>Staff &amp; Admin operational dashboards</li>
+                <li>Automated UPI review and verified payment-gateway confirmations</li>
+                <li>Self-service reschedule and cancellation requests</li>
+                <li>Expanded customer pass and receipt experience</li>
+                <li>Operational reporting and staff workflow improvements</li>
               </ul>
             </div>
 

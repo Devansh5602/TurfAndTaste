@@ -50,7 +50,7 @@ export default function Pricing() {
             Pricing <span className="text-olive">&amp; Packages</span>
           </h1>
           <p style={{ maxWidth: '720px', margin: '0 auto', fontSize: '1.2rem', lineHeight: '1.6' }}>
-            Engineered for fair, transparent play. Pay a token booking amount to secure your slot, or complete full payment upfront for instant express entry.
+            Engineered for fair, transparent play. Pay a token booking amount to request a slot, or complete full payment through the available verified payment method.
           </p>
 
           {/* Duration Selector Tabs */}

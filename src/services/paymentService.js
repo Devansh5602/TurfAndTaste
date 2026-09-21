@@ -174,25 +174,3 @@ export const verifyPaymentSignature = async (paymentData) => {
     throw err;
   }
 };
-
-/**
- * Direct Instant UPI Payment Confirmation
- */
-export const confirmDirectUpiPayment = async ({
-  bookingId,
-  bookingPayload,
-  amount,
-  paymentType,
-  upiRef
-}) => {
-  const simPaymentId = `pay_upi_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-  return await verifyPaymentSignature({
-    razorpay_order_id: `order_upi_${Date.now()}`,
-    razorpay_payment_id: upiRef || simPaymentId,
-    razorpay_signature: 'direct_upi_verified',
-    bookingId,
-    bookingPayload,
-    amount,
-    paymentType
-  });
-};

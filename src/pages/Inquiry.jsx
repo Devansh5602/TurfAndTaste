@@ -14,7 +14,6 @@ import {
   Calendar, 
   Users, 
   Clock, 
-  Info,
   Sparkles,
   Layers,
   ArrowRight
@@ -177,7 +176,7 @@ export default function Inquiry() {
                     Event &amp; Custom Booking Details
                   </h3>
                   <span className="badge badge-olive">
-                    Connected to Inquiry Service
+                    Plan Ahead
                   </span>
                 </div>
 
@@ -301,8 +300,8 @@ export default function Inquiry() {
                     >
                       <option value="morning">Morning (6:00 AM – 11:00 AM)</option>
                       <option value="afternoon">Afternoon (11:00 AM – 4:00 PM)</option>
-                      <option value="evening">Prime Evening Floodlights (4:00 PM – 9:00 PM)</option>
-                      <option value="night">Late Night (9:00 PM – 11:30 PM)</option>
+                      <option value="evening">Prime Evening Floodlights (6:00 PM – 9:00 PM)</option>
+                      <option value="night">Late Night (9:00 PM – 6:00 AM)</option>
                       <option value="full_day">Full Day Event</option>
                     </select>
                   </div>
@@ -361,25 +360,6 @@ export default function Inquiry() {
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     className="form-textarea"
                   />
-                </div>
-
-                {/* Backend Integration Note */}
-                <div style={{
-                  background: 'var(--bg-surface-elevated)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0.85rem 1.1rem',
-                  marginBottom: '1.5rem',
-                  fontSize: '0.82rem',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.65rem'
-                }}>
-                  <Info size={16} className="text-olive" style={{ flexShrink: 0 }} />
-                  <span>
-                    <strong>Production Architecture:</strong> This form dispatches via <code>services/inquiryService.js</code>, preconfigured to connect directly to Google Sheets, email webhooks, or your custom API endpoint.
-                  </span>
                 </div>
 
                 <button

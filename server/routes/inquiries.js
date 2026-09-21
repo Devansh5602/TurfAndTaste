@@ -8,7 +8,7 @@ const router = express.Router();
  * GET /api/inquiries
  * List all submitted inquiries
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticateAdminToken, async (req, res) => {
   try {
     const inquiries = await dbAsync.all('SELECT * FROM inquiries ORDER BY created_at DESC');
     res.json({ success: true, count: inquiries.length, inquiries });

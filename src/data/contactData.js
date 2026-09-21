@@ -12,9 +12,9 @@ export const contactData = {
   email: 'info@turfandtaste.com',
   inquiriesEmail: 'bookings@turfandtaste.com',
   hours: {
-    sportsArenas: '6:00 AM – 11:30 PM (7 Days a Week)',
+    sportsArenas: '6:00 AM – 6:00 AM (24 Hours, Daily)',
     cafeAndDining: '7:00 AM – 11:00 PM (Daily)',
-    practiceNets: '6:00 AM – 11:00 PM (Daily)'
+    practiceNets: '6:00 AM – 6:00 AM (24 Hours, Daily)'
   },
   socials: [
     { platform: 'Instagram', handle: '@turfandtaste.official', url: 'https://instagram.com/turfandtaste.official' },

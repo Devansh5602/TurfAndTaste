@@ -6,7 +6,7 @@
 import { api } from './api';
 import { adminStore } from './adminStore';
 
-// Helper to convert time strings ("06:00 AM", "4:00 PM", "11:30 PM") to minutes from midnight
+// Helper to convert time strings ("06:00 AM", "06:00 PM", "11:30 PM") to minutes from midnight
 export const parseTimeToMinutes = (timeStr, fallback = 360) => {
   if (!timeStr) return fallback;
   const cleaned = String(timeStr).trim();
@@ -54,12 +54,12 @@ export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
   // Determine transition between Day and Night/Floodlight:
   // First priority: read dayParts[1] (e.g. 6:00 PM in "6:00 AM – 6:00 PM")
   // Second priority: read nightParts[0] (e.g. 6:00 PM in "6:00 PM – 6:00 AM")
-  // Fallback: globalTimings.floodlightStart (default 4:00 PM = 960)
+  // Fallback: globalTimings.floodlightStart (default 6:00 PM = 1080)
   let dayEndMins = parseTimeToMinutes(dayParts[1], null);
   let nightStartMins = parseTimeToMinutes(nightParts[0], null);
 
   if (dayEndMins === null && nightStartMins === null) {
-    const globalFlood = parseTimeToMinutes(globalTimings.floodlightStart, 960);
+    const globalFlood = parseTimeToMinutes(globalTimings.floodlightStart, 1080);
     dayEndMins = globalFlood;
     nightStartMins = globalFlood;
   } else if (dayEndMins === null) {
@@ -70,7 +70,7 @@ export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
 
   // Determine Night End / Facility Close:
   // Read nightParts[1] (e.g. "6:00 AM (Floodlights)" or "11:30 PM")
-  const rawNightEnd = parseTimeToMinutes(nightParts[1], parseTimeToMinutes(globalTimings.arenaClose, 1410));
+  const rawNightEnd = parseTimeToMinutes(nightParts[1], parseTimeToMinutes(globalTimings.arenaClose, 360));
   let nightEndMins = rawNightEnd;
 
   // If night close time is numerically <= night start (e.g. 6:00 AM <= 6:00 PM),
@@ -165,7 +165,7 @@ export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
 
     const isBooked = checkIsBooked(startM, endM);
     // Dynamic status indicator: fast-filling for prime evening slots (6 PM to 9 PM)
-    const isPrimeEvening = isPeak && (startM >= 1080 && startM <= 1260);
+    const isPrimeEvening = isPeak && startM >= 1080 && startM < 1260;
     const status = isBooked ? 'booked' : isPrimeEvening ? 'fast-filling' : 'available';
 
     return {
@@ -185,19 +185,27 @@ export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
 };
 
 export const fetchRealTimeSlots = async (facilityId, selectedDate, duration = 1) => {
+  const generatedSlots = generateTimeSlots(facilityId, selectedDate, duration);
   try {
-    const res = await api.getSlotAvailability(facilityId, selectedDate);
+    const res = await api.getSlotAvailability(facilityId, selectedDate, duration);
     if (res.success && res.slots) {
-      return res.slots;
+      const serverSlots = new Map(res.slots.map(slot => [slot.time, slot]));
+      const slots = generatedSlots.map(slot => {
+        const serverSlot = serverSlots.get(slot.time);
+        return serverSlot
+          ? { ...slot, status: serverSlot.status, maintenanceReason: serverSlot.maintenanceReason }
+          : slot;
+      });
+      return { slots, isLive: true };
     }
   } catch (e) {
     console.warn('Using offline slots generator:', e);
   }
-  return generateTimeSlots(facilityId, selectedDate, duration);
+  return { slots: generatedSlots, isLive: false };
 };
 
 export const submitBookingReservation = async (bookingPayload) => {
-  const bookingReference = `TT-${Math.floor(100000 + Math.random() * 900000)}`;
+  const bookingReference = bookingPayload.id || `TT-${Math.floor(100000 + Math.random() * 900000)}`;
 
   const formattedPayload = {
     id: bookingReference,
@@ -212,35 +220,23 @@ export const submitBookingReservation = async (bookingPayload) => {
     duration: bookingPayload.duration || 1,
     paymentType: bookingPayload.paymentType || 'deposit',
     amount: bookingPayload.amount || (bookingPayload.paymentType === 'full' ? 'Full Paid' : 'Token Deposit'),
-    status: 'Confirmed',
+    paymentStatus: bookingPayload.paymentStatus || 'Pending',
+    paymentId: bookingPayload.paymentId || '',
+    status: bookingPayload.status || 'Confirmed',
     createdAt: new Date().toISOString()
   };
 
-  try {
-    const apiRes = await api.createBooking(formattedPayload);
-    if (apiRes.success) {
-      adminStore.saveBooking(formattedPayload);
-      return {
-        success: true,
-        bookingReference: apiRes.bookingReference || bookingReference,
-        timestamp: new Date().toISOString(),
-        details: bookingPayload,
-        message: 'Slot reservation recorded and saved to database!'
-      };
-    }
-  } catch (err) {
-    console.warn('API error during booking, persisting locally:', err);
+  const apiRes = await api.createBooking(formattedPayload);
+  if (!apiRes.success) {
+    throw new Error(apiRes.error || 'The reservation could not be saved. Please try again.');
   }
-
-  // Fallback local save
-  await adminStore.saveBooking(formattedPayload);
 
   return {
     success: true,
-    bookingReference,
+    bookingReference: apiRes.bookingReference || bookingReference,
     timestamp: new Date().toISOString(),
     details: bookingPayload,
-    message: 'Slot preview recorded! Saved to browser cache.'
+    message: 'Slot reservation recorded in the arena database.'
   };
 };
 

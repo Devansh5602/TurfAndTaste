@@ -30,6 +30,7 @@ export default function Contact() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [toastType, setToastType] = useState('success');
 
   const validate = () => {
     const errs = {};
@@ -55,19 +56,24 @@ export default function Contact() {
 
     setIsSubmitting(true);
     try {
-      await api.sendInquiry({
+      const result = await api.sendInquiry({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         category: formData.subject ? `Contact: ${formData.subject}` : 'General Contact',
         message: formData.message
       });
-    } catch (err) {
-      console.warn('Inquiry API error, simulated fallback:', err);
-    } finally {
-      setIsSubmitting(false);
+      if (!result.success) {
+        throw new Error(result.error || 'We could not send your message. Please try again.');
+      }
+      setToastType('success');
       setToastMessage('Message received! Our Patan team will respond shortly.');
       setFormData({ name: '', phone: '', email: '', subject: '', message: '' });
+    } catch (err) {
+      setToastType('error');
+      setToastMessage(err.message || 'We could not send your message. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -76,7 +82,7 @@ export default function Contact() {
       {toastMessage && (
         <Toast 
           message={toastMessage} 
-          type="success" 
+          type={toastType}
           onClose={() => setToastMessage(null)} 
         />
       )}
@@ -136,8 +142,12 @@ export default function Contact() {
                   <Phone size={24} className="text-orange" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div>
                     <h4 style={{ fontSize: '1.15rem', marginBottom: '0.25rem' }}>Phone &amp; WhatsApp</h4>
-                    <p style={{ fontSize: '0.92rem' }}>Calling: {contactData.phone}</p>
-                    <p style={{ fontSize: '0.92rem' }}>WhatsApp Chat: {contactData.whatsapp}</p>
+                    <p style={{ fontSize: '0.92rem' }}>
+                      Calling: <a href="tel:+919876543210">{contactData.phone}</a>
+                    </p>
+                    <p style={{ fontSize: '0.92rem' }}>
+                      WhatsApp Chat: <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer">{contactData.whatsapp}</a>
+                    </p>
                   </div>
                 </div>
 
@@ -145,8 +155,12 @@ export default function Contact() {
                   <Mail size={24} className="text-olive" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div>
                     <h4 style={{ fontSize: '1.15rem', marginBottom: '0.25rem' }}>Email Inquiries</h4>
-                    <p style={{ fontSize: '0.92rem' }}>General: {contactData.email}</p>
-                    <p style={{ fontSize: '0.92rem' }}>Bookings: {contactData.inquiriesEmail}</p>
+                    <p style={{ fontSize: '0.92rem' }}>
+                      General: <a href={`mailto:${contactData.email}`}>{contactData.email}</a>
+                    </p>
+                    <p style={{ fontSize: '0.92rem' }}>
+                      Bookings: <a href={`mailto:${contactData.inquiriesEmail}`}>{contactData.inquiriesEmail}</a>
+                    </p>
                   </div>
                 </div>
               </div>

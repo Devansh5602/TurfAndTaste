@@ -35,8 +35,8 @@ router.get('/', async (req, res) => {
         dayRate: dayRateFormatted,
         nightRate: nightRateFormatted,
         bookingDeposit: depositFormatted,
-        dayHours: parsed.dayHours || '6:00 AM – 4:00 PM',
-        nightHours: parsed.nightHours || '4:00 PM – 11:30 PM (Floodlights)',
+        dayHours: parsed.dayHours || '6:00 AM – 6:00 PM',
+        nightHours: parsed.nightHours || '6:00 PM – 6:00 AM (Floodlights)',
         weekendSurge: p.weekend_surge || 15,
         depositPct: p.deposit_pct || 30
       };
@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
  * PUT /api/pricing
  * Save all pricing tiers (Admin) - Supports UPSERT and full JSON state
  */
-router.put('/', async (req, res) => {
+router.put('/', authenticateAdminToken, async (req, res) => {
   try {
     const pricingList = req.body;
 
@@ -133,8 +133,8 @@ router.get('/timings', async (req, res) => {
         notes: timings.notes
       } : {
         arenaOpen: '06:00 AM',
-        arenaClose: '11:30 PM',
-        floodlightStart: '04:00 PM',
+        arenaClose: '06:00 AM',
+        floodlightStart: '06:00 PM',
         slotIntervalMins: 60,
         notes: ''
       }
@@ -151,12 +151,25 @@ router.get('/timings', async (req, res) => {
 router.put('/timings', authenticateAdminToken, async (req, res) => {
   try {
     const { arenaOpen, arenaClose, floodlightStart, slotIntervalMins, notes } = req.body;
+    if (!arenaOpen || !arenaClose || !floodlightStart) {
+      return res.status(400).json({ success: false, error: 'Open, close, and floodlight start times are required.' });
+    }
+    const interval = Number(slotIntervalMins) || 60;
+    if (![30, 60, 90, 120].includes(interval)) {
+      return res.status(400).json({ success: false, error: 'Choose a supported slot interval.' });
+    }
 
     await dbAsync.run(
-      `UPDATE timings
-       SET arena_open = ?, arena_close = ?, floodlight_start = ?, slot_interval_mins = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = 1`,
-      [arenaOpen, arenaClose, floodlightStart, slotIntervalMins || 60, notes || '']
+      `INSERT INTO timings (id, arena_open, arena_close, floodlight_start, slot_interval_mins, notes, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET
+         arena_open = EXCLUDED.arena_open,
+         arena_close = EXCLUDED.arena_close,
+         floodlight_start = EXCLUDED.floodlight_start,
+         slot_interval_mins = EXCLUDED.slot_interval_mins,
+         notes = EXCLUDED.notes,
+         updated_at = CURRENT_TIMESTAMP`,
+      [arenaOpen, arenaClose, floodlightStart, interval, notes || '']
     );
 
     res.json({ success: true, message: 'Arena operating hours updated successfully' });

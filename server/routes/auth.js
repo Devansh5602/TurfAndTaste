@@ -5,7 +5,7 @@ import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'turf_and_taste_paten_jwt_secret_2026_key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * POST /api/admin/login
@@ -13,6 +13,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'turf_and_taste_paten_jwt_secret_20
  */
 router.post('/login', async (req, res) => {
   try {
+    if (!JWT_SECRET) {
+      return res.status(503).json({ success: false, error: 'Management authentication is not configured.' });
+    }
     const { username, password } = req.body;
 
     if (!password) {
