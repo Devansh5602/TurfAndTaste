@@ -60,7 +60,7 @@
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
-| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, transactional schedules, and Admin facility management UI are implemented; public consumer migration/content parity remain. |
+| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, editable schedules, Admin UI, and rich-content parity backfill are implemented; progressive public consumer migration remains. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
 | 5 — Payments & Booking Pass | PARTIAL / NEEDS HARDENING | Depends on Modules 2–4. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
@@ -91,7 +91,9 @@
 
 **Completed Admin integration slice:** Added a dedicated Facilities tab in the authenticated Admin portal. It loads the protected facility inventory, supports creating/editing profile fields, and uses simple per-day schedule controls with overnight support. Public inventory now excludes draft/inactive records without accepting an untrusted query flag; the protected management list contains all statuses. Build and isolated API QA verified the client contract, public draft exclusion, and anonymous management-list `401`.
 
-**Next safe task:** Preserve content parity by backfilling the richer existing facility descriptions/images into managed records, then migrate public facility discovery/detail progressively to the API without changing booking or pricing contracts.
+**Completed content-parity slice:** Migration `005_backfill_rich_facility_content` imports the seven established facility records into the managed model, including public descriptions, images, rules, highlights, and rich legacy metadata. It seeds seven editable schedule rows per facility (sports: 6:00–6:00; dining: 7:00–23:00) only when no row exists; those are defaults, not hard-coded policy. Dining is correctly non-bookable. The migration fills only empty legacy descriptions and preserves administrator-authored rich records. Isolated SQLite QA confirmed all records, schedules, repeat safety, and preservation behavior.
+
+**Next safe task:** Migrate the public facility discovery/detail consumers progressively to the managed API, retaining the static dataset only as a resilient read fallback until the API is available. Do not migrate booking/pricing selection in this slice.
 
 ## External configuration / known blockers
 
