@@ -5,6 +5,8 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { id as foundationMigrationId, up as applyFoundationMigration } from './migrations/001_v2_foundation.js';
+import { id as legacyFacilityBackfillMigrationId, up as applyLegacyFacilityBackfill } from './migrations/002_backfill_legacy_facilities.js';
+import { id as pricingFacilityBackfillMigrationId, up as applyPricingFacilityBackfill } from './migrations/003_backfill_pricing_facilities.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,11 +63,19 @@ const runVersionedMigrations = async () => {
     return runRawQuery(sql, params);
   };
 
-  const applied = await migrationQuery('SELECT id FROM schema_migrations WHERE id = ?', [foundationMigrationId]);
-  if (applied.rows.length === 0) {
-    await applyFoundationMigration({ isPostgres, exec });
-    await migrationQuery('INSERT INTO schema_migrations (id) VALUES (?)', [foundationMigrationId]);
-    console.log(`[Database] Applied migration ${foundationMigrationId}`);
+  const migrations = [
+    { id: foundationMigrationId, up: applyFoundationMigration },
+    { id: legacyFacilityBackfillMigrationId, up: applyLegacyFacilityBackfill },
+    { id: pricingFacilityBackfillMigrationId, up: applyPricingFacilityBackfill },
+  ];
+
+  for (const migration of migrations) {
+    const applied = await migrationQuery('SELECT id FROM schema_migrations WHERE id = ?', [migration.id]);
+    if (applied.rows.length > 0) continue;
+
+    await migration.up({ isPostgres, exec });
+    await migrationQuery('INSERT INTO schema_migrations (id) VALUES (?)', [migration.id]);
+    console.log(`[Database] Applied migration ${migration.id}`);
   }
 };
 

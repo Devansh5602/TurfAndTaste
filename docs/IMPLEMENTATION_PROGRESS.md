@@ -58,7 +58,7 @@
 | Module | Status | Next / dependency |
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
-| 1 — Core Backend Foundation | **IN PROGRESS** | `001_v2_foundation` adds tracked SQLite/PostgreSQL facility/settings schema. API conventions and media foundations remain. |
+| 1 — Core Backend Foundation | **IN PROGRESS** | Tracked SQLite/PostgreSQL foundation plus safe legacy/pricing facility backfills and public inventory API. API conventions and media foundations remain. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | NOT STARTED | Depends on Module 1; first product vertical slice after foundation. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
@@ -80,6 +80,8 @@
 **Active module:** Module 1 — Core Backend Foundation.
 
 **Completed atomic slice:** Added `server/migrations/001_v2_foundation.js` and migration tracking in `server/db.js`. The additive `business_settings`, `facility_profiles`, and `facility_schedules` schema is safe alongside the legacy booking tables. SQLite application, repeat application, schema presence, syntax, diff validation, and the production web build passed on 2026-09-22. PostgreSQL runtime validation remains blocked by the unavailable endpoint; placeholders are translated to PostgreSQL's numbered form for migration bookkeeping.
+
+**Completed vertical slice:** Added additive backfills for legacy facility records and the established pricing tiers, plus `GET /api/facilities` and `GET /api/facilities/:identifier`. Isolated API QA confirmed five active bookable facilities, identifier lookup, and `404` behavior. The existing static frontend dataset remains in place deliberately; it has richer copy and images than the current backend model, so swapping it before admin content editing would degrade the public experience.
 
 **Next safe task:** Define shared API response/validation conventions and the public/admin settings boundary, then begin facility-management APIs against the new schema. No public CMS screen will start before that model is stable.
 

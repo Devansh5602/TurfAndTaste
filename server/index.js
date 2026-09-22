@@ -11,6 +11,7 @@ import paymentRoutes from './routes/payments.js';
 import inquiryRoutes from './routes/inquiries.js';
 import pricingRoutes from './routes/pricing.js';
 import archiveRoutes from './routes/archives.js';
+import facilityRoutes from './routes/facilities.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,6 +47,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/archives', archiveRoutes);
+app.use('/api/facilities', facilityRoutes);
 app.use('/api', pricingRoutes); // Alias for /api/timings
 
 // 404 Handler for undefined API routes

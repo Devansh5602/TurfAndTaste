@@ -8,6 +8,7 @@ Complete a whole-platform mobile-first UI, UX, workflow, and shared API QA cycle
 
 - The governing scope is the latest master rebuild requirement. Detailed status, dependencies, and the module queue live in `docs/IMPLEMENTATION_PROGRESS.md`; the repository remains the source of truth.
 - **Module 1 is in progress.** Its first stable slice introduced tracked v2 migrations plus additive `business_settings`, `facility_profiles`, and `facility_schedules` tables without changing legacy booking contracts.
+- The current vertical API slice exposes a safe backend inventory at `GET /api/facilities` and `GET /api/facilities/:identifier`, populated from legacy facilities or, for SQLite development, the seeded pricing tiers. Public UI remains on its richer static dataset until facility content administration is implemented.
 - Verified on 2026-09-22: server syntax, a clean isolated SQLite application and repeat application of migration `001_v2_foundation`, `npm run build`, and `git diff --check`.
 - PostgreSQL runtime execution remains environment-blocked because the configured endpoint is unreachable. The migration runner translates its bookkeeping placeholders for PostgreSQL; validate it against a reachable non-production database before production deployment.
 
