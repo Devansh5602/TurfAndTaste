@@ -210,6 +210,9 @@ export default function Booking() {
   const payableNow = paymentType === 'deposit' ? quotedDeposit : quotedTotal;
   const balanceDueAtDesk = Math.max(0, quotedTotal - payableNow);
   const isPaymentPending = confirmationData?.paymentStatus === 'Pending verification';
+  const passTotal = confirmationData?.total ?? quotedTotal;
+  const passPaid = isPaymentPending ? 0 : (confirmationData?.paidAmount ?? (confirmationData?.paymentType === 'full' ? passTotal : quotedDeposit));
+  const passBalance = Math.max(0, passTotal - passPaid);
 
   const handleSelectFacility = (slug) => {
     if (selectedFacility !== slug) {
@@ -1749,32 +1752,34 @@ export default function Booking() {
                   </div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>PAYMENT STATUS</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>BOOKING & PAYMENT</span>
                   <div style={{ fontWeight: 600, color: 'var(--brand-olive-bright)', textTransform: 'capitalize' }}>
-                    {confirmationData.paymentType || confirmationData.details?.paymentType} &bull; {isPaymentPending ? 'Under review' : 'Paid'}
+                    {isPaymentPending ? 'Payment Review • Not confirmed' : 'Confirmed • Payment verified'}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', marginBottom: '0.75rem' }}>
                 <div>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{isPaymentPending ? 'AMOUNT TO VERIFY' : 'AMOUNT PAID'}</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>TOTAL BOOKING VALUE</span>
                   <div style={{ fontWeight: 700, color: 'var(--brand-orange)', fontSize: '1.1rem' }}>
-                    {confirmationData.amount || confirmationData.details?.amount}
+                    ₹{passTotal}
                   </div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>TRANSACTION / PAYMENT ID</span>
-                  <div style={{ fontWeight: 600, color: 'var(--brand-cream)', fontSize: '0.8rem', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                    {confirmationData.paymentId || 'pay_captured'}
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{isPaymentPending ? 'AMOUNT AWAITING REVIEW' : 'AMOUNT PAID'}</span>
+                  <div style={{ fontWeight: 600, color: 'var(--brand-cream)', fontSize: '1rem' }}>
+                    ₹{isPaymentPending ? payableNow : passPaid}
                   </div>
                 </div>
+                <div><span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>BALANCE REMAINING</span><div style={{ fontWeight: 600, color: passBalance ? 'var(--brand-orange)' : 'var(--brand-olive-bright)', fontSize: '1rem' }}>₹{passBalance}</div></div>
+                <div><span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>PAYMENT MODE</span><div style={{ fontWeight: 600, color: 'var(--brand-cream)' }}>{confirmationData.paymentType === 'full' ? 'Full payment' : 'Token deposit'}</div></div>
               </div>
 
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>PLAYER SQUAD CONTACT</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>BOOKED FOR</span>
                 <div style={{ fontWeight: 600, color: 'var(--brand-cream)' }}>
-                  {confirmationData.customer?.name || confirmationData.details?.customer?.name} ({confirmationData.customer?.phone || confirmationData.details?.customer?.phone})
+                  {confirmationData.customer?.name || confirmationData.details?.customer?.name || 'Guest player'}
                 </div>
               </div>
             </div>
