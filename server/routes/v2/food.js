@@ -22,8 +22,11 @@ async function findStall(identifier, includeHidden = false) {
   return dbAsync.get(`SELECT * FROM food_stalls WHERE (id = ? OR slug = ?) ${includeHidden ? '' : "AND status = 'active'"} LIMIT 1`, [identifier, identifier]);
 }
 async function readPublicDetail(stall) {
-  const categories = await dbAsync.all('SELECT id, slug, name, description, display_order FROM food_menu_categories WHERE stall_id = ? AND is_active = 1 ORDER BY display_order, name', [stall.id]);
-  const items = await dbAsync.all('SELECT * FROM food_menu_items WHERE stall_id = ? AND is_active = 1 AND is_available = 1 ORDER BY is_featured DESC, display_order, name', [stall.id]);
+  const isPostgres = typeof dbAsync.isPostgres === 'function' && dbAsync.isPostgres();
+  const activeCheck = isPostgres ? 'is_active = TRUE' : '(is_active = 1 OR is_active = TRUE)';
+  const itemCheck = isPostgres ? 'is_active = TRUE AND is_available = TRUE' : '(is_active = 1 OR is_active = TRUE) AND (is_available = 1 OR is_available = TRUE)';
+  const categories = await dbAsync.all(`SELECT id, slug, name, description, display_order FROM food_menu_categories WHERE stall_id = ? AND ${activeCheck} ORDER BY display_order, name`, [stall.id]);
+  const items = await dbAsync.all(`SELECT * FROM food_menu_items WHERE stall_id = ? AND ${itemCheck} ORDER BY is_featured DESC, display_order, name`, [stall.id]);
   return { ...publicStall(stall), categories: categories.map((c) => ({ id: c.id, slug: c.slug, name: c.name, description: c.description, displayOrder: c.display_order })), menuItems: items.map(publicItem) };
 }
 
@@ -58,10 +61,46 @@ const saveStall = async (req, res, create) => {
 router.post('/admin/stalls', authenticateAdminToken, (req,res) => saveStall(req,res,true));
 router.put('/admin/stalls/:identifier', authenticateAdminToken, (req,res) => saveStall(req,res,false));
 
-const saveCategory = async (req,res,create) => { const old = create ? null : await dbAsync.get('SELECT * FROM food_menu_categories WHERE id = ?', [req.params.id]); const b=req.body||{}; const id=create?String(b.id||''):old?.id, stallId=String(b.stallId??old?.stall_id??''),slug=String(b.slug??old?.slug??'').toLowerCase(),name=String(b.name??old?.name??'').trim(),order=Number(b.displayOrder??old?.display_order??0); if(!isPlainObject(b)||!validId(id)||!validId(stallId)||!validId(slug)||name.length<2||!Number.isInteger(order)||!(await findStall(stallId,true))) return sendError(res,400,'Category data is invalid.'); try { await dbAsync.run(`INSERT INTO food_menu_categories (id,stall_id,slug,name,description,is_active,display_order) VALUES (?,?,?,?,?,?,?) ON CONFLICT (id) DO UPDATE SET stall_id=EXCLUDED.stall_id,slug=EXCLUDED.slug,name=EXCLUDED.name,description=EXCLUDED.description,is_active=EXCLUDED.is_active,display_order=EXCLUDED.display_order`,[id,stallId,slug,name,b.description??old?.description??null,b.active===false?0:1,order]); return sendSuccess(res,{id},create?201:200);} catch(e){return sendError(res,/UNIQUE/.test(e.message)||e.code==='23505'?409:500,'Unable to save menu category.');} };
-router.post('/admin/categories',authenticateAdminToken,(q,s)=>saveCategory(q,s,true)); router.put('/admin/categories/:id',authenticateAdminToken,(q,s)=>saveCategory(q,s,false));
+const saveCategory = async (req,res,create) => {
+  const old = create ? null : await dbAsync.get('SELECT * FROM food_menu_categories WHERE id = ?', [req.params.id]);
+  const b = req.body || {};
+  const id = create ? String(b.id || '') : old?.id;
+  const stallId = String(b.stallId ?? old?.stall_id ?? '');
+  const slug = String(b.slug ?? old?.slug ?? '').toLowerCase();
+  const name = String(b.name ?? old?.name ?? '').trim();
+  const order = Number(b.displayOrder ?? old?.display_order ?? 0);
+  if (!isPlainObject(b) || !validId(id) || !validId(stallId) || !validId(slug) || name.length < 2 || !Number.isInteger(order) || !(await findStall(stallId, true))) return sendError(res, 400, 'Category data is invalid.');
+  const isPostgres = typeof dbAsync.isPostgres === 'function' && dbAsync.isPostgres();
+  const activeVal = isPostgres ? (b.active !== false) : (b.active === false ? 0 : 1);
+  try {
+    await dbAsync.run(`INSERT INTO food_menu_categories (id,stall_id,slug,name,description,is_active,display_order) VALUES (?,?,?,?,?,?,?) ON CONFLICT (id) DO UPDATE SET stall_id=EXCLUDED.stall_id,slug=EXCLUDED.slug,name=EXCLUDED.name,description=EXCLUDED.description,is_active=EXCLUDED.is_active,display_order=EXCLUDED.display_order`, [id, stallId, slug, name, b.description ?? old?.description ?? null, activeVal, order]);
+    return sendSuccess(res, { id }, create ? 201 : 200);
+  } catch (e) {
+    return sendError(res, /UNIQUE/.test(e.message) || e.code === '23505' ? 409 : 500, 'Unable to save menu category.');
+  }
+};
+router.post('/admin/categories', authenticateAdminToken, (q, s) => saveCategory(q, s, true));
+router.put('/admin/categories/:id', authenticateAdminToken, (q, s) => saveCategory(q, s, false));
 
-const saveItem=async(req,res,create)=>{const old=create?null:await dbAsync.get('SELECT * FROM food_menu_items WHERE id=?',[req.params.id]);const b=req.body||{},id=create?String(b.id||''):old?.id,stallId=String(b.stallId??old?.stall_id??''),categoryId=b.categoryId??old?.category_id??null,name=String(b.name??old?.name??'').trim(),price=Number(b.pricePaise??old?.price_paise),order=Number(b.displayOrder??old?.display_order??0),diet=String(b.dietaryType??old?.dietary_type??'unspecified');if(!isPlainObject(b)||!validId(id)||!validId(stallId)||name.length<2||!Number.isInteger(price)||price<0||price>100000000||!Number.isInteger(order)||!['veg','non_veg','vegan','egg','unspecified'].includes(diet)||!(await findStall(stallId,true)))return sendError(res,400,'Menu item data is invalid.');if(categoryId){const c=await dbAsync.get('SELECT id FROM food_menu_categories WHERE id=? AND stall_id=?',[categoryId,stallId]);if(!c)return sendError(res,400,'Category must belong to this stall.');}try{await dbAsync.run(`INSERT INTO food_menu_items (id,stall_id,category_id,name,description,price_paise,image_url,dietary_type,is_available,is_featured,is_active,display_order,metadata_json,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET stall_id=EXCLUDED.stall_id,category_id=EXCLUDED.category_id,name=EXCLUDED.name,description=EXCLUDED.description,price_paise=EXCLUDED.price_paise,image_url=EXCLUDED.image_url,dietary_type=EXCLUDED.dietary_type,is_available=EXCLUDED.is_available,is_featured=EXCLUDED.is_featured,is_active=EXCLUDED.is_active,display_order=EXCLUDED.display_order,metadata_json=EXCLUDED.metadata_json,updated_at=CURRENT_TIMESTAMP`,[id,stallId,categoryId,name,b.description??old?.description??null,price,b.imageUrl??old?.image_url??null,diet,b.available===false?0:1,b.featured===true?1:0,b.active===false?0:1,order,JSON.stringify(b.metadata??safeJsonParse(old?.metadata_json))]);return sendSuccess(res,{id},create?201:200)}catch(e){return sendError(res,500,'Unable to save menu item.')}};
+const saveItem = async (req, res, create) => {
+  const old = create ? null : await dbAsync.get('SELECT * FROM food_menu_items WHERE id=?', [req.params.id]);
+  const b = req.body || {}, id = create ? String(b.id || '') : old?.id, stallId = String(b.stallId ?? old?.stall_id ?? ''), categoryId = b.categoryId ?? old?.category_id ?? null, name = String(b.name ?? old?.name ?? '').trim(), price = Number(b.pricePaise ?? old?.price_paise), order = Number(b.displayOrder ?? old?.display_order ?? 0), diet = String(b.dietaryType ?? old?.dietary_type ?? 'unspecified');
+  if (!isPlainObject(b) || !validId(id) || !validId(stallId) || name.length < 2 || !Number.isInteger(price) || price < 0 || price > 100000000 || !Number.isInteger(order) || !['veg', 'non_veg', 'vegan', 'egg', 'unspecified'].includes(diet) || !(await findStall(stallId, true))) return sendError(res, 400, 'Menu item data is invalid.');
+  if (categoryId) {
+    const c = await dbAsync.get('SELECT id FROM food_menu_categories WHERE id=? AND stall_id=?', [categoryId, stallId]);
+    if (!c) return sendError(res, 400, 'Category must belong to this stall.');
+  }
+  const isPostgres = typeof dbAsync.isPostgres === 'function' && dbAsync.isPostgres();
+  const availVal = isPostgres ? (b.available !== false) : (b.available === false ? 0 : 1);
+  const featVal = isPostgres ? (b.featured === true) : (b.featured === true ? 1 : 0);
+  const activeVal = isPostgres ? (b.active !== false) : (b.active === false ? 0 : 1);
+  try {
+    await dbAsync.run(`INSERT INTO food_menu_items (id,stall_id,category_id,name,description,price_paise,image_url,dietary_type,is_available,is_featured,is_active,display_order,metadata_json,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET stall_id=EXCLUDED.stall_id,category_id=EXCLUDED.category_id,name=EXCLUDED.name,description=EXCLUDED.description,price_paise=EXCLUDED.price_paise,image_url=EXCLUDED.image_url,dietary_type=EXCLUDED.dietary_type,is_available=EXCLUDED.is_available,is_featured=EXCLUDED.is_featured,is_active=EXCLUDED.is_active,display_order=EXCLUDED.display_order,metadata_json=EXCLUDED.metadata_json,updated_at=CURRENT_TIMESTAMP`, [id, stallId, categoryId, name, b.description ?? old?.description ?? null, price, b.imageUrl ?? old?.image_url ?? null, diet, availVal, featVal, activeVal, order, JSON.stringify(b.metadata ?? safeJsonParse(old?.metadata_json))]);
+    return sendSuccess(res, { id }, create ? 201 : 200);
+  } catch (e) {
+    return sendError(res, 500, 'Unable to save menu item.');
+  }
+};
 router.post('/admin/items',authenticateAdminToken,(q,s)=>saveItem(q,s,true));router.put('/admin/items/:id',authenticateAdminToken,(q,s)=>saveItem(q,s,false));
 router.get('/:identifier', async (req, res) => {
   try { const stall = await findStall(req.params.identifier); if (!stall) return sendError(res, 404, 'Food stall not found.'); return sendSuccess(res, { stall: await readPublicDetail(stall) }); }
