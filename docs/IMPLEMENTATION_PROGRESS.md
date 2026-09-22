@@ -61,7 +61,7 @@
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
-| 4 — Pricing & Booking Engine | **IN PROGRESS** | Server-authoritative quotes are verified and consumed by Booking UI; legacy submission still needs server quote enforcement. |
+| 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
 | 5 — Payments & Booking Pass | PARTIAL / NEEDS HARDENING | Depends on Modules 2–4. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
 | 8 — Food Court & Parlour | NOT STARTED | Depends on Module 1 media/content conventions. |
@@ -97,11 +97,13 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Add a short-lived, server-signed or server-stored quote reference and require it at public booking submission, so the legacy endpoint derives/stores the quoted amount rather than accepting browser-formatted amounts. Preserve admin walk-in behavior.
+**Next safe task:** Begin Module 5 payment/booking-pass hardening: align gateway order amounts to signed quotes and add a customer-safe booking pass after verified payment.
 
 **Completed Module 4 quote slice:** Added `POST /api/v2/quotes`, which validates an active bookable facility, its day-specific schedule, reservation conflicts, maintenance blocks, pricing configuration, duration, and applicable weekend surcharge before returning a server-derived total and deposit. The endpoint is additive; legacy pricing and booking contracts remain unchanged. Isolated QA verified a valid configured quote, non-bookable dining rejection (`404`), and out-of-schedule rejection (`409`).
 
 **Completed Booking quote integration slice:** Booking requests a new quote after every facility/date/slot change, displays the server-derived total, computes deposit/full payment from that response, and prevents progressing to payment or submitting a reservation without a current successful quote. The legacy booking submission endpoint remains in place, with quote context attached for the next server-enforcement slice. Production build and diff validation passed.
+
+**Completed quote enforcement slice:** Public booking creation now requires a signed quote token carrying facility/date/slot/duration/pricing context and a short expiry. The server rejects expired, invalid, modified-context, or reused tokens; records quote redemption atomically with the reservation; and derives the stored amount exclusively from the verified quote. Authenticated walk-ins retain their existing amount behavior. Isolated QA verified valid redemption, ignored browser amount, reuse rejection, and context-tampering rejection.
 
 ## External configuration / known blockers
 

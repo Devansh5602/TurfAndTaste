@@ -1,6 +1,7 @@
 import express from 'express';
 import dbAsync from '../db.js';
 import { attachOptionalAdmin, authenticateAdminToken } from '../middleware/auth.js';
+import { verifyQuoteToken } from '../utils/quoteToken.js';
 
 const router = express.Router();
 
@@ -289,9 +290,20 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
     const teamName = payload.customer?.teamName || payload.teamName || '';
     const duration = payload.duration || 1;
     const paymentType = payload.paymentType || 'deposit';
-    const amountPaid = payload.amount || (paymentType === 'full' ? 'Full payment recorded' : 'Token deposit recorded');
     const isAdminReservation = Boolean(req.admin);
     const submittedPaymentId = String(payload.paymentId || '').trim();
+    let verifiedQuote = null;
+    if (!isAdminReservation) {
+      const verification = verifyQuoteToken(payload.quote?.quoteToken || payload.quoteToken);
+      if (verification.error) return res.status(400).json({ success: false, error: verification.error });
+      verifiedQuote = verification.quote;
+      if (verifiedQuote.facilityId !== facilityId || verifiedQuote.date !== date || verifiedQuote.timeSlot !== timeSlot || verifiedQuote.durationHours !== (Number(duration) || 1)) {
+        return res.status(409).json({ success: false, error: 'Booking details changed. Please refresh your quote.' });
+      }
+    }
+    const amountPaid = verifiedQuote
+      ? `₹${paymentType === 'full' ? verifiedQuote.total : verifiedQuote.deposit} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`
+      : (payload.amount || (paymentType === 'full' ? 'Full payment recorded' : 'Token deposit recorded'));
 
     // A public POST is exclusively the direct-UPI review flow. Paid/confirmed
     // state is owned by the cryptographically verified gateway endpoint, never
@@ -310,18 +322,29 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       ? payload.status
       : 'Payment Review';
 
-    await dbAsync.run(
-      `INSERT INTO bookings (
+    const bookingInsert = {
+      sql: `INSERT INTO bookings (
         id, facility_id, facility_name, date, time_slot, customer_name,
         customer_phone, customer_email, team_name, duration, payment_type,
         amount_paid, payment_status, booking_status, payment_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
+      params: [
         id, facilityId, facilityName, date, timeSlot, customerName,
         customerPhone, customerEmail, teamName, duration, paymentType,
         amountPaid, paymentStatus, bookingStatus, paymentId
       ]
-    );
+    };
+    try {
+      if (verifiedQuote) {
+        await dbAsync.transaction([
+          { sql: 'INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)', params: [verifiedQuote.quoteId, id, new Date(verifiedQuote.exp * 1000).toISOString()] },
+          bookingInsert,
+        ]);
+      } else await dbAsync.run(bookingInsert.sql, bookingInsert.params);
+    } catch (error) {
+      if (error?.code === '23505' || /UNIQUE constraint failed/.test(error?.message || '')) return res.status(409).json({ success: false, error: 'This booking quote has already been used. Please request a new quote.' });
+      throw error;
+    }
 
     res.status(201).json({
       success: true,

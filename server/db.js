@@ -9,6 +9,7 @@ import { id as legacyFacilityBackfillMigrationId, up as applyLegacyFacilityBackf
 import { id as pricingFacilityBackfillMigrationId, up as applyPricingFacilityBackfill } from './migrations/003_backfill_pricing_facilities.js';
 import { id as mediaAssetsMigrationId, up as applyMediaAssetsMigration } from './migrations/004_media_assets.js';
 import { id as richFacilityContentMigrationId, up as applyRichFacilityContentMigration } from './migrations/005_backfill_rich_facility_content.js';
+import { id as quoteRedemptionsMigrationId, up as applyQuoteRedemptionsMigration } from './migrations/006_quote_redemptions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +72,7 @@ const runVersionedMigrations = async () => {
     { id: pricingFacilityBackfillMigrationId, up: applyPricingFacilityBackfill },
     { id: mediaAssetsMigrationId, up: applyMediaAssetsMigration },
     { id: richFacilityContentMigrationId, up: applyRichFacilityContentMigration },
+    { id: quoteRedemptionsMigrationId, up: applyQuoteRedemptionsMigration },
   ];
 
   for (const migration of migrations) {

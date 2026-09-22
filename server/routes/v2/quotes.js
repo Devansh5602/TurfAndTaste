@@ -1,6 +1,7 @@
 import express from 'express';
 import dbAsync from '../../db.js';
 import { sendError, sendSuccess } from '../../utils/api.js';
+import { createQuoteToken } from '../../utils/quoteToken.js';
 
 const router = express.Router();
 const parseTime = (value) => {
@@ -77,12 +78,13 @@ router.post('/', async (req, res) => {
     const configuredDeposit = numericAmount(details.bookingDeposit);
     const deposit = configuredDeposit || Math.ceil((total * (pricing.deposit_pct || 0)) / 100);
 
-    return sendSuccess(res, {
+    const quote = {
       facilityId, facilityName: facility.name, date, timeSlot,
       durationHours, ratePeriod: isPeak ? 'peak' : 'day', hourlyRate,
       weekendSurgePercent: [0, 6].includes(dayOfWeek) ? pricing.weekend_surge || 0 : 0,
       total, deposit: Math.min(deposit, total), currency: 'INR',
-    });
+    };
+    return sendSuccess(res, { ...quote, quoteToken: createQuoteToken(quote) });
   } catch (error) {
     console.error('[Quote API Error]:', error);
     return sendError(res, 500, 'Unable to calculate a booking quote.');
