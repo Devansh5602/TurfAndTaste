@@ -422,6 +422,41 @@ export const dbAsync = {
 
   run: async (sql, params = []) => {
     return await dbAsync.query(sql, params);
+  },
+
+  // Keep multi-record management updates all-or-nothing across the supported
+  // PostgreSQL and SQLite development backends.
+  transaction: async (statements) => {
+    if (!Array.isArray(statements) || statements.length === 0) return;
+
+    if (isPostgres) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        for (const { sql, params = [] } of statements) {
+          let parameterIndex = 0;
+          await client.query(sql.replace(/\?/g, () => `$${++parameterIndex}`), params);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+      return;
+    }
+
+    sqliteDb.exec('BEGIN');
+    try {
+      for (const { sql, params = [] } of statements) {
+        sqliteDb.prepare(sql).run(...params);
+      }
+      sqliteDb.exec('COMMIT');
+    } catch (error) {
+      sqliteDb.exec('ROLLBACK');
+      throw error;
+    }
   }
 };
 
