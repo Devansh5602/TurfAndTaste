@@ -62,7 +62,7 @@
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
 | 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
-| 5 — Payments & Booking Pass | **IN PROGRESS** | Razorpay order creation now derives deposit/full amount from a signed quote; verification/pass hardening remains. |
+| 5 — Payments & Booking Pass | **QA VERIFIED (provider exception)** | Local safeguards and customer-safe passes are verified; successful live Razorpay capture/replay remains externally blocked. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
 | 8 — Food Court & Parlour | NOT STARTED | Depends on Module 1 media/content conventions. |
 | 9 — Events CMS | NOT STARTED | Depends on Module 1. |
@@ -97,7 +97,7 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Bind Razorpay verification to the persisted payment order, verify provider amount where available, reject duplicate/replayed callbacks, and use stored quote context rather than browser booking data for confirmation.
+**Next safe task:** Begin Module 2’s minimum management-auth hardening: introduce role claims/authorization boundaries and rate-limit sensitive management authentication before broader customer-account work.
 
 **Completed payment-order slice:** `POST /api/payments/create-order` now requires a verified signed quote token and derives the gateway order amount from its server-authoritative deposit or total; browser `amount` is ignored. The Booking UI supplies the quote token and uses the backend-returned order amount. Existing UPI review behavior is unchanged. Build, server syntax, and diff validation passed.
 
@@ -106,6 +106,8 @@
 **Completed verification binding slice:** Razorpay verification now loads the persisted order, rejects non-created/mismatched booking context, validates a constant-time signature, fetches the provider payment to confirm its order ID and exact server-derived paise amount, and atomically records payment, quote redemption, order state, and confirmed booking. Browser amount/status/context cannot select the booking price or state. Live payment capture QA remains credential/provider dependent.
 
 **Completed customer pass slice:** The Booking confirmation pass now clearly distinguishes `Payment Review` from verified confirmation, presents booking reference/facility/date/slot/payment mode/total/paid-or-review amount/balance, and limits customer identity to the booked-for name. It no longer exposes a gateway payment identifier or phone number. The existing print action remains available through the browser’s reliable native print flow; no fake download/share or QR mechanism was added.
+
+**Completed local Module 5 regression:** An invalid UPI reference returns `400` without consuming its quote, allowing a retry. A subsequent valid UPI reference stores the signed server deposit but remains `Pending verification` / `Payment Review` even when the browser submits paid/confirmed fields. Local syntax, build, and diff checks pass. A genuine successful Razorpay test capture is still required to exercise provider fetch/signature success and callback replay against Razorpay; it is not simulated or marked complete.
 
 **Completed Module 4 quote slice:** Added `POST /api/v2/quotes`, which validates an active bookable facility, its day-specific schedule, reservation conflicts, maintenance blocks, pricing configuration, duration, and applicable weekend surcharge before returning a server-derived total and deposit. The endpoint is additive; legacy pricing and booking contracts remain unchanged. Isolated QA verified a valid configured quote, non-bookable dining rejection (`404`), and out-of-schedule rejection (`409`).
 
