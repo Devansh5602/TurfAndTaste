@@ -50,6 +50,9 @@ export default function Facilities() {
       facility.tag.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+  const sportsFacilities = managedFacilities.filter(facility => facility.category === 'sports');
+  const practiceFacilities = managedFacilities.filter(facility => facility.category === 'practice');
+  const diningFacilities = managedFacilities.filter(facility => facility.category === 'dining');
 
   const toggleSpec = (id) => {
     setExpandedSpecId(prev => prev === id ? null : id);
@@ -116,10 +119,10 @@ export default function Facilities() {
                     </h2>
                     <p className="facility-group-desc">Tournament synthetic turfs, cushioned pickleball, and smooth speed skating</p>
                   </div>
-                  <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>3 Venues</span>
+                  <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>{sportsFacilities.length} Venue{sportsFacilities.length === 1 ? '' : 's'}</span>
                 </div>
                 <div className="grid grid-3">
-                  {managedFacilities.filter(f => f.category === 'sports').map(facility => (
+                  {sportsFacilities.map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
@@ -134,10 +137,10 @@ export default function Facilities() {
                     </h2>
                     <p className="facility-group-desc">Full bowler run-up nets and 150 km/h programmable bowling machine</p>
                   </div>
-                  <span className="badge badge-orange" style={{ fontSize: '0.72rem' }}>2 Lanes</span>
+                  <span className="badge badge-orange" style={{ fontSize: '0.72rem' }}>{practiceFacilities.length} Lane{practiceFacilities.length === 1 ? '' : 's'}</span>
                 </div>
                 <div className="grid grid-2">
-                  {managedFacilities.filter(f => f.category === 'practice').map(facility => (
+                  {practiceFacilities.map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
@@ -152,10 +155,10 @@ export default function Facilities() {
                     </h2>
                     <p className="facility-group-desc">Espresso bar, protein smoothies, woodfired pizzas, and pavilion seating</p>
                   </div>
-                  <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>2 Spaces</span>
+                  <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>{diningFacilities.length} Space{diningFacilities.length === 1 ? '' : 's'}</span>
                 </div>
                 <div className="grid grid-2">
-                  {managedFacilities.filter(f => f.category === 'dining').map(facility => (
+                  {diningFacilities.map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
