@@ -8,6 +8,13 @@ dist-ssr
 !.env.example
 .DS_Store
 
+# Runtime SQLite sidecars and generated archive delivery artifacts. Existing
+# tracked archive state is retained until a deliberate data-retention migration.
+server/data/*.db-wal
+server/data/*.db-shm
+server/data/archives/*.pdf
+server/data/archives/email_dispatch_log.json
+
 # Native Platform Build Artifacts
 android/build/
 android/app/build/

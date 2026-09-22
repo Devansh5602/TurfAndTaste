@@ -58,6 +58,7 @@ Complete a whole-platform mobile-first UI, UX, workflow, and shared API QA cycle
 
 ## Environment notes
 
+- Conservative repository cleanup audit completed: no source, migration, native, fallback, or public asset file was safe to remove. Tracked archive PDFs/logs remain required by archive routes and retained state; tracked SQLite database/WAL/SHM were not deleted because sidecars can contain uncheckpointed data. `.gitignore` now prevents future SQLite sidecars and generated archive delivery artifacts from being newly added without a deliberate retention migration.
 - The configured cloud PostgreSQL endpoint is unreachable from this environment.
 - `server/data/turf_and_taste.db-wal` and `.db-shm` were modified only by local SQLite QA startup; do not include them in a product commit.
 - Use `.env.example` as the configuration template. Never commit a real `.env`.
