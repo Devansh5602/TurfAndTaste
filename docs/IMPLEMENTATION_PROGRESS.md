@@ -103,6 +103,8 @@
 
 **Completed public schedule-language fix:** The focused UI review found stale claims of 24-hour sports operation and fixed dining hours, even though facilities own administrator-configurable schedules. Home, reusable facility cards, and dining detail now direct customers to current venue details instead of presenting hard-coded operational windows. This preserves schedule authority and avoids misleading availability claims.
 
+**Completed fallback-detail regression fix:** Public route QA found that a static sport fallback without a managed `bookingEnabled` field could render the dining/walk-in branch during an API outage. Facility Detail now derives the legacy default from category, preserving the Book This Facility and event-inquiry CTAs for sports while retaining dining behavior for dining venues.
+
 **Next safe task:** Audit the public facility discovery and detail flows against the managed Facility Management API, then safely eliminate remaining static-data drift without regressing the richer fallback experience.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.

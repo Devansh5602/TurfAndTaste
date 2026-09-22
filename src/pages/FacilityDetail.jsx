@@ -24,7 +24,12 @@ export default function FacilityDetail({ slug }) {
   const { navigate } = useRouter();
 
   const fallbackFacility = facilitiesData.find(f => f.slug === slug) || null;
-  const [facility, setFacility] = useState(fallbackFacility);
+  const [facility, setFacility] = useState(() => fallbackFacility ? {
+    ...fallbackFacility,
+    // Legacy presentation records predate managed `bookingEnabled`. Preserve
+    // their established customer behavior while managed inventory is offline.
+    bookingEnabled: fallbackFacility.category !== 'dining'
+  } : null);
   const [notFound, setNotFound] = useState(false);
   const relatedFacilities = facilitiesData
     .filter(f => f.slug !== fallbackFacility?.slug)
