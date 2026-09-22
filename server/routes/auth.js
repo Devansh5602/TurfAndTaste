@@ -3,15 +3,17 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
+import { createRateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
+const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, maxAttempts: 8, key: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}` });
 
 /**
  * POST /api/admin/login
  * Admin Login Endpoint
  */
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimit, async (req, res) => {
   try {
     if (!JWT_SECRET) {
       return res.status(503).json({ success: false, error: 'Management authentication is not configured.' });
@@ -33,6 +35,7 @@ router.post('/login', async (req, res) => {
     if (!isValidPassword) {
       return res.status(401).json({ success: false, error: 'Invalid admin credentials' });
     }
+    loginRateLimit.reset(req);
 
     // Generate JWT Token
     const token = jwt.sign(
