@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { id as foundationMigrationId, up as applyFoundationMigration } from './migrations/001_v2_foundation.js';
 import { id as legacyFacilityBackfillMigrationId, up as applyLegacyFacilityBackfill } from './migrations/002_backfill_legacy_facilities.js';
 import { id as pricingFacilityBackfillMigrationId, up as applyPricingFacilityBackfill } from './migrations/003_backfill_pricing_facilities.js';
+import { id as mediaAssetsMigrationId, up as applyMediaAssetsMigration } from './migrations/004_media_assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,7 @@ const runVersionedMigrations = async () => {
     { id: foundationMigrationId, up: applyFoundationMigration },
     { id: legacyFacilityBackfillMigrationId, up: applyLegacyFacilityBackfill },
     { id: pricingFacilityBackfillMigrationId, up: applyPricingFacilityBackfill },
+    { id: mediaAssetsMigrationId, up: applyMediaAssetsMigration },
   ];
 
   for (const migration of migrations) {

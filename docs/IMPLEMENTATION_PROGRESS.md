@@ -58,7 +58,7 @@
 | Module | Status | Next / dependency |
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
-| 1 — Core Backend Foundation | **IN PROGRESS** | Tracked SQLite/PostgreSQL foundation, safe facility backfills, public inventory, and v2 public-settings boundary. Media conventions and final foundation QA remain. |
+| 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | NOT STARTED | Depends on Module 1; first product vertical slice after foundation. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
@@ -85,7 +85,9 @@
 
 **Completed API/settings slice:** Established additive `/api/v2` response helpers (`{ success, data?, error?, details? }`) and the first explicit public/admin settings boundary. `GET /api/v2/settings/public` exposes only allowlisted public settings; `PUT /api/v2/settings/public/public_contact` requires an admin JWT and validates bounded object data. Isolated API QA verified public read, anonymous `401`, authenticated write, and persisted readback. Existing routes retain their contracts while consumers migrate.
 
-**Next safe task:** Complete Module 1’s documented persistence/media conventions and final foundation regression. Then begin Module 3 facility management: protected facility CRUD and per-facility schedules seeded from current values only, never as a fixed business-hours rule.
+**Completed media/persistence slice:** Added versioned `media_assets` metadata storage with owner, provider/key, public URL, alt text, dimensions, order, and JSON metadata. It intentionally stores no image binary and does not simulate an upload provider that is not configured. Isolated SQLite QA confirmed all four migrations apply once, repeat safely, and create the media table. The existing `dbAsync` abstraction intentionally supports application query paths rather than SQLite `PRAGMA` metadata reads; schema QA uses a standard `SELECT` against `sqlite_master`.
+
+**Next safe task:** Begin **Module 3 — Facility Management**. Existing admin JWT middleware is sufficient for the minimum protected management surface, so a broad RBAC/customer-account module is not a dependency. First slice: protected facility CRUD and per-facility schedules seeded from current values only, never as a fixed business-hours rule.
 
 ## External configuration / known blockers
 
