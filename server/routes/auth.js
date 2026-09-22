@@ -2,12 +2,14 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dbAsync from '../db.js';
-import { authenticateAdminToken } from '../middleware/auth.js';
+import { ADMIN_ROLES, authenticateAdminToken, requireAdminRole } from '../middleware/auth.js';
 import { createRateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, maxAttempts: 8, key: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}` });
+const supportedRoles = new Set(Object.values(ADMIN_ROLES));
+const isEnabled = (value) => value === true || Number(value) === 1;
 
 /**
  * POST /api/admin/login
@@ -24,22 +26,25 @@ router.post('/login', loginRateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Password is required' });
     }
 
-    const adminUser = await dbAsync.get('SELECT * FROM admins ORDER BY id ASC LIMIT 1');
+    // Keep the established password-only portal compatible by defaulting its
+    // omitted username to the configured legacy administrator name. New API
+    // consumers can and should explicitly provide their username.
+    const normalizedUsername = String(username || process.env.DEFAULT_ADMIN_USERNAME || 'admin').trim();
+    const adminUser = normalizedUsername
+      ? await dbAsync.get('SELECT * FROM admins WHERE username = ?', [normalizedUsername])
+      : null;
 
-    if (!adminUser) {
-      return res.status(404).json({ success: false, error: 'Admin account not initialized' });
-    }
+    const isValidPassword = Boolean(adminUser) &&
+      (bcrypt.compareSync(password, adminUser.password_hash) || password === adminUser.password_hash);
 
-    const isValidPassword = bcrypt.compareSync(password, adminUser.password_hash) || password === adminUser.password_hash;
-
-    if (!isValidPassword) {
+    if (!isValidPassword || !isEnabled(adminUser.is_enabled) || !supportedRoles.has(adminUser.role)) {
       return res.status(401).json({ success: false, error: 'Invalid admin credentials' });
     }
     loginRateLimit.reset(req);
 
     // Generate JWT Token
     const token = jwt.sign(
-      { id: adminUser.id, username: adminUser.username, role: 'admin' },
+      { id: adminUser.id, username: adminUser.username, role: adminUser.role },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -50,12 +55,56 @@ router.post('/login', loginRateLimit, async (req, res) => {
       user: {
         id: adminUser.id,
         username: adminUser.username,
-        role: 'admin'
+        role: adminUser.role
       },
       message: 'Admin authentication successful'
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PUT /api/admin/accounts/:id/enabled
+ * A deliberately small account-control endpoint. Only super administrators
+ * can disable a management account, and safeguards prevent lockout of the
+ * final enabled super administrator.
+ */
+router.put('/accounts/:id/enabled', authenticateAdminToken, requireAdminRole(ADMIN_ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const adminId = Number.parseInt(req.params.id, 10);
+    const { isEnabled: nextEnabled } = req.body;
+    if (!Number.isInteger(adminId) || adminId < 1 || typeof nextEnabled !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'A valid account id and boolean isEnabled value are required.' });
+    }
+    if (adminId === Number(req.admin.id) && !nextEnabled) {
+      return res.status(400).json({ success: false, error: 'You cannot disable your own active management account.' });
+    }
+
+    const target = await dbAsync.get('SELECT id, username, role, is_enabled FROM admins WHERE id = ?', [adminId]);
+    if (!target) return res.status(404).json({ success: false, error: 'Management account not found.' });
+    if (!supportedRoles.has(target.role)) {
+      return res.status(409).json({ success: false, error: 'This account has an unsupported role and cannot be changed until it is corrected.' });
+    }
+
+    if (!nextEnabled && target.role === ADMIN_ROLES.SUPER_ADMIN && isEnabled(target.is_enabled)) {
+      const enabledSuperAdmins = await dbAsync.get(
+        'SELECT COUNT(*) AS count FROM admins WHERE role = ? AND is_enabled = ?',
+        [ADMIN_ROLES.SUPER_ADMIN, dbAsync.isPostgres() ? true : 1]
+      );
+      if (Number(enabledSuperAdmins?.count) <= 1) {
+        return res.status(409).json({ success: false, error: 'At least one enabled super administrator must remain.' });
+      }
+    }
+
+    await dbAsync.run('UPDATE admins SET is_enabled = ? WHERE id = ?', [dbAsync.isPostgres() ? nextEnabled : Number(nextEnabled), adminId]);
+    return res.json({
+      success: true,
+      account: { id: target.id, username: target.username, role: target.role, isEnabled: nextEnabled },
+      message: nextEnabled ? 'Management account enabled.' : 'Management account disabled.'
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Unable to update the management account.' });
   }
 });
 

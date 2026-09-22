@@ -11,6 +11,7 @@ import { id as mediaAssetsMigrationId, up as applyMediaAssetsMigration } from '.
 import { id as richFacilityContentMigrationId, up as applyRichFacilityContentMigration } from './migrations/005_backfill_rich_facility_content.js';
 import { id as quoteRedemptionsMigrationId, up as applyQuoteRedemptionsMigration } from './migrations/006_quote_redemptions.js';
 import { id as paymentOrdersMigrationId, up as applyPaymentOrdersMigration } from './migrations/007_payment_orders.js';
+import { id as adminRolesMigrationId, up as applyAdminRolesMigration } from './migrations/008_admin_roles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +76,7 @@ const runVersionedMigrations = async () => {
     { id: richFacilityContentMigrationId, up: applyRichFacilityContentMigration },
     { id: quoteRedemptionsMigrationId, up: applyQuoteRedemptionsMigration },
     { id: paymentOrdersMigrationId, up: applyPaymentOrdersMigration },
+    { id: adminRolesMigrationId, up: applyAdminRolesMigration },
   ];
 
   for (const migration of migrations) {
