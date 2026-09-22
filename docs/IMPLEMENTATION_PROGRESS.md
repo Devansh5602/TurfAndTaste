@@ -97,9 +97,11 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Begin Module 5 payment/booking-pass hardening: align gateway order amounts to signed quotes and add a customer-safe booking pass after verified payment.
+**Next safe task:** Bind Razorpay verification to the persisted payment order, verify provider amount where available, reject duplicate/replayed callbacks, and use stored quote context rather than browser booking data for confirmation.
 
 **Completed payment-order slice:** `POST /api/payments/create-order` now requires a verified signed quote token and derives the gateway order amount from its server-authoritative deposit or total; browser `amount` is ignored. The Booking UI supplies the quote token and uses the backend-returned order amount. Existing UPI review behavior is unchanged. Build, server syntax, and diff validation passed.
+
+**Completed order-context slice:** Payment orders now persist the quote ID, booking reference, expected amount, payment mode, and signed quote context server-side for both live Razorpay and fallback orders. Isolated QA verified that browser `amount: 1` produced a ₹200 signed-deposit order, while a missing quote was rejected (`400`).
 
 **Completed Module 4 quote slice:** Added `POST /api/v2/quotes`, which validates an active bookable facility, its day-specific schedule, reservation conflicts, maintenance blocks, pricing configuration, duration, and applicable weekend surcharge before returning a server-derived total and deposit. The endpoint is additive; legacy pricing and booking contracts remain unchanged. Isolated QA verified a valid configured quote, non-bookable dining rejection (`404`), and out-of-schedule rejection (`409`).
 

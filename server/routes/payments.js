@@ -52,6 +52,10 @@ router.post('/create-order', async (req, res) => {
         }
       });
 
+      await dbAsync.run(
+        'INSERT INTO payment_orders (order_id, quote_id, booking_reference, expected_amount, payment_type, quote_context) VALUES (?, ?, ?, ?, ?, ?)',
+        [order.id, quote.quoteId, bookingReference || quote.quoteId, numericAmount, requestedPaymentType, JSON.stringify(quote)],
+      );
       return res.json({
         success: true,
         isLiveRazorpay: true,
@@ -65,6 +69,10 @@ router.post('/create-order', async (req, res) => {
     // Fallback simulation mode
     const mockOrderId = `order_sim_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
 
+    await dbAsync.run(
+      'INSERT INTO payment_orders (order_id, quote_id, booking_reference, expected_amount, payment_type, quote_context) VALUES (?, ?, ?, ?, ?, ?)',
+      [mockOrderId, quote.quoteId, bookingReference || quote.quoteId, numericAmount, requestedPaymentType, JSON.stringify(quote)],
+    );
     res.json({
       success: true,
       isLiveRazorpay: false,
