@@ -452,16 +452,16 @@ export default function Booking() {
     try {
       // 1. Initialize Order on Backend API with Razorpay Test Keys
       const order = await initializePaymentOrder({
-        amount: payableNow,
         type: paymentType,
         bookingReference: targetRef,
-        customer
+        customer,
+        quoteToken: authoritativeQuote.quoteToken,
       });
 
       // 2. Open Official Razorpay Checkout Modal Popup
       openRazorpayCheckout({
         orderId: order.orderId,
-        amount: payableNow,
+        amount: order.amount,
         keyId: order.keyId,
         customer,
         facilityName: currentFacilityData.name,
@@ -472,8 +472,8 @@ export default function Booking() {
               ...razorpayResponse,
               bookingId: targetRef,
               bookingPayload: payload,
-              amount: payableNow,
-              paymentType
+              paymentType,
+              quoteToken: authoritativeQuote.quoteToken,
             });
 
             // 4. Update UI to show confirmed booking pass

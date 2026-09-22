@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
+import { verifyQuoteToken } from '../utils/quoteToken.js';
 
 const router = express.Router();
 
@@ -28,9 +29,12 @@ const getRazorpayInstance = () => {
  */
 router.post('/create-order', async (req, res) => {
   try {
-    const { amount, bookingReference, customerName, customerPhone } = req.body;
-
-    const numericAmount = parseInt(amount, 10) || 500;
+    const { bookingReference, customerName, customerPhone, paymentType, quoteToken } = req.body;
+    const verification = verifyQuoteToken(quoteToken);
+    if (verification.error) return res.status(400).json({ success: false, error: verification.error });
+    const quote = verification.quote;
+    const requestedPaymentType = paymentType === 'full' ? 'full' : 'deposit';
+    const numericAmount = requestedPaymentType === 'full' ? quote.total : quote.deposit;
     const amountInPaise = numericAmount * 100;
     const keyId = process.env.RAZORPAY_KEY_ID;
     const razorpayInstance = getRazorpayInstance();
@@ -42,7 +46,9 @@ router.post('/create-order', async (req, res) => {
         receipt: `rcpt_${bookingReference || Date.now()}`,
         notes: {
           customerName: customerName || 'Guest',
-          customerPhone: customerPhone || ''
+          customerPhone: customerPhone || '',
+          quoteId: quote.quoteId,
+          bookingReference: bookingReference || ''
         }
       });
 
@@ -66,6 +72,7 @@ router.post('/create-order', async (req, res) => {
       amount: numericAmount,
       currency: 'INR',
       keyId: 'rzp_test_simulated_key',
+      quoteId: quote.quoteId,
       message: 'Simulated Payment Order initialized'
     });
   } catch (err) {

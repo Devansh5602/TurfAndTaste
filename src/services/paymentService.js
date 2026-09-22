@@ -13,14 +13,14 @@ export const PAYMENT_CONFIG = {
 /**
  * Initialize Payment Order with Backend API
  */
-export const initializePaymentOrder = async ({ amount, type, bookingReference, customer }) => {
+export const initializePaymentOrder = async ({ type, bookingReference, customer, quoteToken }) => {
   try {
     const res = await api.createPaymentOrder({
-      amount,
       paymentType: type,
       bookingReference,
       customerName: customer?.name,
-      customerPhone: customer?.phone
+      customerPhone: customer?.phone,
+      quoteToken,
     });
 
     if (res.success) {
