@@ -211,7 +211,7 @@ export default function Home() {
               <MapPin size={12} /> Patan, Gujarat
             </span>
             <span className="badge badge-orange">
-              <Clock size={12} /> Sports Open 24 Hours
+              <Clock size={12} /> Sports &amp; dining in Patan
             </span>
           </div>
 

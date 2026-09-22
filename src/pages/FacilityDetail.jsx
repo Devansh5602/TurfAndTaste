@@ -225,9 +225,9 @@ export default function FacilityDetail({ slug }) {
                     </div>
 
                     <div style={{ marginBottom: '1.25rem' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Operating Hours:</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Service hours:</span>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)', lineHeight: 1.2, marginTop: '0.25rem' }}>
-                        7:00 AM – 11:00 PM <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Daily</span>
+                        Check before visiting <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Hours can vary by venue</span>
                       </div>
                     </div>
 

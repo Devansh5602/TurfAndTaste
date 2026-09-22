@@ -73,10 +73,10 @@ export default function FacilityCard({ facility, compact = false }) {
           <p className="facility-card-desc">{facility.shortDesc}</p>
         </div>
 
-        {/* Operating Hours & Spec highlight */}
+        {/* Schedules are administrator-owned; avoid displaying stale static hours. */}
         <div className="facility-card-spec-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
           <Clock size={13} style={{ color: colors.text, flexShrink: 0 }} />
-          <span>Hours: <strong>{isDining ? '7:00 AM – 11:00 PM' : '6:00 AM – 6:00 AM'}</strong></span>
+          <span><strong>Current hours</strong> available in venue details</span>
         </div>
 
         {facility.specs && (
