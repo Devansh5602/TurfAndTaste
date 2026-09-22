@@ -60,7 +60,7 @@
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
-| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery are implemented; detail consumer migration remains. |
+| 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
 | 5 — Payments & Booking Pass | PARTIAL / NEEDS HARDENING | Depends on Modules 2–4. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
@@ -95,7 +95,9 @@
 
 **Completed public discovery slice:** The Facilities page now fetches managed public facilities and overlays their authoritative profile fields/content over the established UI presentation. It retains the static dataset as a deliberate API-failure fallback, preserving a usable discovery experience offline or when the backend is unavailable. API metadata now travels in public facility responses for this read-only migration. Booking and pricing consumers were intentionally not changed.
 
-**Next safe task:** Migrate the public Facility Detail reader to the managed API with the same fallback and content parity behavior. Do not migrate booking/pricing selection in this slice.
+**Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
+
+**Next safe task:** Begin Module 4 — Pricing & Booking Engine. First establish server-authoritative quotes based on facility configuration and schedules while preserving legacy price/booking endpoints until API consumers are migrated.
 
 ## External configuration / known blockers
 

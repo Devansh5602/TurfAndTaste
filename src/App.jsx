@@ -16,7 +16,6 @@ import Inquiry from './pages/Inquiry';
 import Admin from './pages/Admin';
 import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
-import { facilitiesData } from './data/facilitiesData';
 
 function NotFound() {
   return (
@@ -37,7 +36,7 @@ function RouteRenderer() {
 
   if (path.startsWith('/facilities/')) {
     const slug = path.replace('/facilities/', '');
-    return facilitiesData.some(facility => facility.slug === slug) ? <FacilityDetail slug={slug} /> : <NotFound />;
+    return <FacilityDetail slug={slug} />;
   }
 
   switch (path) {

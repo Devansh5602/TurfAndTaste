@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useRouter } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { adminStore } from '../services/adminStore';
+import { api } from '../services/api';
 import CourtBackground from '../components/CourtBackground';
 import FacilityCard from '../components/FacilityCard';
 import { 
@@ -22,20 +23,54 @@ import {
 export default function FacilityDetail({ slug }) {
   const { navigate } = useRouter();
 
-  const facility = facilitiesData.find(f => f.slug === slug) || facilitiesData[0];
+  const fallbackFacility = facilitiesData.find(f => f.slug === slug) || null;
+  const [facility, setFacility] = useState(fallbackFacility);
+  const [notFound, setNotFound] = useState(false);
   const relatedFacilities = facilitiesData
-    .filter(f => f.slug !== facility.slug)
+    .filter(f => f.slug !== fallbackFacility?.slug)
     .slice(0, 3);
 
-  const [livePricing, setLivePricing] = useState(() => adminStore.getFacilityPricing(slug || facility.slug));
+  const [livePricing, setLivePricing] = useState(() => adminStore.getFacilityPricing(slug));
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getFacilities().then((result) => {
+      const record = result?.facilities?.find((item) => item.slug === slug);
+      if (cancelled) return;
+      if (!record) {
+        setNotFound(true);
+        return;
+      }
+      const metadata = record.metadata || {};
+      setFacility({
+        ...(fallbackFacility || {}),
+        id: record.id,
+        slug: record.slug,
+        name: record.name,
+        category: record.type === 'sport' ? (fallbackFacility?.category || 'sports') : (record.type || fallbackFacility?.category),
+        image: record.coverImageUrl || fallbackFacility?.image,
+        shortDesc: record.shortDescription || fallbackFacility?.shortDesc || '',
+        fullDesc: record.description || fallbackFacility?.fullDesc || record.shortDescription || '',
+        highlights: record.amenities?.length ? record.amenities : (metadata.highlights || fallbackFacility?.highlights || []),
+        rules: record.rules?.length ? record.rules : (fallbackFacility?.rules || []),
+        specs: metadata.specs || fallbackFacility?.specs || {},
+        suitableFor: metadata.suitableFor || fallbackFacility?.suitableFor || [],
+        pricing: metadata.legacyPricing || fallbackFacility?.pricing || {},
+        tag: metadata.tag || fallbackFacility?.tag || record.type,
+        badge: metadata.badge || fallbackFacility?.badge,
+        bookingEnabled: record.bookingEnabled,
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug, fallbackFacility]);
 
   useEffect(() => {
     adminStore.fetchPricingAsync().then(() => {
-      setLivePricing(adminStore.getFacilityPricing(slug || facility.slug));
+      setLivePricing(adminStore.getFacilityPricing(slug));
     });
 
     const handleUpdate = () => {
-      setLivePricing(adminStore.getFacilityPricing(slug || facility.slug));
+    setLivePricing(adminStore.getFacilityPricing(slug));
     };
 
     window.addEventListener('tt_pricing_updated', handleUpdate);
@@ -44,7 +79,14 @@ export default function FacilityDetail({ slug }) {
       window.removeEventListener('tt_pricing_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, [slug, facility.slug]);
+  }, [slug]);
+
+  if (notFound) {
+    return <div className="section" style={{ minHeight: '55vh', display: 'grid', placeItems: 'center', textAlign: 'center' }}><div><h1>Facility not found</h1><p>This venue is not currently available to the public.</p><Link to="/facilities" className="btn btn-primary">Browse facilities</Link></div></div>;
+  }
+  if (!facility) {
+    return <div className="section" style={{ minHeight: '55vh', display: 'grid', placeItems: 'center' }}>Loading facility…</div>;
+  }
 
   return (
     <div className="page-facility-detail">
@@ -80,7 +122,7 @@ export default function FacilityDetail({ slug }) {
 
               {/* CTAs */}
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+                {!facility.bookingEnabled || facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
                   <>
                     <Link to="/facilities" className="btn btn-primary btn-lg">
                       Explore Sports Arenas
@@ -161,7 +203,7 @@ export default function FacilityDetail({ slug }) {
 
             {/* Right Column: Pricing & Booking Architecture for Sports vs Walk-In Experience for Dining */}
             <div>
-              {facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+              {!facility.bookingEnabled || facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
                 <>
                   <h3 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
                     Walk-In <span className="text-olive">Dining &amp; Counter Orders</span>
