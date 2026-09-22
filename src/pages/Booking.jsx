@@ -3,6 +3,7 @@ import { useRouter, Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { generateTimeSlots, fetchRealTimeSlots, submitBookingReservation } from '../services/bookingService';
 import { adminStore } from '../services/adminStore';
+import { api } from '../services/api';
 import { 
   initializePaymentOrder, 
   openRazorpayCheckout, 
@@ -154,6 +155,9 @@ export default function Booking() {
   const [liveSlots, setLiveSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
   const [slotsError, setSlotsError] = useState('');
+  const [authoritativeQuote, setAuthoritativeQuote] = useState(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
 
   useEffect(() => {
     adminStore.fetchPricingAsync().then(() => setPricingUpdateTick(t => t + 1));
@@ -201,14 +205,17 @@ export default function Booking() {
   const hourlyRateNum = adminStore.parsePrice(currentHourlyRateStr) || (isPeakSlot ? (facilityPricing?.hourlyRateNightNum || 800) : (facilityPricing?.hourlyRateDayNum || 600));
   const totalAmount = selectedSlot?.totalPriceNum != null ? selectedSlot.totalPriceNum : (hourlyRateNum * selectedDuration);
   const depositAmount = adminStore.parsePrice(facilityPricing.bookingDeposit) || Math.round(totalAmount * 0.35);
-  const payableNow = paymentType === 'deposit' ? depositAmount : totalAmount;
-  const balanceDueAtDesk = Math.max(0, totalAmount - payableNow);
+  const quotedTotal = authoritativeQuote?.total ?? totalAmount;
+  const quotedDeposit = authoritativeQuote?.deposit ?? depositAmount;
+  const payableNow = paymentType === 'deposit' ? quotedDeposit : quotedTotal;
+  const balanceDueAtDesk = Math.max(0, quotedTotal - payableNow);
   const isPaymentPending = confirmationData?.paymentStatus === 'Pending verification';
 
   const handleSelectFacility = (slug) => {
     if (selectedFacility !== slug) {
       setSelectedFacility(slug);
       setSelectedSlot(null); // only reset slot when facility actually changes
+      setAuthoritativeQuote(null);
     }
     setErrors(prev => ({ ...prev, facility: null }));
   };
@@ -217,6 +224,7 @@ export default function Booking() {
     if (selectedDate !== iso) {
       setSelectedDate(iso);
       setSelectedSlot(null); // only reset slot when date actually changes
+      setAuthoritativeQuote(null);
     }
   };
 
@@ -224,6 +232,7 @@ export default function Booking() {
     if (selectedDuration !== hrs) {
       setSelectedDuration(hrs);
       setSelectedSlot(null); // only reset slot when duration actually changes
+      setAuthoritativeQuote(null);
     }
   };
 
@@ -236,6 +245,21 @@ export default function Booking() {
   }, [preselectedFacility]);
 
   const currentFacilityData = facilitiesData.find(f => f.slug === selectedFacility) || facilitiesData[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedSlot) { setAuthoritativeQuote(null); setQuoteError(''); return undefined; }
+    setIsQuoteLoading(true); setQuoteError(''); setAuthoritativeQuote(null);
+    api.getBookingQuote({ facilityId: selectedFacility, date: selectedDate, timeSlot: selectedSlot.time })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result?.success) throw new Error(result?.error || 'Unable to confirm this price.');
+        setAuthoritativeQuote(result.data);
+      })
+      .catch((error) => { if (!cancelled) setQuoteError(error.message || 'Unable to confirm this price.'); })
+      .finally(() => { if (!cancelled) setIsQuoteLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedFacility, selectedDate, selectedSlot?.time]);
 
   // Stepper Step Navigation
   const goToStep = (stepNum) => {
@@ -258,6 +282,10 @@ export default function Booking() {
   const handleStep2Next = () => {
     if (!selectedSlot) {
       setErrors({ slot: 'Please select an available time slot.' });
+      return;
+    }
+    if (!authoritativeQuote || isQuoteLoading || quoteError) {
+      setErrors({ slot: quoteError || 'Confirming the server price for this slot. Please wait.' });
       return;
     }
     setErrors({});
@@ -356,6 +384,11 @@ export default function Booking() {
   };
 
   const executeBooking = async () => {
+    if (!authoritativeQuote || isQuoteLoading || quoteError) {
+      setShowPreConfirmModal(false);
+      setBookingErrorMessage(quoteError || 'Your server price needs to be confirmed before payment.');
+      return;
+    }
     setShowPreConfirmModal(false);
     setIsSubmitting(true);
     setBookingErrorMessage('');
@@ -371,6 +404,7 @@ export default function Booking() {
       slot: selectedSlot,
       paymentType,
       amount: paymentType === 'full' ? `₹${payableNow} (Full Paid)` : `₹${payableNow} (Token Deposit)`,
+      quote: authoritativeQuote,
       customer
     };
 
@@ -1082,7 +1116,7 @@ export default function Booking() {
                       <span>{selectedDate} &bull; <strong>{selectedSlot.time}</strong> ({selectedDuration} hr session)</span>
                     </div>
                     <strong style={{ color: selectedSlot.peak ? 'var(--brand-orange)' : 'var(--brand-olive-bright)' }}>
-                      {selectedSlot.price || `₹${totalAmount}`}
+                      {isQuoteLoading ? 'Confirming price…' : quoteError ? 'Quote unavailable' : `₹${quotedTotal}`}
                     </strong>
                   </div>
                 )}

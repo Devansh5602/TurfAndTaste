@@ -188,6 +188,15 @@ export const api = {
     return await res.json();
   },
 
+  getBookingQuote: async ({ facilityId, date, timeSlot }) => {
+    const res = await fetch(`${API_BASE_URL}/v2/quotes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facilityId, date, timeSlot }),
+    });
+    return await res.json();
+  },
+
   getAdminFacilities: async () => {
     const res = await fetch(`${API_BASE_URL}/facilities/admin/all`, { headers: getAuthHeaders() });
     return await res.json();
