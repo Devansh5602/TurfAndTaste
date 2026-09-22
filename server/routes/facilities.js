@@ -29,6 +29,7 @@ const formatFacility = (facility) => ({
   rules: parseJsonArray(facility.rules_json),
   coverImageUrl: facility.cover_image_url,
   displayOrder: facility.display_order,
+  metadata: safeJsonParse(facility.metadata_json),
 });
 
 const formatSchedule = (schedule) => ({

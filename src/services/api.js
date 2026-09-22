@@ -183,6 +183,11 @@ export const api = {
   },
 
   // v2 Facility Management
+  getFacilities: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities`);
+    return await res.json();
+  },
+
   getAdminFacilities: async () => {
     const res = await fetch(`${API_BASE_URL}/facilities/admin/all`, { headers: getAuthHeaders() });
     return await res.json();

@@ -60,7 +60,7 @@
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
-| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, editable schedules, Admin UI, and rich-content parity backfill are implemented; progressive public consumer migration remains. |
+| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery are implemented; detail consumer migration remains. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
 | 5 — Payments & Booking Pass | PARTIAL / NEEDS HARDENING | Depends on Modules 2–4. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
@@ -93,7 +93,9 @@
 
 **Completed content-parity slice:** Migration `005_backfill_rich_facility_content` imports the seven established facility records into the managed model, including public descriptions, images, rules, highlights, and rich legacy metadata. It seeds seven editable schedule rows per facility (sports: 6:00–6:00; dining: 7:00–23:00) only when no row exists; those are defaults, not hard-coded policy. Dining is correctly non-bookable. The migration fills only empty legacy descriptions and preserves administrator-authored rich records. Isolated SQLite QA confirmed all records, schedules, repeat safety, and preservation behavior.
 
-**Next safe task:** Migrate the public facility discovery/detail consumers progressively to the managed API, retaining the static dataset only as a resilient read fallback until the API is available. Do not migrate booking/pricing selection in this slice.
+**Completed public discovery slice:** The Facilities page now fetches managed public facilities and overlays their authoritative profile fields/content over the established UI presentation. It retains the static dataset as a deliberate API-failure fallback, preserving a usable discovery experience offline or when the backend is unavailable. API metadata now travels in public facility responses for this read-only migration. Booking and pricing consumers were intentionally not changed.
+
+**Next safe task:** Migrate the public Facility Detail reader to the managed API with the same fallback and content parity behavior. Do not migrate booking/pricing selection in this slice.
 
 ## External configuration / known blockers
 

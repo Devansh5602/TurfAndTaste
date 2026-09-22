@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { facilitiesData, facilityCategories } from '../data/facilitiesData';
+import { api } from '../services/api';
 import FacilityCard from '../components/FacilityCard';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
@@ -9,8 +10,40 @@ export default function Facilities() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSpecId, setExpandedSpecId] = useState(null);
+  const [managedFacilities, setManagedFacilities] = useState(facilitiesData);
 
-  const filteredFacilities = facilitiesData.filter(facility => {
+  useEffect(() => {
+    let cancelled = false;
+    api.getFacilities().then((result) => {
+      if (!result?.success || !Array.isArray(result.facilities) || cancelled) return;
+      const merged = result.facilities.map((record) => {
+        const fallback = facilitiesData.find((facility) => facility.id === record.id || facility.slug === record.slug) || {};
+        const metadata = record.metadata || {};
+        return {
+          ...fallback,
+          id: record.id,
+          slug: record.slug,
+          name: record.name,
+          category: record.type === 'sport' ? (fallback.category || 'sports') : (record.type || fallback.category || 'sports'),
+          image: record.coverImageUrl || fallback.image,
+          shortDesc: record.shortDescription || fallback.shortDesc || '',
+          fullDesc: record.description || fallback.fullDesc || record.shortDescription || '',
+          highlights: record.amenities?.length ? record.amenities : (metadata.highlights || fallback.highlights || []),
+          rules: record.rules?.length ? record.rules : (fallback.rules || []),
+          specs: metadata.specs || fallback.specs || {},
+          suitableFor: metadata.suitableFor || fallback.suitableFor || [],
+          pricing: metadata.legacyPricing || fallback.pricing || {},
+          tag: metadata.tag || fallback.tag || record.type,
+          badge: metadata.badge || fallback.badge,
+          bookingEnabled: record.bookingEnabled,
+        };
+      });
+      if (merged.length > 0) setManagedFacilities(merged);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const filteredFacilities = managedFacilities.filter(facility => {
     const matchesCategory = selectedCategory === 'all' || facility.category === selectedCategory;
     const matchesSearch = facility.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       facility.shortDesc.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -86,7 +119,7 @@ export default function Facilities() {
                   <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>3 Venues</span>
                 </div>
                 <div className="grid grid-3">
-                  {facilitiesData.filter(f => f.category === 'sports').map(facility => (
+                  {managedFacilities.filter(f => f.category === 'sports').map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
@@ -104,7 +137,7 @@ export default function Facilities() {
                   <span className="badge badge-orange" style={{ fontSize: '0.72rem' }}>2 Lanes</span>
                 </div>
                 <div className="grid grid-2">
-                  {facilitiesData.filter(f => f.category === 'practice').map(facility => (
+                  {managedFacilities.filter(f => f.category === 'practice').map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
@@ -122,7 +155,7 @@ export default function Facilities() {
                   <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>2 Spaces</span>
                 </div>
                 <div className="grid grid-2">
-                  {facilitiesData.filter(f => f.category === 'dining').map(facility => (
+                  {managedFacilities.filter(f => f.category === 'dining').map(facility => (
                     <FacilityCard key={facility.id} facility={facility} />
                   ))}
                 </div>
@@ -202,7 +235,7 @@ export default function Facilities() {
           />
 
           <div className="specs-accordion-list" style={{ marginTop: '1.5rem' }}>
-            {facilitiesData.map((item) => {
+            {managedFacilities.map((item) => {
               const isOpen = expandedSpecId === item.id;
               return (
                 <div key={item.id} className={`spec-card ${isOpen ? 'open' : ''}`}>
