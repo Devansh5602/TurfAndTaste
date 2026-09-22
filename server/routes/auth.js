@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { timingSafeEqual } from 'crypto';
 import dbAsync from '../db.js';
 import { ADMIN_ROLES, authenticateAdminToken, requireAdminRole } from '../middleware/auth.js';
 import { createRateLimit } from '../middleware/rateLimit.js';
@@ -10,6 +11,25 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, maxAttempts: 8, key: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}` });
 const supportedRoles = new Set(Object.values(ADMIN_ROLES));
 const isEnabled = (value) => value === true || Number(value) === 1;
+const isBcryptHash = (value) => /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
+
+const passwordsMatch = (candidate, storedHash) => {
+  if (typeof candidate !== 'string' || typeof storedHash !== 'string') return false;
+  if (isBcryptHash(storedHash)) return bcrypt.compareSync(candidate, storedHash);
+
+  // Transitional support for a legacy plaintext seed. New writes always use
+  // bcrypt, and a successful legacy login is upgraded immediately below.
+  const candidateBuffer = Buffer.from(candidate);
+  const storedBuffer = Buffer.from(storedHash);
+  return candidateBuffer.length === storedBuffer.length && timingSafeEqual(candidateBuffer, storedBuffer);
+};
+
+const validateNewPassword = (password) => {
+  if (typeof password !== 'string' || password.length < 10 || password.length > 128) {
+    return 'New password must be between 10 and 128 characters long.';
+  }
+  return null;
+};
 
 /**
  * POST /api/admin/login
@@ -34,13 +54,17 @@ router.post('/login', loginRateLimit, async (req, res) => {
       ? await dbAsync.get('SELECT * FROM admins WHERE username = ?', [normalizedUsername])
       : null;
 
-    const isValidPassword = Boolean(adminUser) &&
-      (bcrypt.compareSync(password, adminUser.password_hash) || password === adminUser.password_hash);
+    const isValidPassword = Boolean(adminUser) && passwordsMatch(password, adminUser.password_hash);
 
     if (!isValidPassword || !isEnabled(adminUser.is_enabled) || !supportedRoles.has(adminUser.role)) {
       return res.status(401).json({ success: false, error: 'Invalid admin credentials' });
     }
     loginRateLimit.reset(req);
+
+    // Do not leave a legacy plaintext seed in place after it has been used.
+    if (!isBcryptHash(adminUser.password_hash)) {
+      await dbAsync.run('UPDATE admins SET password_hash = ? WHERE id = ?', [bcrypt.hashSync(password, 12), adminUser.id]);
+    }
 
     // Generate JWT Token
     const token = jwt.sign(
@@ -133,9 +157,8 @@ router.put('/password', authenticateAdminToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long' });
-    }
+    const passwordValidationError = validateNewPassword(newPassword);
+    if (passwordValidationError) return res.status(400).json({ success: false, error: passwordValidationError });
 
     const adminUser = await dbAsync.get('SELECT * FROM admins WHERE id = ?', [req.admin.id]);
 
@@ -143,12 +166,15 @@ router.put('/password', authenticateAdminToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Admin user not found' });
     }
 
-    const isValidPassword = bcrypt.compareSync(currentPassword, adminUser.password_hash);
+    const isValidPassword = passwordsMatch(currentPassword, adminUser.password_hash);
     if (!isValidPassword) {
       return res.status(401).json({ success: false, error: 'Current password is incorrect' });
     }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ success: false, error: 'Choose a new password that differs from your current password.' });
+    }
 
-    const newPasswordHash = bcrypt.hashSync(newPassword, 10);
+    const newPasswordHash = bcrypt.hashSync(newPassword, 12);
     // A password change revokes every existing session, including the current
     // browser token. The client must sign in again with the new password.
     await dbAsync.run(
