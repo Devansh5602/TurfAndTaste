@@ -4,6 +4,13 @@
 
 Complete a whole-platform mobile-first UI, UX, workflow, and shared API QA cycle. Fix verified findings without regressing web or Capacitor clients.
 
+## v2 rebuild continuation
+
+- The governing scope is the latest master rebuild requirement. Detailed status, dependencies, and the module queue live in `docs/IMPLEMENTATION_PROGRESS.md`; the repository remains the source of truth.
+- **Module 1 is in progress.** Its first stable slice introduced tracked v2 migrations plus additive `business_settings`, `facility_profiles`, and `facility_schedules` tables without changing legacy booking contracts.
+- Verified on 2026-09-22: server syntax, a clean isolated SQLite application and repeat application of migration `001_v2_foundation`, `npm run build`, and `git diff --check`.
+- PostgreSQL runtime execution remains environment-blocked because the configured endpoint is unreachable. The migration runner translates its bookkeeping placeholders for PostgreSQL; validate it against a reachable non-production database before production deployment.
+
 ## Completed in the current cycle
 
 - Booking now requests live availability whenever facility, date, or duration changes.

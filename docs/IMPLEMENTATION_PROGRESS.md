@@ -24,7 +24,7 @@
 1. **Customer booking history is not identity-verified.** Exact phone/email matching improves privacy versus partial search but does not meet the v2 requirement. It must move to account identity or a booking-reference + OTP verification flow.
 2. **Facilities are still frontend-authoritative.** `src/data/facilitiesData.js` is the public source, while the database has only a minimal legacy facilities table. Facility CRUD, schedules, media, rules, amenity, enabled state, and configurable duration are missing.
 3. **Booking price trust boundary is incomplete.** The backend accepts formatted amount data for public UPI review reservations instead of independently deriving a price from facility pricing and slot rules. This must be addressed as part of the pricing/booking-engine module.
-4. **Schema evolution is embedded in startup code.** There is no versioned migration system, and current SQLite/PostgreSQL schemas have a limited overlap. v2 changes require reproducible migrations and backward-compatible data migration.
+4. **Legacy schema evolution remains embedded in startup code.** The first v2 migration is now versioned and reproducible, but legacy tables are still initialized during startup and will be progressively migrated without a destructive cutover.
 5. **Admin authorization is single-role.** JWT authentication exists but no RBAC, account disablement, reset flow, rate limiting, or audit log exists.
 6. **Food stalls/menus, events, blogs, reviews, media upload, public policies, and complete customer auth are not implemented.**
 7. **SEO is limited by the SPA architecture.** The public routes lack page-specific metadata, canonical/OG handling, sitemap, robots, and structured data.
@@ -58,7 +58,7 @@
 | Module | Status | Next / dependency |
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
-| 1 — Core Backend Foundation | NOT STARTED | Versioned migrations, API conventions, settings/media foundations. |
+| 1 — Core Backend Foundation | **IN PROGRESS** | `001_v2_foundation` adds tracked SQLite/PostgreSQL facility/settings schema. API conventions and media foundations remain. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | NOT STARTED | Depends on Module 1; first product vertical slice after foundation. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
@@ -79,7 +79,9 @@
 
 **Active module:** Module 1 — Core Backend Foundation.
 
-**Next safe task:** Implement the first atomic foundation slice: versioned migrations plus a normalized, backward-compatible facility/settings model. No new public CMS screen will start before that model is stable.
+**Completed atomic slice:** Added `server/migrations/001_v2_foundation.js` and migration tracking in `server/db.js`. The additive `business_settings`, `facility_profiles`, and `facility_schedules` schema is safe alongside the legacy booking tables. SQLite application, repeat application, schema presence, syntax, diff validation, and the production web build passed on 2026-09-22. PostgreSQL runtime validation remains blocked by the unavailable endpoint; placeholders are translated to PostgreSQL's numbered form for migration bookkeeping.
+
+**Next safe task:** Define shared API response/validation conventions and the public/admin settings boundary, then begin facility-management APIs against the new schema. No public CMS screen will start before that model is stable.
 
 ## External configuration / known blockers
 

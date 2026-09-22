@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { id as foundationMigrationId, up as applyFoundationMigration } from './migrations/001_v2_foundation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,56 @@ const databaseUrl = process.env.DATABASE_URL;
 let isPostgres = false;
 let pgPool = null;
 let sqliteDb = null;
+
+const runRawQuery = async (sql, params = []) => {
+  if (isPostgres) {
+    const result = await pgPool.query(sql, params);
+    return result;
+  }
+
+  const statement = sqliteDb.prepare(sql);
+  if (sql.trim().toUpperCase().startsWith('SELECT')) {
+    return { rows: statement.all(...params) };
+  }
+  const info = statement.run(...params);
+  return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+};
+
+const runVersionedMigrations = async () => {
+  const exec = async (sql) => {
+    if (isPostgres) {
+      await pgPool.query(sql);
+    } else {
+      sqliteDb.exec(sql);
+    }
+  };
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id VARCHAR(120) PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Migration bookkeeping uses the same placeholder convention as the
+  // SQLite-compatible route queries. `pg` requires numbered placeholders.
+  const migrationQuery = async (sql, params = []) => {
+    if (isPostgres) {
+      let parameterIndex = 0;
+      const postgresSql = sql.replace(/\?/g, () => `$${++parameterIndex}`);
+      return pgPool.query(postgresSql, params);
+    }
+
+    return runRawQuery(sql, params);
+  };
+
+  const applied = await migrationQuery('SELECT id FROM schema_migrations WHERE id = ?', [foundationMigrationId]);
+  if (applied.rows.length === 0) {
+    await applyFoundationMigration({ isPostgres, exec });
+    await migrationQuery('INSERT INTO schema_migrations (id) VALUES (?)', [foundationMigrationId]);
+    console.log(`[Database] Applied migration ${foundationMigrationId}`);
+  }
+};
 
 if (databaseUrl && databaseUrl.startsWith('postgres')) {
   isPostgres = true;
@@ -265,6 +316,8 @@ export async function initDatabase() {
         ON CONFLICT (key) DO NOTHING;
       `);
 
+      await runVersionedMigrations();
+
       console.log('✅ [Supabase Cloud DB] Tables & Schema successfully verified!');
     } catch (err) {
       console.error('❌ [Supabase Migration Error]:', err.message);
@@ -325,6 +378,8 @@ export async function initDatabase() {
       sqliteDb.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)')
         .run(defaultUsername, bcrypt.hashSync(defaultPassword, 10));
     }
+
+    await runVersionedMigrations();
   }
 }
 
@@ -339,15 +394,8 @@ export const dbAsync = {
       const pgSql = sql.replace(/\?/g, () => `$${paramCount++}`);
       const result = await pgPool.query(pgSql, params);
       return result;
-    } else {
-      const stmt = sqliteDb.prepare(sql);
-      if (sql.trim().toUpperCase().startsWith('SELECT')) {
-        return { rows: stmt.all(...params) };
-      } else {
-        const info = stmt.run(...params);
-        return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
-      }
     }
+    return runRawQuery(sql, params);
   },
 
   get: async (sql, params = []) => {
