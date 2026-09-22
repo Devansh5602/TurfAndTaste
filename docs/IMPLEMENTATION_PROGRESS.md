@@ -77,7 +77,7 @@
 
 ## Active module and next safe task
 
-**Active module:** Module 1 — Core Backend Foundation.
+**Active module:** Module 2 — Authentication & Authorization.
 
 **Completed atomic slice:** Added `server/migrations/001_v2_foundation.js` and migration tracking in `server/db.js`. The additive `business_settings`, `facility_profiles`, and `facility_schedules` schema is safe alongside the legacy booking tables. SQLite application, repeat application, schema presence, syntax, diff validation, and the production web build passed on 2026-09-22. PostgreSQL runtime validation remains blocked by the unavailable endpoint; placeholders are translated to PostgreSQL's numbered form for migration bookkeeping.
 
