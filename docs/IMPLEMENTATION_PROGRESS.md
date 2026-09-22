@@ -99,6 +99,8 @@
 
 **Completed discovery reconciliation slice:** Facility Detail no longer turns a known static fallback venue into a false 404 when the managed-inventory API is unavailable; only a successful authoritative response can establish an unknown slug. Facilities group badges now derive their counts from the managed public inventory rather than fixed legacy values, preventing drift as administrators add, activate, or retire venues.
 
+**Completed Home/Inquiry inventory slice:** Home now derives its inventory count, hero links, bookable quick-play availability, and dining cards from the managed public facility list when it is available, retaining enriched static copy/images as the safe outage fallback. Inquiry’s facility selector and preselected-facility validation now use only active, bookable managed sport facilities, with the same fallback behavior. No booking, quote, payment, or pricing contract was changed.
+
 **Next safe task:** Audit the public facility discovery and detail flows against the managed Facility Management API, then safely eliminate remaining static-data drift without regressing the richer fallback experience.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.

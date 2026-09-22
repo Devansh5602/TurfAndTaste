@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from '../context/RouterContext';
 import { submitInquiry } from '../services/inquiryService';
 import { facilitiesData } from '../data/facilitiesData';
+import { api } from '../services/api';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import Toast from '../components/Toast';
@@ -22,8 +23,9 @@ import {
 export default function Inquiry() {
   const { queryParams } = useRouter();
   const rawPreselected = queryParams.get('facility');
-  const validSportsSlugs = facilitiesData.filter(f => f.category !== 'dining').map(f => f.slug);
-  const preselectedFacility = validSportsSlugs.includes(rawPreselected) ? rawPreselected : 'box-cricket';
+  const fallbackSports = facilitiesData.filter(f => f.category !== 'dining');
+  const [inquiryFacilities, setInquiryFacilities] = useState(fallbackSports);
+  const preselectedFacility = fallbackSports.some(f => f.slug === rawPreselected) ? rawPreselected : fallbackSports[0]?.slug || '';
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -43,6 +45,19 @@ export default function Inquiry() {
   const [submissionSuccess, setSubmissionSuccess] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [inquiryErrorMessage, setInquiryErrorMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getFacilities().then((result) => {
+      if (!result?.success || !Array.isArray(result.facilities) || cancelled) return;
+      const sports = result.facilities.filter((facility) => facility.type === 'sport' && facility.bookingEnabled)
+        .map((facility) => ({ slug: facility.slug, name: facility.name }));
+      if (!sports.length) return;
+      setInquiryFacilities(sports);
+      setFormData((current) => ({ ...current, facility: sports.some((facility) => facility.slug === current.facility) ? current.facility : sports[0].slug }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const inquiryTypes = [
     { value: 'group', label: 'Group Booking / Squad Match' },
@@ -256,7 +271,7 @@ export default function Inquiry() {
                       onChange={(e) => setFormData({ ...formData, facility: e.target.value })}
                       className="form-select"
                     >
-                      {facilitiesData.filter(f => f.category !== 'dining').map(f => (
+                      {inquiryFacilities.map(f => (
                         <option key={f.slug} value={f.slug}>{f.name}</option>
                       ))}
                       <option value="multi-facility">Multiple Sports Facilities / Entire Arena</option>

@@ -100,6 +100,19 @@ export default function Home() {
 
   const [latestBooking, setLatestBooking] = useState(null);
   const [, setPricingVersion] = useState(0);
+  const [publicFacilities, setPublicFacilities] = useState(facilitiesData);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getFacilities().then((result) => {
+      if (!result?.success || !Array.isArray(result.facilities) || cancelled) return;
+      setPublicFacilities(result.facilities.map((record) => {
+        const fallback = facilitiesData.find((item) => item.id === record.id || item.slug === record.slug) || {};
+        return { ...fallback, id: record.id, slug: record.slug, name: record.name, category: record.type === 'sport' ? (fallback.category || 'sports') : (record.type || fallback.category || 'sports'), image: record.coverImageUrl || fallback.image, shortDesc: record.shortDescription || fallback.shortDesc || '', bookingEnabled: record.bookingEnabled };
+      }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const checkUpcoming = async () => {
@@ -140,8 +153,12 @@ export default function Home() {
     };
   }, []);
 
-  const sports = facilitiesData.filter(f => f.category !== 'dining');
-  const dining = facilitiesData.filter(f => f.category === 'dining');
+  const sports = publicFacilities.filter(f => f.category !== 'dining' && f.bookingEnabled !== false);
+  const dining = publicFacilities.filter(f => f.category === 'dining');
+  const quickPlayFacilities = QUICK_PLAY_FACILITIES.map((quick) => {
+    const managed = sports.find((facility) => facility.slug === quick.slug);
+    return managed ? { ...quick, ...managed, desc: managed.shortDesc || quick.desc } : null;
+  }).filter(Boolean);
 
   return (
     <div className="page-home">
@@ -221,10 +238,10 @@ export default function Home() {
           {/* First-Time User Discovery Strip: Complete Platform Inventory at a Glance */}
           <div className="home-hero-inventory-strip" style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--brand-green)', fontWeight: 700, display: 'block', marginBottom: '0.45rem' }}>
-              All {facilitiesData.length} Venues &amp; Activities in Patan:
+              All {publicFacilities.length} Venues &amp; Activities in Patan:
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {facilitiesData.map(item => (
+              {publicFacilities.map(item => (
                 <Link
                   key={item.slug}
                   to={item.category === 'dining' ? `/facilities/${item.slug}` : `/booking?facility=${item.slug}`}
@@ -317,7 +334,7 @@ export default function Home() {
           </div>
 
           <div className="quick-play-grid">
-            {QUICK_PLAY_FACILITIES.map((facility) => {
+            {quickPlayFacilities.map((facility) => {
               const livePricing = adminStore.getFacilityPricing(facility.slug);
               return (
               <Link
