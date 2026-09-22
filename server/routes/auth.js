@@ -5,10 +5,16 @@ import { timingSafeEqual } from 'crypto';
 import dbAsync from '../db.js';
 import { ADMIN_ROLES, authenticateAdminToken, requireAdminRole } from '../middleware/auth.js';
 import { createRateLimit } from '../middleware/rateLimit.js';
+import { recordAdminAudit } from '../services/adminAuditService.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
-const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, maxAttempts: 8, key: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}` });
+const loginRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 8,
+  key: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}`,
+  onThrottled: (req) => recordAdminAudit({ action: 'admin_login_throttled', outcome: 'blocked', metadata: { reason: 'rate_limit' } })
+});
 const supportedRoles = new Set(Object.values(ADMIN_ROLES));
 const isEnabled = (value) => value === true || Number(value) === 1;
 const isBcryptHash = (value) => /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
@@ -65,6 +71,14 @@ router.post('/login', loginRateLimit, async (req, res) => {
     if (!isBcryptHash(adminUser.password_hash)) {
       await dbAsync.run('UPDATE admins SET password_hash = ? WHERE id = ?', [bcrypt.hashSync(password, 12), adminUser.id]);
     }
+
+    await recordAdminAudit({
+      actorAdminId: adminUser.id,
+      action: 'admin_login_succeeded',
+      targetType: 'admin_account',
+      targetId: adminUser.id,
+      outcome: 'success'
+    });
 
     // Generate JWT Token
     const token = jwt.sign(
@@ -127,6 +141,14 @@ router.put('/accounts/:id/enabled', authenticateAdminToken, requireAdminRole(ADM
       'UPDATE admins SET is_enabled = ?, session_version = session_version + 1 WHERE id = ?',
       [dbAsync.isPostgres() ? nextEnabled : Number(nextEnabled), adminId]
     );
+    await recordAdminAudit({
+      actorAdminId: req.admin.id,
+      action: nextEnabled ? 'admin_account_enabled' : 'admin_account_disabled',
+      targetType: 'admin_account',
+      targetId: target.id,
+      outcome: 'success',
+      metadata: { sessionRevoked: true }
+    });
     return res.json({
       success: true,
       account: { id: target.id, username: target.username, role: target.role, isEnabled: nextEnabled },
@@ -134,6 +156,63 @@ router.put('/accounts/:id/enabled', authenticateAdminToken, requireAdminRole(ADM
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Unable to update the management account.' });
+  }
+});
+
+router.put('/accounts/:id/role', authenticateAdminToken, requireAdminRole(ADMIN_ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const adminId = Number.parseInt(req.params.id, 10);
+    const { role } = req.body;
+    if (!Number.isInteger(adminId) || adminId < 1 || !supportedRoles.has(role)) {
+      return res.status(400).json({ success: false, error: 'A valid account id and supported role are required.' });
+    }
+    if (adminId === Number(req.admin.id) && role !== ADMIN_ROLES.SUPER_ADMIN) {
+      return res.status(400).json({ success: false, error: 'You cannot remove your own super administrator role.' });
+    }
+
+    const target = await dbAsync.get('SELECT id, username, role, is_enabled FROM admins WHERE id = ?', [adminId]);
+    if (!target) return res.status(404).json({ success: false, error: 'Management account not found.' });
+    if (target.role === role) return res.json({ success: true, account: { id: target.id, username: target.username, role }, message: 'Management role is unchanged.' });
+
+    if (target.role === ADMIN_ROLES.SUPER_ADMIN && role !== ADMIN_ROLES.SUPER_ADMIN && isEnabled(target.is_enabled)) {
+      const enabledSuperAdmins = await dbAsync.get(
+        'SELECT COUNT(*) AS count FROM admins WHERE role = ? AND is_enabled = ?',
+        [ADMIN_ROLES.SUPER_ADMIN, dbAsync.isPostgres() ? true : 1]
+      );
+      if (Number(enabledSuperAdmins?.count) <= 1) {
+        return res.status(409).json({ success: false, error: 'At least one enabled super administrator must remain.' });
+      }
+    }
+
+    await dbAsync.run('UPDATE admins SET role = ?, session_version = session_version + 1 WHERE id = ?', [role, adminId]);
+    await recordAdminAudit({
+      actorAdminId: req.admin.id,
+      action: 'admin_role_changed',
+      targetType: 'admin_account',
+      targetId: target.id,
+      outcome: 'success',
+      metadata: { previousRole: target.role, nextRole: role, sessionRevoked: true }
+    });
+    return res.json({ success: true, account: { id: target.id, username: target.username, role }, message: 'Management role updated.' });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Unable to update the management role.' });
+  }
+});
+
+router.post('/sessions/revoke', authenticateAdminToken, async (req, res) => {
+  try {
+    await dbAsync.run('UPDATE admins SET session_version = session_version + 1 WHERE id = ?', [req.admin.id]);
+    await recordAdminAudit({
+      actorAdminId: req.admin.id,
+      action: 'admin_session_revoked',
+      targetType: 'admin_account',
+      targetId: req.admin.id,
+      outcome: 'success',
+      metadata: { sessionRevoked: true }
+    });
+    return res.json({ success: true, message: 'Management sessions revoked. Please sign in again.' });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Unable to revoke management sessions.' });
   }
 });
 
@@ -181,6 +260,14 @@ router.put('/password', authenticateAdminToken, async (req, res) => {
       'UPDATE admins SET password_hash = ?, session_version = session_version + 1 WHERE id = ?',
       [newPasswordHash, req.admin.id]
     );
+    await recordAdminAudit({
+      actorAdminId: req.admin.id,
+      action: 'admin_password_changed',
+      targetType: 'admin_account',
+      targetId: req.admin.id,
+      outcome: 'success',
+      metadata: { sessionRevoked: true }
+    });
 
     return res.json({
       success: true,

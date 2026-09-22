@@ -13,6 +13,7 @@ import { id as quoteRedemptionsMigrationId, up as applyQuoteRedemptionsMigration
 import { id as paymentOrdersMigrationId, up as applyPaymentOrdersMigration } from './migrations/007_payment_orders.js';
 import { id as adminRolesMigrationId, up as applyAdminRolesMigration } from './migrations/008_admin_roles.js';
 import { id as adminSessionVersionsMigrationId, up as applyAdminSessionVersionsMigration } from './migrations/009_admin_session_versions.js';
+import { id as adminAuthAuditMigrationId, up as applyAdminAuthAuditMigration } from './migrations/010_admin_auth_audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,7 @@ const runVersionedMigrations = async () => {
     { id: paymentOrdersMigrationId, up: applyPaymentOrdersMigration },
     { id: adminRolesMigrationId, up: applyAdminRolesMigration },
     { id: adminSessionVersionsMigrationId, up: applyAdminSessionVersionsMigration },
+    { id: adminAuthAuditMigrationId, up: applyAdminAuthAuditMigration },
   ];
 
   for (const migration of migrations) {

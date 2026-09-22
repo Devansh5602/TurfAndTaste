@@ -59,7 +59,7 @@
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
-| 2 — Authentication & Authorization | **IN PROGRESS** | Login throttling, enabled-admin roles, session invalidation, and password-change hardening are QA verified; minimal auth auditability remains. |
+| 2 — Authentication & Authorization | **QA VERIFIED** | Management login throttling, roles/disablement, session invalidation, password hardening, and focused server-side auth audit records are verified in SQLite. Customer accounts remain intentionally deferred. |
 | 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
 | 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
 | 5 — Payments & Booking Pass | **QA VERIFIED (provider exception)** | Local safeguards and customer-safe passes are verified; successful live Razorpay capture/replay remains externally blocked. |
@@ -77,7 +77,7 @@
 
 ## Active module and next safe task
 
-**Active module:** Module 2 — Authentication & Authorization.
+**Active module:** Module 6–7 — Website / Facility Discovery.
 
 **Completed atomic slice:** Added `server/migrations/001_v2_foundation.js` and migration tracking in `server/db.js`. The additive `business_settings`, `facility_profiles`, and `facility_schedules` schema is safe alongside the legacy booking tables. SQLite application, repeat application, schema presence, syntax, diff validation, and the production web build passed on 2026-09-22. PostgreSQL runtime validation remains blocked by the unavailable endpoint; placeholders are translated to PostgreSQL's numbered form for migration bookkeeping.
 
@@ -97,7 +97,7 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Add narrowly scoped audit records for important management authentication actions, without beginning customer account work or creating a general-purpose logging subsystem.
+**Next safe task:** Audit the public facility discovery and detail flows against the managed Facility Management API, then safely eliminate remaining static-data drift without regressing the richer fallback experience.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.
 
@@ -106,6 +106,8 @@
 **Completed session-invalidation slice:** Migration `009_admin_session_versions` adds an additive per-admin session version. New JWTs include that version and protected middleware compares it to the authoritative account on every request; pre-existing versionless JWTs remain compatible at version zero until an account security event. Enablement changes and password changes atomically increment the version, invalidating every prior token without a global blacklist. Disposable HTTP QA verified old-token rejection after disablement, non-revival after re-enablement, and password-change invalidation with old-password rejection/new-password login.
 
 **Completed password-hardening slice:** The management login and password-change path now uses safe comparison for legacy plaintext seed records, then upgrades them to bcrypt on successful login. New passwords must be 10–128 characters and differ from the current password; password hashes use bcrypt cost 12. Password-change session invalidation remains in force. Disposable HTTP QA verified legacy sign-in/hash upgrade, weak/reused-password rejection, password change, old-token revocation, old-password rejection, and new-password login.
+
+**Completed auth-audit slice / Module 2 gate:** Migration `010_admin_auth_audit` creates a small, indexed server-side event trail for management authentication actions. It records only actor/target identifiers, action, outcome, timestamp, and allowlisted non-sensitive metadata. Login success, throttling, account enablement, role changes, password changes, and explicit session revocation are covered; audit-storage failures are logged server-side but do not turn ordinary management operations into outages. Isolated HTTP QA verified every required event and confirmed persisted rows contain no passwords, hashes, JWT fragments, or request payloads. Module 2’s planned management-security foundation is QA verified; customer authentication remains deliberately deferred to Module 13.
 
 **Completed payment-order slice:** `POST /api/payments/create-order` now requires a verified signed quote token and derives the gateway order amount from its server-authoritative deposit or total; browser `amount` is ignored. The Booking UI supplies the quote token and uses the backend-returned order amount. Existing UPI review behavior is unchanged. Build, server syntax, and diff validation passed.
 

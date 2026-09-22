@@ -1,10 +1,11 @@
-export const createRateLimit = ({ windowMs, maxAttempts, key = (req) => req.ip } = {}) => {
+export const createRateLimit = ({ windowMs, maxAttempts, key = (req) => req.ip, onThrottled } = {}) => {
   const attempts = new Map();
   const middleware = (req, res, next) => {
     const now = Date.now();
     const identifier = key(req) || 'unknown';
     const recent = (attempts.get(identifier) || []).filter((timestamp) => now - timestamp < windowMs);
     if (recent.length >= maxAttempts) {
+      void onThrottled?.(req);
       res.set('Retry-After', String(Math.ceil((windowMs - (now - recent[0])) / 1000)));
       return res.status(429).json({ success: false, error: 'Too many attempts. Please wait before trying again.' });
     }
