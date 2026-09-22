@@ -97,7 +97,7 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Begin Module 4 — Pricing & Booking Engine. First establish server-authoritative quotes based on facility configuration and schedules while preserving legacy price/booking endpoints until API consumers are migrated.
+**Next safe task:** Update the booking client to request and display the server quote after a facility/date/slot selection, block submission when no current quote exists, and send the server-recognized quote context without trusting browser-computed amounts. Preserve the existing legacy submission endpoint until that migration is verified.
 
 **Completed Module 4 quote slice:** Added `POST /api/v2/quotes`, which validates an active bookable facility, its day-specific schedule, reservation conflicts, maintenance blocks, pricing configuration, duration, and applicable weekend surcharge before returning a server-derived total and deposit. The endpoint is additive; legacy pricing and booking contracts remain unchanged. Isolated QA verified a valid configured quote, non-bookable dining rejection (`404`), and out-of-schedule rejection (`409`).
 
