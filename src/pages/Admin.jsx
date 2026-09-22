@@ -5,6 +5,7 @@ import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import ConfirmationModal from '../components/ConfirmationModal';
 import FacilityManager from '../components/admin/FacilityManager';
+import FoodManager from '../components/admin/FoodManager';
 import { 
   Shield, 
   Lock, 
@@ -36,6 +37,7 @@ import {
   CheckSquare,
   Archive,
   Building2,
+  UtensilsCrossed,
   FileText,
   Send,
   AlertTriangle,
@@ -1073,6 +1075,9 @@ export default function Admin() {
             >
               <Building2 size={16} /> Facilities
             </button>
+            <button className={`tab-btn ${activeTab === 'food' ? 'active' : ''}`} onClick={() => setActiveTab('food')}>
+              <UtensilsCrossed size={16} /> Food &amp; Parlour
+            </button>
             <button
               className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
               onClick={() => setActiveTab('overview')}
@@ -1617,6 +1622,9 @@ export default function Admin() {
 
           {activeTab === 'facilities' && (
             <FacilityManager onToast={(message, type = 'success') => showToast(message, type)} />
+          )}
+          {activeTab === 'food' && (
+            <FoodManager onToast={(message, type = 'success') => showToast(message, type)} />
           )}
 
           {/* TAB 4: OVERVIEW & STATS */}

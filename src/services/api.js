@@ -212,6 +212,26 @@ export const api = {
     return await res.json();
   },
 
+  getAdminFood: async () => {
+    const res = await fetch(`${API_BASE_URL}/v2/food/admin/all`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  saveFoodStall: async (stall, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/v2/food/admin/stalls` : `${API_BASE_URL}/v2/food/admin/stalls/${encodeURIComponent(stall.id)}`;
+    const res = await fetch(endpoint, { method: isCreate ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(stall) });
+    return await res.json();
+  },
+  saveFoodCategory: async (category, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/v2/food/admin/categories` : `${API_BASE_URL}/v2/food/admin/categories/${encodeURIComponent(category.id)}`;
+    const res = await fetch(endpoint, { method: isCreate ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(category) });
+    return await res.json();
+  },
+  saveFoodItem: async (item, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/v2/food/admin/items` : `${API_BASE_URL}/v2/food/admin/items/${encodeURIComponent(item.id)}`;
+    const res = await fetch(endpoint, { method: isCreate ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(item) });
+    return await res.json();
+  },
+
   saveTimings: async (timingsObj) => {
     const res = await fetch(`${API_BASE_URL}/pricing/timings`, {
       method: 'PUT',
