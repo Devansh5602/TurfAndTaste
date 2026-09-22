@@ -35,12 +35,17 @@ export default function FacilityDetail({ slug }) {
   useEffect(() => {
     let cancelled = false;
     api.getFacilities().then((result) => {
-      const record = result?.facilities?.find((item) => item.slug === slug);
       if (cancelled) return;
+      // A failed managed-inventory read must not turn a known static fallback
+      // venue into a false 404. Only an authoritative successful response can
+      // establish that the requested public slug no longer exists.
+      if (!result?.success || !Array.isArray(result.facilities)) return;
+      const record = result.facilities.find((item) => item.slug === slug);
       if (!record) {
         setNotFound(true);
         return;
       }
+      setNotFound(false);
       const metadata = record.metadata || {};
       setFacility({
         ...(fallbackFacility || {}),
