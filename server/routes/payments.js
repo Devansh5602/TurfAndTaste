@@ -101,9 +101,15 @@ router.post('/verify', async (req, res) => {
       razorpay_signature, 
       bookingId, 
       bookingPayload,
-      amount, 
-      paymentType 
     } = req.body;
+
+    const orderContext = await dbAsync.get('SELECT * FROM payment_orders WHERE order_id = ?', [razorpay_order_id]);
+    if (!orderContext) return res.status(404).json({ success: false, error: 'Payment order was not found.' });
+    if (orderContext.status !== 'created') return res.status(409).json({ success: false, error: 'This payment order has already been processed.' });
+    if (bookingId && bookingId !== orderContext.booking_reference) return res.status(409).json({ success: false, error: 'Payment order does not match this booking.' });
+    let quote;
+    try { quote = JSON.parse(orderContext.quote_context); } catch { return res.status(500).json({ success: false, error: 'Payment order context is invalid.' }); }
+    if (quote.exp < Math.floor(Date.now() / 1000)) return res.status(409).json({ success: false, error: 'Payment quote expired before verification. Please contact support if payment was captured.' });
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     let isVerified = false;
@@ -115,7 +121,8 @@ router.post('/verify', async (req, res) => {
         .update(body.toString())
         .digest('hex');
 
-      isVerified = expectedSignature === razorpay_signature;
+      isVerified = razorpay_signature.length === expectedSignature.length
+        && crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(razorpay_signature));
     } else {
       return res.status(503).json({ success: false, error: 'Online payment verification is unavailable. Please use a configured gateway or submit a UPI reference for staff review.' });
     }
@@ -124,69 +131,52 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
     }
 
-    const finalPaymentId = razorpay_payment_id || `pay_sim_${Date.now()}`;
-    const targetBookingId = bookingId || bookingPayload?.id || `TT-${Math.floor(100000 + Math.random() * 900000)}`;
+    const razorpayInstance = getRazorpayInstance();
+    if (!razorpayInstance) return res.status(503).json({ success: false, error: 'Online payment verification is unavailable.' });
+    const providerPayment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+    if (providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== Number(orderContext.expected_amount) * 100) {
+      return res.status(409).json({ success: false, error: 'Provider payment does not match the expected order amount.' });
+    }
+    const finalPaymentId = razorpay_payment_id;
+    const targetBookingId = orderContext.booking_reference;
 
     // 1. Audit Log Payment in payments table
-    await dbAsync.run(
-      `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'captured')`,
-      [
-        targetBookingId,
-        razorpay_order_id || 'N/A',
-        finalPaymentId,
-        razorpay_signature || 'verified_sig',
-        amount || 500,
-        paymentType || 'deposit'
-      ]
-    );
-
     let confirmedBooking = null;
 
-    // 2. Atomically insert or update booking in bookings table
+    // Atomically record the provider payment, consume the quote, and create
+    // the booking from persisted server context (not browser amounts/status).
     if (bookingPayload) {
       const b = bookingPayload;
       const bId = targetBookingId;
-      const facilityId = b.facilitySlug || b.facilityId || 'box-cricket';
-      const facilityName = b.facility || b.facilityName || 'Box Cricket Arena';
-      const date = b.date || new Date().toISOString().split('T')[0];
-      const timeSlot = b.slot?.time || b.time || '06:00 PM – 07:00 PM';
+      const facilityId = quote.facilityId;
+      const facilityName = quote.facilityName;
+      const date = quote.date;
+      const timeSlot = quote.timeSlot;
       const customerName = b.customer?.name || b.customerName || 'Guest Player';
       const customerPhone = b.customer?.phone || b.customerPhone || 'N/A';
       const customerEmail = b.customer?.email || b.customerEmail || 'N/A';
       const teamName = b.customer?.teamName || b.teamName || '';
-      const duration = b.duration || 1;
-      const bPaymentType = b.paymentType || paymentType || 'deposit';
-      const amountPaid = b.amount || (bPaymentType === 'full' ? `₹${amount} (Full Paid)` : `₹${amount} (Token Deposit)`);
-
-      if (dbAsync.isPostgres()) {
-        await dbAsync.run(
-          `INSERT INTO bookings (
-            id, facility_id, facility_name, date, time_slot, customer_name,
-            customer_phone, customer_email, team_name, duration, payment_type,
-            amount_paid, payment_status, booking_status, payment_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', 'Confirmed', ?)
-          ON CONFLICT (id) DO UPDATE SET payment_id = EXCLUDED.payment_id, payment_status = 'Paid', booking_status = 'Confirmed'`,
-          [
-            bId, facilityId, facilityName, date, timeSlot, customerName,
-            customerPhone, customerEmail, teamName, duration, bPaymentType,
-            amountPaid, finalPaymentId
-          ]
-        );
-      } else {
-        await dbAsync.run(
-          `INSERT OR REPLACE INTO bookings (
+      const duration = quote.durationHours;
+      const bPaymentType = orderContext.payment_type;
+      const amountPaid = `₹${orderContext.expected_amount} (${bPaymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`;
+      const bookingInsert = {
+        sql: `INSERT INTO bookings (
             id, facility_id, facility_name, date, time_slot, customer_name,
             customer_phone, customer_email, team_name, duration, payment_type,
             amount_paid, payment_status, booking_status, payment_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', 'Confirmed', ?)`,
-          [
+        params: [
             bId, facilityId, facilityName, date, timeSlot, customerName,
             customerPhone, customerEmail, teamName, duration, bPaymentType,
             amountPaid, finalPaymentId
-          ]
-        );
-      }
+        ],
+      };
+      await dbAsync.transaction([
+        { sql: 'INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)', params: [quote.quoteId, bId, new Date(quote.exp * 1000).toISOString()] },
+        { sql: `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, 'captured')`, params: [bId, razorpay_order_id, finalPaymentId, razorpay_signature, orderContext.expected_amount, bPaymentType] },
+        { sql: "UPDATE payment_orders SET status = 'verified', payment_id = ?, verified_at = CURRENT_TIMESTAMP WHERE order_id = ? AND status = 'created'", params: [finalPaymentId, razorpay_order_id] },
+        bookingInsert,
+      ]);
 
       confirmedBooking = {
         id: bId,
@@ -204,12 +194,7 @@ router.post('/verify', async (req, res) => {
         status: 'Confirmed',
         paymentId: finalPaymentId
       };
-    } else if (bookingId) {
-      await dbAsync.run(
-        "UPDATE bookings SET payment_id = ?, payment_status = 'Paid', booking_status = 'Confirmed' WHERE id = ?",
-        [finalPaymentId, bookingId]
-      );
-    }
+    } else return res.status(400).json({ success: false, error: 'Booking details are required to confirm this payment.' });
 
     res.json({
       success: true,
