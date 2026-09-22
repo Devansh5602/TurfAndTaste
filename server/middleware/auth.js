@@ -17,12 +17,15 @@ const getActiveAdmin = async (decoded) => {
   if (!decoded?.id) return null;
 
   const admin = await dbAsync.get(
-    'SELECT id, username, role, is_enabled FROM admins WHERE id = ?',
+    'SELECT id, username, role, is_enabled, session_version FROM admins WHERE id = ?',
     [decoded.id]
   );
   if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
+  // Tokens issued before this migration intentionally carry version zero,
+  // preserving active sessions until a security event explicitly revokes them.
+  if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
 
-  return { id: admin.id, username: admin.username, role: admin.role };
+  return { id: admin.id, username: admin.username, role: admin.role, sessionVersion: Number(admin.session_version ?? 0) };
 };
 
 export async function authenticateAdminToken(req, res, next) {

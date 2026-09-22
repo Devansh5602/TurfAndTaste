@@ -44,7 +44,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
 
     // Generate JWT Token
     const token = jwt.sign(
-      { id: adminUser.id, username: adminUser.username, role: adminUser.role },
+      { id: adminUser.id, username: adminUser.username, role: adminUser.role, sv: Number(adminUser.session_version ?? 0) },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -97,7 +97,12 @@ router.put('/accounts/:id/enabled', authenticateAdminToken, requireAdminRole(ADM
       }
     }
 
-    await dbAsync.run('UPDATE admins SET is_enabled = ? WHERE id = ?', [dbAsync.isPostgres() ? nextEnabled : Number(nextEnabled), adminId]);
+    // Enablement is a security boundary, so invalidate all of the target’s
+    // earlier JWTs whether the account is being disabled or restored.
+    await dbAsync.run(
+      'UPDATE admins SET is_enabled = ?, session_version = session_version + 1 WHERE id = ?',
+      [dbAsync.isPostgres() ? nextEnabled : Number(nextEnabled), adminId]
+    );
     return res.json({
       success: true,
       account: { id: target.id, username: target.username, role: target.role, isEnabled: nextEnabled },
@@ -144,7 +149,12 @@ router.put('/password', authenticateAdminToken, async (req, res) => {
     }
 
     const newPasswordHash = bcrypt.hashSync(newPassword, 10);
-    await dbAsync.run('UPDATE admins SET password_hash = ? WHERE id = ?', [newPasswordHash, req.admin.id]);
+    // A password change revokes every existing session, including the current
+    // browser token. The client must sign in again with the new password.
+    await dbAsync.run(
+      'UPDATE admins SET password_hash = ?, session_version = session_version + 1 WHERE id = ?',
+      [newPasswordHash, req.admin.id]
+    );
 
     return res.json({
       success: true,

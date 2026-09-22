@@ -59,7 +59,7 @@
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
-| 2 — Authentication & Authorization | **IN PROGRESS** | Login throttling and the minimal enabled-admin role foundation are QA verified; session/token revocation remains. |
+| 2 — Authentication & Authorization | **IN PROGRESS** | Login throttling, enabled-admin roles, and server-side session invalidation are QA verified; password hardening remains. |
 | 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
 | 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
 | 5 — Payments & Booking Pass | **QA VERIFIED (provider exception)** | Local safeguards and customer-safe passes are verified; successful live Razorpay capture/replay remains externally blocked. |
@@ -97,11 +97,13 @@
 
 **Completed public detail slice:** Facility Detail now reads the managed public inventory with the same presentation-preserving fallback for known legacy facilities. It respects a managed facility’s `bookingEnabled` state and presents a real unavailable/not-found experience for an unknown public slug rather than substituting another venue. The router no longer limits detail routes to the static array, so newly created active facilities can be addressed when their managed content is ready.
 
-**Next safe task:** Add a minimal server-side token/session invalidation version so a password/security action can revoke already-issued management JWTs without beginning customer account work.
+**Next safe task:** Harden the existing management password-change path (including legacy password-hash upgrade compatibility) without beginning customer account work.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.
 
 **Completed role/disablement slice:** Migration `008_admin_roles` safely backfills existing administrators as enabled `super_admin` accounts and introduces the expandable `manager` role. Every management JWT now resolves the authoritative account row, rejecting disabled or unsupported-role accounts even where a token was issued before the account changed. A small super-admin-only enable/disable endpoint protects against self-disablement and removing the final enabled super administrator. Disposable HTTP QA verified account backfill, enabled login, disabled-login rejection, old-token rejection, protected-route enforcement, manager escalation rejection, re-enablement, and fail-closed unknown roles.
+
+**Completed session-invalidation slice:** Migration `009_admin_session_versions` adds an additive per-admin session version. New JWTs include that version and protected middleware compares it to the authoritative account on every request; pre-existing versionless JWTs remain compatible at version zero until an account security event. Enablement changes and password changes atomically increment the version, invalidating every prior token without a global blacklist. Disposable HTTP QA verified old-token rejection after disablement, non-revival after re-enablement, and password-change invalidation with old-password rejection/new-password login.
 
 **Completed payment-order slice:** `POST /api/payments/create-order` now requires a verified signed quote token and derives the gateway order amount from its server-authoritative deposit or total; browser `amount` is ignored. The Booking UI supplies the quote token and uses the backend-returned order amount. Existing UPI review behavior is unchanged. Build, server syntax, and diff validation passed.
 
