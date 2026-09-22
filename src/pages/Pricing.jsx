@@ -113,13 +113,13 @@ export default function Pricing() {
                     border: '1px solid var(--border-subtle)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Day Hours:</span>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Standard rate:</span>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)' }}>
                         {displayDayRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>{selectedDuration > 1 ? `(${selectedDuration} hrs)` : '/ hr'}</span>
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.5rem' }}>
-                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Floodlight Prime:</span>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Prime / floodlight rate:</span>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-olive-bright)' }}>
                         {displayNightRate} <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>{selectedDuration > 1 ? `(${selectedDuration} hrs)` : '/ hr'}</span>
                       </span>
@@ -129,15 +129,12 @@ export default function Pricing() {
                     </div>
                   </div>
 
-                {/* Timings */}
+                {/* Operating schedules are managed per facility. The display
+                    tiers below are price context, not a fixed business-hour claim. */}
                 <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
                     <Clock size={15} className="text-olive" style={{ flexShrink: 0 }} />
-                    <span>Day: {tier.dayHours}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <Clock size={15} className="text-orange" style={{ flexShrink: 0 }} />
-                    <span>Night: {tier.nightHours}</span>
+                    <span>Rates are applied for the selected facility and slot.</span>
                   </div>
                 </div>
 

@@ -638,13 +638,13 @@ export default function Booking() {
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.78rem', flexWrap: 'wrap' }}>
-                    <span style={{ color: 'var(--brand-cream-muted)' }}>24/7 Operations:</span>
+                    <span style={{ color: 'var(--brand-cream-muted)' }}>Venue schedule:</span>
                     <span style={{ color: 'var(--brand-green)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <Sun size={13} /> Day (6:00 AM – 6:00 PM)
+                      <Sun size={13} /> Available slots update by venue
                     </span>
                     <span style={{ color: 'var(--border-strong)' }}>&bull;</span>
                     <span style={{ color: 'var(--brand-orange)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <Moon size={13} /> Night Floodlit (6:00 PM – 6:00 AM)
+                      <Moon size={13} /> Select a date to see availability
                     </span>
                   </div>
                   <span className="badge badge-surface" style={{ fontSize: '0.72rem' }}>
@@ -925,7 +925,7 @@ export default function Booking() {
                     onClick={() => setActiveSessionTab('all')}
                   >
                     <Clock size={13} />
-                    <span>All 24 Hours ({slots.length})</span>
+                    <span>All available slots ({slots.length})</span>
                   </button>
                   <button
                     type="button"
@@ -933,7 +933,7 @@ export default function Booking() {
                     onClick={() => setActiveSessionTab('day')}
                   >
                     <Sun size={13} className="text-olive" />
-                    <span>☀️ Day ({daySlots.length})</span>
+                    <span>☀️ Standard ({daySlots.length})</span>
                     <span className="session-rate-badge text-olive">{facilityPricing.dayRate}/hr</span>
                   </button>
                   <button
@@ -942,7 +942,7 @@ export default function Booking() {
                     onClick={() => setActiveSessionTab('night')}
                   >
                     <Moon size={13} style={{ color: 'var(--brand-orange)' }} />
-                    <span>🌙 Night ({nightSlots.length})</span>
+                    <span>🌙 Prime ({nightSlots.length})</span>
                     <span className="session-rate-badge text-orange">{facilityPricing.nightRate}/hr</span>
                   </button>
                 </div>
@@ -962,7 +962,7 @@ export default function Booking() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', paddingBottom: '0.2rem', borderBottom: '1px solid rgba(107, 143, 73, 0.25)' }}>
                           <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-olive-bright)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <Sun size={12} /> Day Sessions ({facilityPricing.dayHours})
+                            <Sun size={12} /> Standard sessions
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--brand-olive-bright)', fontWeight: 600 }}>{facilityPricing.dayRate}/hr</span>
                         </div>
@@ -1011,7 +1011,7 @@ export default function Booking() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', paddingBottom: '0.2rem', borderBottom: '1px solid rgba(232, 103, 38, 0.25)' }}>
                           <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-orange)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <Moon size={12} /> Night Floodlit Sessions ({facilityPricing.nightHours})
+                            <Moon size={12} /> Prime / floodlight sessions
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--brand-orange)', fontWeight: 600 }}>{facilityPricing.nightRate}/hr</span>
                         </div>

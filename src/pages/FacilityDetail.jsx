@@ -44,7 +44,10 @@ export default function FacilityDetail({ slug }) {
       // A failed managed-inventory read must not turn a known static fallback
       // venue into a false 404. Only an authoritative successful response can
       // establish that the requested public slug no longer exists.
-      if (!result?.success || !Array.isArray(result.facilities)) return;
+      if (!result?.success || !Array.isArray(result.facilities)) {
+        if (!fallbackFacility) setNotFound(true);
+        return;
+      }
       const record = result.facilities.find((item) => item.slug === slug);
       if (!record) {
         setNotFound(true);
@@ -70,7 +73,9 @@ export default function FacilityDetail({ slug }) {
         badge: metadata.badge || fallbackFacility?.badge,
         bookingEnabled: record.bookingEnabled,
       });
-    }).catch(() => {});
+    }).catch(() => {
+      if (!cancelled && !fallbackFacility) setNotFound(true);
+    });
     return () => { cancelled = true; };
   }, [slug, fallbackFacility]);
 
@@ -293,14 +298,14 @@ export default function FacilityDetail({ slug }) {
                     </span>
 
                     <div style={{ marginBottom: '1.25rem' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Standard Session ({livePricing.dayHours}):</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Standard session:</span>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', color: 'var(--brand-cream)', lineHeight: 1 }}>
                         {livePricing.dayRate} <span style={{ fontSize: '1rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hour</span>
                       </div>
                     </div>
 
                     <div style={{ marginBottom: '1.25rem' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Floodlit / Prime Slot ({livePricing.nightHours}):</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Floodlit / prime slot:</span>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--brand-olive-bright)', lineHeight: 1 }}>
                         {livePricing.nightRate} <span style={{ fontSize: '1rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>/ hour</span>
                       </div>

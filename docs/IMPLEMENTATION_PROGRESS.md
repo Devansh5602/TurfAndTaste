@@ -63,7 +63,7 @@
 | 3 — Facility Management | **QA VERIFIED** | Protected CRUD, editable schedules, Admin UI, rich-content parity, and API-backed public discovery/detail readers are implemented. Booking/pricing migration is intentionally deferred to Module 4. |
 | 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
 | 5 — Payments & Booking Pass | **QA VERIFIED (provider exception)** | Local safeguards and customer-safe passes are verified; successful live Razorpay capture/replay remains externally blocked. |
-| 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
+| 6–7 — Website / Facility Discovery | **QA VERIFIED (device exception)** | Managed public inventory is preferred with enriched safe fallbacks. Desktop route QA and source-level responsive review passed; a true 390px physical/emulator viewport pass remains externally tool-limited. |
 | 8 — Food Court & Parlour | NOT STARTED | Depends on Module 1 media/content conventions. |
 | 9 — Events CMS | NOT STARTED | Depends on Module 1. |
 | 10 — Blog CMS | NOT STARTED | Depends on Module 1. |
@@ -77,7 +77,7 @@
 
 ## Active module and next safe task
 
-**Active module:** Module 6–7 — Website / Facility Discovery.
+**Active module:** Module 8 — Food Court & Parlour.
 
 **Completed atomic slice:** Added `server/migrations/001_v2_foundation.js` and migration tracking in `server/db.js`. The additive `business_settings`, `facility_profiles`, and `facility_schedules` schema is safe alongside the legacy booking tables. SQLite application, repeat application, schema presence, syntax, diff validation, and the production web build passed on 2026-09-22. PostgreSQL runtime validation remains blocked by the unavailable endpoint; placeholders are translated to PostgreSQL's numbered form for migration bookkeeping.
 
@@ -105,7 +105,9 @@
 
 **Completed fallback-detail regression fix:** Public route QA found that a static sport fallback without a managed `bookingEnabled` field could render the dining/walk-in branch during an API outage. Facility Detail now derives the legacy default from category, preserving the Book This Facility and event-inquiry CTAs for sports while retaining dining behavior for dining venues.
 
-**Next safe task:** Audit the public facility discovery and detail flows against the managed Facility Management API, then safely eliminate remaining static-data drift without regressing the richer fallback experience.
+**Completed Modules 6–7 route/UI QA gate:** Desktop interactive review covered Home, Facilities, a valid and invalid Facility Detail URL, Pricing, Inquiry, Contact, About, primary navigation, and booking-entry CTAs with the public API unavailable. Managed-inventory fallbacks remained usable; inactive/draft visibility remains server-filtered; the unknown-detail recovery state now renders instead of loading indefinitely. The review removed remaining public fixed/24-hour operating-hour claims from Pricing, Booking, Facility Detail, and contact/footer content. CSS/source inspection found public layouts use the existing responsive grids, wrapping controls, and small-screen breakpoints without a new hard-width/overflow defect. Accessibility snapshots confirmed named navigation, meaningful CTA labels, and semantic headings/forms. A true 390px physical/device-emulator viewport was not available in this environment and is explicitly deferred; it was not claimed as executed.
+
+**Next safe task:** Begin Module 8 with an additive, protected food-stall/menu persistence and API vertical slice, preserving the existing static food presentation until managed-content parity is verified.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.
 
