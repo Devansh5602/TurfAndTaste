@@ -14,6 +14,7 @@ import { id as paymentOrdersMigrationId, up as applyPaymentOrdersMigration } fro
 import { id as adminRolesMigrationId, up as applyAdminRolesMigration } from './migrations/008_admin_roles.js';
 import { id as adminSessionVersionsMigrationId, up as applyAdminSessionVersionsMigration } from './migrations/009_admin_session_versions.js';
 import { id as adminAuthAuditMigrationId, up as applyAdminAuthAuditMigration } from './migrations/010_admin_auth_audit.js';
+import { id as foodMenuFoundationMigrationId, up as applyFoodMenuFoundationMigration } from './migrations/011_food_menu_foundation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,6 +82,7 @@ const runVersionedMigrations = async () => {
     { id: adminRolesMigrationId, up: applyAdminRolesMigration },
     { id: adminSessionVersionsMigrationId, up: applyAdminSessionVersionsMigration },
     { id: adminAuthAuditMigrationId, up: applyAdminAuthAuditMigration },
+    { id: foodMenuFoundationMigrationId, up: applyFoodMenuFoundationMigration },
   ];
 
   for (const migration of migrations) {

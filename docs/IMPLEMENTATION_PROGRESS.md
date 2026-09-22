@@ -64,7 +64,7 @@
 | 4 — Pricing & Booking Engine | **QA VERIFIED** | Signed, short-lived, one-time server quotes are enforced for public bookings; authenticated walk-ins retain their existing flow. |
 | 5 — Payments & Booking Pass | **QA VERIFIED (provider exception)** | Local safeguards and customer-safe passes are verified; successful live Razorpay capture/replay remains externally blocked. |
 | 6–7 — Website / Facility Discovery | **QA VERIFIED (device exception)** | Managed public inventory is preferred with enriched safe fallbacks. Desktop route QA and source-level responsive review passed; a true 390px physical/emulator viewport pass remains externally tool-limited. |
-| 8 — Food Court & Parlour | NOT STARTED | Depends on Module 1 media/content conventions. |
+| 8 — Food Court & Parlour | IN PROGRESS | Additive shared stall/menu schema is migration-verified; protected APIs are next. |
 | 9 — Events CMS | NOT STARTED | Depends on Module 1. |
 | 10 — Blog CMS | NOT STARTED | Depends on Module 1. |
 | 11 — Ratings & Reviews | NOT STARTED | Depends on Module 2 and bookings. |
@@ -108,6 +108,8 @@
 **Completed Modules 6–7 route/UI QA gate:** Desktop interactive review covered Home, Facilities, a valid and invalid Facility Detail URL, Pricing, Inquiry, Contact, About, primary navigation, and booking-entry CTAs with the public API unavailable. Managed-inventory fallbacks remained usable; inactive/draft visibility remains server-filtered; the unknown-detail recovery state now renders instead of loading indefinitely. The review removed remaining public fixed/24-hour operating-hour claims from Pricing, Booking, Facility Detail, and contact/footer content. CSS/source inspection found public layouts use the existing responsive grids, wrapping controls, and small-screen breakpoints without a new hard-width/overflow defect. Accessibility snapshots confirmed named navigation, meaningful CTA labels, and semantic headings/forms. A true 390px physical/device-emulator viewport was not available in this environment and is explicitly deferred; it was not claimed as executed.
 
 **Next safe task:** Begin Module 8 with an additive, protected food-stall/menu persistence and API vertical slice, preserving the existing static food presentation until managed-content parity is verified.
+
+**Completed Module 8 foundation slice:** Migration `011_food_menu_foundation` establishes one additive merchant/menu schema for food stalls and the convenience parlour (`stall_type`), with common categories and menu items. It uses stable IDs/slugs, draft/active status, images, hours/contact/metadata JSON, display ordering, availability/featured/dietary flags, and integer paise pricing. It creates no ordering flow and does not alter public dining presentation. Isolated SQLite first-apply and repeat-apply checks passed; next is protected stall/category/item CRUD and public read contracts.
 
 **Completed login-throttling slice:** Admin login now applies a process-local, username-plus-IP keyed 15-minute/8-attempt throttle with `429` and `Retry-After` feedback. Successful login clears the relevant failure state, avoiding normal-user lockout. It applies only to management login, leaves JWT verification untouched, and is isolated behind a middleware factory suitable for replacing its in-memory store with a shared implementation later. Isolated QA confirmed throttling, identity isolation, reset-on-success, and normal authenticated endpoint access.
 
