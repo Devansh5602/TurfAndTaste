@@ -60,7 +60,7 @@
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
 | 1 — Core Backend Foundation | **QA VERIFIED** | Versioned migrations, v2 response/validation helpers, explicit public/admin settings boundary, facility inventory foundation, and provider-neutral media metadata are verified in SQLite. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
-| 3 — Facility Management | **IN PROGRESS** | Protected facility profile CRUD and transactional per-facility schedule replacement are implemented; admin UI and public consumer migration remain. |
+| 3 — Facility Management | **IN PROGRESS** | Protected CRUD, transactional schedules, and Admin facility management UI are implemented; public consumer migration/content parity remain. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
 | 5 — Payments & Booking Pass | PARTIAL / NEEDS HARDENING | Depends on Modules 2–4. |
 | 6–7 — Website / Facility Discovery | PARTIAL | Migrate from static data only after Module 3. |
@@ -89,7 +89,9 @@
 
 **Completed Module 3 API slice:** `POST /api/facilities` and `PUT /api/facilities/:identifier` now require the existing admin JWT, validate facility data and weekly schedules, and save profile + schedule replacement through a cross-database transaction. Public detail responses include the facility’s schedule. Schedule times use minutes from midnight, support overnight windows, reject duplicate weekday entries, and remain administrator-owned rather than enforcing a fixed opening-hours rule. Isolated QA verified anonymous `401`, create, invalid schedule `400`, update/replacement, and public readback.
 
-**Next safe task:** Add a focused admin facility-management UI that consumes the protected APIs, then migrate public facility discovery/detail progressively only after content parity (copy, images, pricing) is preserved.
+**Completed Admin integration slice:** Added a dedicated Facilities tab in the authenticated Admin portal. It loads the protected facility inventory, supports creating/editing profile fields, and uses simple per-day schedule controls with overnight support. Public inventory now excludes draft/inactive records without accepting an untrusted query flag; the protected management list contains all statuses. Build and isolated API QA verified the client contract, public draft exclusion, and anonymous management-list `401`.
+
+**Next safe task:** Preserve content parity by backfilling the richer existing facility descriptions/images into managed records, then migrate public facility discovery/detail progressively to the API without changing booking or pricing contracts.
 
 ## External configuration / known blockers
 

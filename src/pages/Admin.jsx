@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
 import ConfirmationModal from '../components/ConfirmationModal';
+import FacilityManager from '../components/admin/FacilityManager';
 import { 
   Shield, 
   Lock, 
@@ -34,6 +35,7 @@ import {
   X,
   CheckSquare,
   Archive,
+  Building2,
   FileText,
   Send,
   AlertTriangle,
@@ -1066,6 +1068,12 @@ export default function Admin() {
               <Clock size={16} /> Operating Timings
             </button>
             <button
+              className={`tab-btn ${activeTab === 'facilities' ? 'active' : ''}`}
+              onClick={() => setActiveTab('facilities')}
+            >
+              <Building2 size={16} /> Facilities
+            </button>
+            <button
               className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
               onClick={() => setActiveTab('overview')}
             >
@@ -1605,6 +1613,10 @@ export default function Admin() {
                 </form>
               </div>
             </div>
+          )}
+
+          {activeTab === 'facilities' && (
+            <FacilityManager onToast={(message, type = 'success') => showToast(message, type)} />
           )}
 
           {/* TAB 4: OVERVIEW & STATS */}

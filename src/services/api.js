@@ -182,6 +182,22 @@ export const api = {
     return await res.json();
   },
 
+  // v2 Facility Management
+  getAdminFacilities: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities/admin/all`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  saveFacility: async (facility, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/facilities` : `${API_BASE_URL}/facilities/${encodeURIComponent(facility.id)}`;
+    const res = await fetch(endpoint, {
+      method: isCreate ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(facility),
+    });
+    return await res.json();
+  },
+
   saveTimings: async (timingsObj) => {
     const res = await fetch(`${API_BASE_URL}/pricing/timings`, {
       method: 'PUT',

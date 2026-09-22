@@ -83,12 +83,11 @@ const getFacility = (identifier, includeInactive = false) => dbAsync.get(
  */
 router.get('/', async (req, res) => {
   try {
-    const includeInactive = req.query.includeInactive === 'true';
     const rows = await dbAsync.all(
       `SELECT * FROM facility_profiles
-       WHERE (? = 1 OR status = 'active')
+       WHERE status = 'active'
        ORDER BY display_order ASC, name ASC`,
-      [includeInactive ? 1 : 0],
+      [],
     );
 
     res.json({ success: true, count: rows.length, facilities: rows.map(formatFacility) });
@@ -98,10 +97,22 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/admin/all', authenticateAdminToken, async (_req, res) => {
+  try {
+    const rows = await dbAsync.all('SELECT * FROM facility_profiles ORDER BY display_order ASC, name ASC');
+    return sendSuccess(res, { facilities: await Promise.all(rows.map(async (facility) => ({
+      ...formatFacility(facility),
+      schedules: (await getSchedules(facility.id)).map(formatSchedule),
+    }))) });
+  } catch (error) {
+    console.error('[Admin Facilities API Error]:', error);
+    return sendError(res, 500, 'Unable to load facilities.');
+  }
+});
+
 router.get('/:identifier', async (req, res) => {
   try {
-    const includeInactive = req.query.includeInactive === 'true';
-    const facility = await getFacility(req.params.identifier, includeInactive);
+    const facility = await getFacility(req.params.identifier);
 
     if (!facility) {
       return res.status(404).json({ success: false, error: 'Facility not found.' });
