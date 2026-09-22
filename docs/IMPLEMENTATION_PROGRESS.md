@@ -58,7 +58,7 @@
 | Module | Status | Next / dependency |
 | --- | --- | --- |
 | 0 — Repository Audit & Architecture | **QA VERIFIED** | Build and server syntax checks passed; target architecture and requirement coverage are documented. |
-| 1 — Core Backend Foundation | **IN PROGRESS** | Tracked SQLite/PostgreSQL foundation plus safe legacy/pricing facility backfills and public inventory API. API conventions and media foundations remain. |
+| 1 — Core Backend Foundation | **IN PROGRESS** | Tracked SQLite/PostgreSQL foundation, safe facility backfills, public inventory, and v2 public-settings boundary. Media conventions and final foundation QA remain. |
 | 2 — Authentication & Authorization | NOT STARTED | Depends on Module 1 decisions. |
 | 3 — Facility Management | NOT STARTED | Depends on Module 1; first product vertical slice after foundation. |
 | 4 — Pricing & Booking Engine | PARTIAL / NEEDS REDESIGN | Depends on Module 3 facility schedules/pricing. |
@@ -83,7 +83,9 @@
 
 **Completed vertical slice:** Added additive backfills for legacy facility records and the established pricing tiers, plus `GET /api/facilities` and `GET /api/facilities/:identifier`. Isolated API QA confirmed five active bookable facilities, identifier lookup, and `404` behavior. The existing static frontend dataset remains in place deliberately; it has richer copy and images than the current backend model, so swapping it before admin content editing would degrade the public experience.
 
-**Next safe task:** Define shared API response/validation conventions and the public/admin settings boundary, then begin facility-management APIs against the new schema. No public CMS screen will start before that model is stable.
+**Completed API/settings slice:** Established additive `/api/v2` response helpers (`{ success, data?, error?, details? }`) and the first explicit public/admin settings boundary. `GET /api/v2/settings/public` exposes only allowlisted public settings; `PUT /api/v2/settings/public/public_contact` requires an admin JWT and validates bounded object data. Isolated API QA verified public read, anonymous `401`, authenticated write, and persisted readback. Existing routes retain their contracts while consumers migrate.
+
+**Next safe task:** Complete Module 1’s documented persistence/media conventions and final foundation regression. Then begin Module 3 facility management: protected facility CRUD and per-facility schedules seeded from current values only, never as a fixed business-hours rule.
 
 ## External configuration / known blockers
 

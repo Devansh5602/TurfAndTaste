@@ -19,6 +19,7 @@ Future dedicated mobile frontend       ─┘       │
 ## Data ownership
 
 - **Facilities** become database-managed business entities. Their content, operating rules, pricing rules, enabled state, images, and bookable configuration cannot remain duplicated in React source.
+- **Facility schedules** are administrator-managed per facility. Any hours currently visible in the product are seed/default data only, never a permanent operating-hours rule.
 - **Booking availability and price** are computed by the server from the facility, schedule, availability block, duration, and applicable pricing rule. Clients only request a quote and submit a selected, server-recognized slot.
 - **Food stalls, parlour, categories, and menu items** share a merchant/menu model. The parlour is a stall type, not a separate inventory platform.
 - **Events, posts, reviews, inquiries, archives, and settings** are separate domain resources with administrative visibility/publication rules.

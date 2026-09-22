@@ -12,6 +12,8 @@ import inquiryRoutes from './routes/inquiries.js';
 import pricingRoutes from './routes/pricing.js';
 import archiveRoutes from './routes/archives.js';
 import facilityRoutes from './routes/facilities.js';
+import v2SettingsRoutes from './routes/v2/settings.js';
+import { sendError } from './utils/api.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,11 +50,22 @@ app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/archives', archiveRoutes);
 app.use('/api/facilities', facilityRoutes);
+app.use('/api/v2/settings', v2SettingsRoutes);
 app.use('/api', pricingRoutes); // Alias for /api/timings
 
 // 404 Handler for undefined API routes
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'API endpoint not found' });
+});
+
+// New routes should use explicit `sendError` responses. This final boundary
+// still protects every legacy route from leaking an unexpected internal error.
+app.use((error, _req, res, _next) => {
+  console.error('[Unhandled API Error]:', error);
+  if (error?.type === 'entity.parse.failed') {
+    return sendError(res, 400, 'Invalid JSON request body.');
+  }
+  return sendError(res, 500, 'An unexpected server error occurred.');
 });
 
 // Start Express Server when not on Vercel serverless
