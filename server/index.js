@@ -55,8 +55,14 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize SQLite Database
-initDatabase();
+// Initialize Database safely
+try {
+  initDatabase().catch(err => {
+    console.error('[Database Init Error]:', err?.message || err);
+  });
+} catch (err) {
+  console.error('[Database Bootstrap Error]:', err?.message || err);
+}
 
 // API Health Check
 app.get('/api/health', (req, res) => {

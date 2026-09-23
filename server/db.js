@@ -375,6 +375,10 @@ export async function initDatabase() {
     }
   } else {
     // SQLite Fallback setup
+    if (!sqliteDb) {
+      console.warn('[SQLite DB] SQLite database is not available in this environment. Skipping local table initialization.');
+      return;
+    }
     console.log('[SQLite DB] Initializing local tables...');
     sqliteDb.exec(`
       CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
