@@ -13,11 +13,18 @@ import { authenticateAdminToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ARCHIVES_DIR = path.join(__dirname, '..', 'data', 'archives');
+const ARCHIVES_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'archives')
+  : path.join(__dirname, '..', 'data', 'archives');
 
-if (!fs.existsSync(ARCHIVES_DIR)) {
-  fs.mkdirSync(ARCHIVES_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(ARCHIVES_DIR)) {
+    fs.mkdirSync(ARCHIVES_DIR, { recursive: true });
+  }
+} catch (e) {
+  // Read-only filesystem in serverless environments; will create lazily in writable /tmp if needed
 }
+
 
 const router = express.Router();
 

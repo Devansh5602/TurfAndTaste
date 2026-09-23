@@ -99,18 +99,38 @@ const runVersionedMigrations = async () => {
   }
 };
 
+const resolvePostgresConnectionString = (url) => {
+  if (!url) return url;
+  const directMatch = url.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]+)@db\.([a-z0-9]+)\.supabase\.co(?::\d+)?\/(.*)/);
+  if (directMatch) {
+    const [, user, pass, ref, dbname] = directMatch;
+    const poolerUser = user.includes('.') ? user : `${user}.${ref}`;
+    const poolerHost = process.env.SUPABASE_POOLER_HOST || 'aws-0-ap-south-1.pooler.supabase.com';
+    const poolerPort = process.env.SUPABASE_POOLER_PORT || '5432';
+    return `postgresql://${poolerUser}:${pass}@${poolerHost}:${poolerPort}/${dbname || 'postgres'}`;
+  }
+  return url;
+};
+
 if (databaseUrl && databaseUrl.startsWith('postgres')) {
   isPostgres = true;
   console.log('[Database] Connecting to Cloud Supabase PostgreSQL...');
+  const effectiveConnectionString = resolvePostgresConnectionString(databaseUrl);
   pgPool = new pg.Pool({
-    connectionString: databaseUrl,
+    connectionString: effectiveConnectionString,
     ssl: { rejectUnauthorized: false }
   });
 } else {
   console.log('[Database] Using Local SQLite Database...');
-  const dataDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  const dataDir = process.env.VERCEL
+    ? path.join('/tmp', 'data')
+    : path.join(__dirname, 'data');
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+  } catch (e) {
+    // Read-only filesystem in serverless environments
   }
   // A caller can opt into a disposable SQLite database for integration tests.
   // Production and local development retain the established project data path.
@@ -123,6 +143,7 @@ if (databaseUrl && databaseUrl.startsWith('postgres')) {
     console.warn('[Database] SQLite not available in this environment:', e.message);
   }
 }
+
 
 export async function initDatabase() {
   if (isPostgres) {
