@@ -3,6 +3,7 @@ import { Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { adminStore } from '../services/adminStore';
 import { api } from '../services/api';
+import { mergePublicFoodIntoFacilities } from '../utils/foodPresentation';
 import FacilityCard from '../components/FacilityCard';
 import SectionHeading from '../components/SectionHeading';
 import {
@@ -101,6 +102,7 @@ export default function Home() {
   const [latestBooking, setLatestBooking] = useState(null);
   const [, setPricingVersion] = useState(0);
   const [publicFacilities, setPublicFacilities] = useState(facilitiesData);
+  const [publicFoodStalls, setPublicFoodStalls] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +112,14 @@ export default function Home() {
         const fallback = facilitiesData.find((item) => item.id === record.id || item.slug === record.slug) || {};
         return { ...fallback, id: record.id, slug: record.slug, name: record.name, category: record.type === 'sport' ? (fallback.category || 'sports') : (record.type || fallback.category || 'sports'), image: record.coverImageUrl || fallback.image, shortDesc: record.shortDescription || fallback.shortDesc || '', bookingEnabled: record.bookingEnabled };
       }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getFoodStalls().then((result) => {
+      if (!cancelled && result?.success && Array.isArray(result?.data?.stalls)) setPublicFoodStalls(result.data.stalls);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -153,8 +163,9 @@ export default function Home() {
     };
   }, []);
 
-  const sports = publicFacilities.filter(f => f.category !== 'dining' && f.bookingEnabled !== false);
-  const dining = publicFacilities.filter(f => f.category === 'dining');
+  const discoveryFacilities = mergePublicFoodIntoFacilities(publicFacilities, publicFoodStalls);
+  const sports = discoveryFacilities.filter(f => f.category !== 'dining' && f.bookingEnabled !== false);
+  const dining = discoveryFacilities.filter(f => f.category === 'dining');
   const quickPlayFacilities = QUICK_PLAY_FACILITIES.map((quick) => {
     const managed = sports.find((facility) => facility.slug === quick.slug);
     return managed ? { ...quick, ...managed, desc: managed.shortDesc || quick.desc } : null;
@@ -238,10 +249,10 @@ export default function Home() {
           {/* First-Time User Discovery Strip: Complete Platform Inventory at a Glance */}
           <div className="home-hero-inventory-strip" style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--brand-green)', fontWeight: 700, display: 'block', marginBottom: '0.45rem' }}>
-              All {publicFacilities.length} Venues &amp; Activities in Patan:
+              All {discoveryFacilities.length} Venues &amp; Activities in Patan:
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {publicFacilities.map(item => (
+              {discoveryFacilities.map(item => (
                 <Link
                   key={item.slug}
                   to={item.category === 'dining' ? `/facilities/${item.slug}` : `/booking?facility=${item.slug}`}

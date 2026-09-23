@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { facilitiesData, facilityCategories } from '../data/facilitiesData';
 import { api } from '../services/api';
+import { mergePublicFoodIntoFacilities } from '../utils/foodPresentation';
 import FacilityCard from '../components/FacilityCard';
 import SectionHeading from '../components/SectionHeading';
 import CourtBackground from '../components/CourtBackground';
@@ -11,6 +12,7 @@ export default function Facilities() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSpecId, setExpandedSpecId] = useState(null);
   const [managedFacilities, setManagedFacilities] = useState(facilitiesData);
+  const [publicFoodStalls, setPublicFoodStalls] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,16 +45,26 @@ export default function Facilities() {
     return () => { cancelled = true; };
   }, []);
 
-  const filteredFacilities = managedFacilities.filter(facility => {
+  useEffect(() => {
+    let cancelled = false;
+    api.getFoodStalls().then((result) => {
+      if (!cancelled && result?.success && Array.isArray(result?.data?.stalls)) setPublicFoodStalls(result.data.stalls);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const discoveryFacilities = mergePublicFoodIntoFacilities(managedFacilities, publicFoodStalls);
+
+  const filteredFacilities = discoveryFacilities.filter(facility => {
     const matchesCategory = selectedCategory === 'all' || facility.category === selectedCategory;
     const matchesSearch = facility.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       facility.shortDesc.toLowerCase().includes(searchQuery.toLowerCase()) ||
       facility.tag.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-  const sportsFacilities = managedFacilities.filter(facility => facility.category === 'sports');
-  const practiceFacilities = managedFacilities.filter(facility => facility.category === 'practice');
-  const diningFacilities = managedFacilities.filter(facility => facility.category === 'dining');
+  const sportsFacilities = discoveryFacilities.filter(facility => facility.category === 'sports');
+  const practiceFacilities = discoveryFacilities.filter(facility => facility.category === 'practice');
+  const diningFacilities = discoveryFacilities.filter(facility => facility.category === 'dining');
 
   const toggleSpec = (id) => {
     setExpandedSpecId(prev => prev === id ? null : id);
@@ -238,7 +250,7 @@ export default function Facilities() {
           />
 
           <div className="specs-accordion-list" style={{ marginTop: '1.5rem' }}>
-            {managedFacilities.map((item) => {
+            {discoveryFacilities.map((item) => {
               const isOpen = expandedSpecId === item.id;
               return (
                 <div key={item.id} className={`spec-card ${isOpen ? 'open' : ''}`}>
