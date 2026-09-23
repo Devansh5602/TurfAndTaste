@@ -15,6 +15,13 @@
 - A clean browser session at the mandatory 384 × 832 viewport no longer shows a seeded `Player`/`Member` identity. The Profile route is explicitly device-local **booking details**, not a login; guest booking is supported, while registration, login, logout, session restoration, customer profile sync, and identity-protected history remain unimplemented **Module 13** work. The legacy phone/email lookup is not an authentication boundary.
 - Focused browser viewport QA at 384 × 832 found and fixed a clipped booking-stepper label. The active step remains named while the numbered sequence stays visible on narrow screens. Home, Facilities, valid/invalid Facility Detail, Booking, Inquiry, Pricing, Contact, About, My Bookings, and guest details were exercised with no document-level horizontal overflow. This is browser viewport evidence only; it is not a replacement for a rebuilt physical Android regression run.
 
+## Mobile booking production-readiness — active
+
+- Reviewed work from `fix/android-booking-ux-device-qa` was selectively integrated into the authoritative branch. Mobile booking controls, styled session filters, and the docked action treatment were retained; global Android cleartext/mixed-content allowances and an unrelated database connection rewrite were rejected.
+- Live availability is now a hard integrity boundary. A failed request produces a recovery state with no locally generated selectable slots, invalidates downstream slot/quote state, and prevents Step 3 progression. Quote confirmation has explicit requesting/success/error states, cancellation, stale-response protection, a 15-second timeout, and retry—there is no infinite “confirming server price” path.
+- The server now computes availability from managed facility schedules and `Asia/Kolkata` venue time (configurable via `VENUE_TIME_ZONE`). Past dates, already-started current-day slots, inactive facilities, closed days, maintenance, bookings, and slots extending after closing are excluded/rejected independently of the client. This does not add a new lead-time policy.
+- Isolated SQLite API QA verified future availability and past-slot quote rejection; server syntax, production build, and `git diff --check` pass. Physical Android re-verification remains pending a Node 22+ Capacitor build with an explicit reachable HTTPS `VITE_API_URL`; no physical-device or Razorpay-success claim is made for this slice.
+
 ## Audit summary — 2026-09-22
 
 ### Current implementation strengths

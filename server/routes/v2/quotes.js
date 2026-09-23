@@ -2,6 +2,7 @@ import express from 'express';
 import dbAsync from '../../db.js';
 import { sendError, sendSuccess } from '../../utils/api.js';
 import { createQuoteToken } from '../../utils/quoteToken.js';
+import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted } from '../../utils/venueTime.js';
 
 const router = express.Router();
 const parseTime = (value) => {
@@ -35,20 +36,22 @@ router.post('/', async (req, res) => {
     return sendError(res, 400, 'Use a real calendar date.');
   }
   try {
+    if (slotHasStarted(date, requested.start)) {
+      return sendError(res, 409, 'This time slot has already started or passed at the venue. Please choose a future slot.');
+    }
     const facility = await dbAsync.get(
       "SELECT * FROM facility_profiles WHERE id = ? AND status = 'active' AND booking_enabled = ?",
       [facilityId, dbAsync.isPostgres() ? true : 1],
     );
     if (!facility) return sendError(res, 404, 'This facility is not currently bookable.');
 
-    const dayOfWeek = parsedDate.getUTCDay();
+    const dayOfWeek = dayOfWeekForVenueDate(date);
     const schedule = await dbAsync.get(
       'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
       [facilityId, dayOfWeek, dbAsync.isPostgres() ? true : 1],
     );
     if (!schedule) return sendError(res, 409, 'This facility is closed on the selected day.');
-    let scheduleClose = schedule.closes_at_minutes;
-    if (scheduleClose <= schedule.opens_at_minutes) scheduleClose += 1440;
+    const scheduleClose = normalizeScheduleClose(schedule.opens_at_minutes, schedule.closes_at_minutes);
     if (requested.start < schedule.opens_at_minutes || requested.end > scheduleClose) {
       return sendError(res, 409, 'The selected time is outside this facility’s operating schedule.');
     }

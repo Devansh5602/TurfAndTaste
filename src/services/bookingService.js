@@ -185,23 +185,25 @@ export const generateTimeSlots = (facilityId, selectedDate, duration = 1) => {
 };
 
 export const fetchRealTimeSlots = async (facilityId, selectedDate, duration = 1) => {
-  const generatedSlots = generateTimeSlots(facilityId, selectedDate, duration);
   try {
     const res = await api.getSlotAvailability(facilityId, selectedDate, duration);
     if (res.success && res.slots) {
-      const serverSlots = new Map(res.slots.map(slot => [slot.time, slot]));
-      const slots = generatedSlots.map(slot => {
-        const serverSlot = serverSlots.get(slot.time);
-        return serverSlot
-          ? { ...slot, status: serverSlot.status, maintenanceReason: serverSlot.maintenanceReason }
-          : slot;
-      });
+      // The server owns schedule boundaries, maintenance, active facility state,
+      // and venue-local time. Legacy display data only enriches matching slots.
+      const legacySlots = new Map(generateTimeSlots(facilityId, selectedDate, duration).map((slot) => [slot.time, slot]));
+      const slots = res.slots.map((serverSlot) => ({
+        ...(legacySlots.get(serverSlot.time) || {}),
+        ...serverSlot,
+        duration: Number(duration),
+      }));
       return { slots, isLive: true };
     }
   } catch (e) {
-    console.warn('Using offline slots generator:', e);
+    console.warn('Live availability request failed:', e);
   }
-  return { slots: generatedSlots, isLive: false };
+  // Never make locally generated inventory selectable for bookings. It can be
+  // stale, bypass managed schedules, or use the device's incorrect clock.
+  return { slots: [], isLive: false };
 };
 
 export const submitBookingReservation = async (bookingPayload) => {

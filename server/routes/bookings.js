@@ -2,6 +2,7 @@ import express from 'express';
 import dbAsync from '../db.js';
 import { attachOptionalAdmin, authenticateAdminToken } from '../middleware/auth.js';
 import { verifyQuoteToken } from '../utils/quoteToken.js';
+import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted, venueNow } from '../utils/venueTime.js';
 
 const router = express.Router();
 
@@ -151,7 +152,13 @@ router.get('/slots', async (req, res) => {
   try {
     const { facilityId, date } = req.query;
     const duration = Math.max(1, Math.min(6, Number(req.query.duration) || 1));
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || venueNow().date;
+    if (!facilityId || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      return res.status(400).json({ success: false, error: 'A facility and valid booking date are required.' });
+    }
+    if (targetDate < venueNow().date) {
+      return res.status(409).json({ success: false, error: 'Past dates cannot be booked.' });
+    }
     const formatTime = (minutes) => {
       const normalized = minutes % 1440;
       const hours = Math.floor(normalized / 60);
@@ -160,10 +167,24 @@ router.get('/slots', async (req, res) => {
       const displayHour = hours % 12 || 12;
       return `${String(displayHour).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${period}`;
     };
+    const facility = await dbAsync.get(
+      "SELECT id FROM facility_profiles WHERE id = ? AND status = 'active' AND booking_enabled = ?",
+      [facilityId, dbAsync.isPostgres() ? true : 1],
+    );
+    if (!facility) return res.status(404).json({ success: false, error: 'This facility is not currently bookable.' });
+    const schedule = await dbAsync.get(
+      'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
+      [facilityId, dayOfWeekForVenueDate(targetDate), dbAsync.isPostgres() ? true : 1],
+    );
+    if (!schedule) return res.status(409).json({ success: false, error: 'This facility is closed on the selected day.' });
+    const timings = await dbAsync.get('SELECT floodlight_start FROM timings WHERE id = 1');
+    const floodlight = parseSlotRange(`12:00 AM – ${timings?.floodlight_start || '06:00 PM'}`)?.end ?? 1080;
     const allSlots = [];
     const durationMinutes = duration * 60;
-    for (let start = 360; start + durationMinutes <= 1800; start += 60) {
-      const peak = start >= 1080;
+    const closesAt = normalizeScheduleClose(schedule.opens_at_minutes, schedule.closes_at_minutes);
+    for (let start = schedule.opens_at_minutes; start + durationMinutes <= closesAt; start += schedule.slot_minutes || 60) {
+      if (slotHasStarted(targetDate, start)) continue;
+      const peak = start >= floodlight;
       allSlots.push({
         time: `${formatTime(start)} – ${formatTime(start + durationMinutes)}`,
         category: peak ? 'Floodlit Session' : 'Day Session',

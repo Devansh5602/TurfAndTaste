@@ -3,7 +3,7 @@ import { useRouter, Link } from '../context/RouterContext';
 import { facilitiesData } from '../data/facilitiesData';
 import { generateTimeSlots, fetchRealTimeSlots, submitBookingReservation } from '../services/bookingService';
 import { adminStore } from '../services/adminStore';
-import { api } from '../services/api';
+import { api, getApiConfigurationIssue } from '../services/api';
 import { 
   initializePaymentOrder, 
   openRazorpayCheckout, 
@@ -154,10 +154,22 @@ export default function Booking() {
   const [pricingUpdateTick, setPricingUpdateTick] = useState(0);
   const [liveSlots, setLiveSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [availabilityVerified, setAvailabilityVerified] = useState(false);
   const [slotsError, setSlotsError] = useState('');
   const [authoritativeQuote, setAuthoritativeQuote] = useState(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState('');
+  const quoteRequestRef = useRef(0);
+
+  const apiConfigurationIssue = getApiConfigurationIssue();
+  const isConnectivityIssue = Boolean(slotsError && (
+    slotsError.includes('Unable to reach') ||
+    slotsError.includes('temporarily unavailable')
+  ));
+
+  const handleRetryAvailability = () => {
+    setPricingUpdateTick(t => t + 1);
+  };
 
   useEffect(() => {
     adminStore.fetchPricingAsync().then(() => setPricingUpdateTick(t => t + 1));
@@ -176,16 +188,25 @@ export default function Booking() {
   useEffect(() => {
     let cancelled = false;
     setIsLoadingSlots(true);
+    setAvailabilityVerified(false);
+    setSelectedSlot(null);
+    setAuthoritativeQuote(null);
+    setQuoteError('');
     setSlotsError('');
     fetchRealTimeSlots(selectedFacility, selectedDate, selectedDuration)
       .then(({ slots: nextSlots, isLive }) => {
         if (!cancelled) {
-          setLiveSlots(nextSlots);
-          if (!isLive) setSlotsError('Live availability is temporarily unavailable. Your final slot request will be checked before payment.');
+          setLiveSlots(isLive ? nextSlots : []);
+          setAvailabilityVerified(Boolean(isLive));
+          if (!isLive) setSlotsError('Live availability is unavailable. Reconnect before selecting a slot.');
         }
       })
       .catch(() => {
-        if (!cancelled) setSlotsError('Live availability is temporarily unavailable. Please confirm your slot before payment.');
+        if (!cancelled) {
+          setLiveSlots([]);
+          setAvailabilityVerified(false);
+          setSlotsError('Live availability is unavailable. Check your connection and try again.');
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoadingSlots(false);
@@ -194,7 +215,7 @@ export default function Booking() {
   }, [selectedFacility, selectedDate, selectedDuration, pricingUpdateTick]);
 
   // Time slots generated based on facility, date, selected duration, and live pricing/timings
-  const slots = liveSlots.length > 0 ? liveSlots : generateTimeSlots(selectedFacility, selectedDate, selectedDuration);
+  const slots = availabilityVerified ? liveSlots : [];
   const daySlots = slots.filter(s => !s.peak);
   const nightSlots = slots.filter(s => s.peak);
 
@@ -250,52 +271,73 @@ export default function Booking() {
   const currentFacilityData = facilitiesData.find(f => f.slug === selectedFacility) || facilitiesData[0];
 
   useEffect(() => {
-    let cancelled = false;
-    if (!selectedSlot) { setAuthoritativeQuote(null); setQuoteError(''); return undefined; }
-    setIsQuoteLoading(true); setQuoteError(''); setAuthoritativeQuote(null);
-    api.getBookingQuote({ facilityId: selectedFacility, date: selectedDate, timeSlot: selectedSlot.time })
+    if (!availabilityVerified || !selectedSlot) {
+      setAuthoritativeQuote(null);
+      setQuoteError('');
+      setIsQuoteLoading(false);
+      return undefined;
+    }
+    const requestId = ++quoteRequestRef.current;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    setIsQuoteLoading(true);
+    setQuoteError('');
+    setAuthoritativeQuote(null);
+    api.getBookingQuote(
+      { facilityId: selectedFacility, date: selectedDate, timeSlot: selectedSlot.time },
+      { signal: controller.signal },
+    )
       .then((result) => {
-        if (cancelled) return;
+        if (requestId !== quoteRequestRef.current) return;
         if (!result?.success) throw new Error(result?.error || 'Unable to confirm this price.');
         setAuthoritativeQuote(result.data);
       })
-      .catch((error) => { if (!cancelled) setQuoteError(error.message || 'Unable to confirm this price.'); })
-      .finally(() => { if (!cancelled) setIsQuoteLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedFacility, selectedDate, selectedSlot?.time]);
+      .catch((error) => {
+        if (requestId !== quoteRequestRef.current || error?.name === 'AbortError') {
+          if (requestId === quoteRequestRef.current && error?.name === 'AbortError') setQuoteError('Price confirmation timed out. Please retry.');
+          return;
+        }
+        setQuoteError(error.message || 'Unable to confirm this price.');
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (requestId === quoteRequestRef.current) setIsQuoteLoading(false);
+      });
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [availabilityVerified, selectedFacility, selectedDate, selectedDuration, selectedSlot?.time, pricingUpdateTick]);
 
-  // Stepper Step Navigation
-  const goToStep = (stepNum) => {
-    setErrors({});
-    setCurrentStep(stepNum);
-    if (wizardRef.current) {
-      wizardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  // Stepper Step Navigation with Strict Prerequisite Guard (Defect C — Prevent Stepper Bypass)
+  const canAdvanceToStep = (targetStep) => {
+    if (targetStep <= 1) return { allowed: true };
 
-  const handleStep1Next = () => {
+    // Prerequisite for Step 2+: Must select an arena first
     if (!selectedFacility) {
-      setErrors({ facility: 'Please select an arena to continue.' });
-      return;
+      return {
+        allowed: false,
+        fallbackStep: 1,
+        error: { facility: 'Please select an arena to continue.' }
+      };
     }
-    setErrors({});
-    goToStep(2);
-  };
+    if (targetStep === 2) return { allowed: true };
 
-  const handleStep2Next = () => {
-    if (!selectedSlot) {
-      setErrors({ slot: 'Please select an available time slot.' });
-      return;
+    // Prerequisite for Step 3+: Must select an available time slot and obtain authoritative quote
+    if (!availabilityVerified || !selectedSlot) {
+      return {
+        allowed: false,
+        fallbackStep: 2,
+        error: { slot: availabilityVerified ? 'Please select an available time slot.' : 'Live availability must load before continuing.' }
+      };
     }
     if (!authoritativeQuote || isQuoteLoading || quoteError) {
-      setErrors({ slot: quoteError || 'Confirming the server price for this slot. Please wait.' });
-      return;
+      return {
+        allowed: false,
+        fallbackStep: 2,
+        error: { slot: quoteError || 'Confirming the server price for this slot. Please wait.' }
+      };
     }
-    setErrors({});
-    goToStep(3);
-  };
+    if (targetStep === 3) return { allowed: true };
 
-  const handleStep3Next = () => {
+    // Prerequisite for Step 4: Player details and agreements complete
     const errs = {};
     if (!customer.name.trim()) errs.name = 'Full name is required.';
     if (!customer.phone.trim()) {
@@ -311,55 +353,70 @@ export default function Booking() {
     if (!customer.agreedRules) {
       errs.agreedRules = 'Please accept the arena fair play policy to continue.';
     }
-    setErrors(errs);
-    if (Object.keys(errs).length === 0) {
-      goToStep(4);
+
+    if (Object.keys(errs).length > 0) {
+      return {
+        allowed: false,
+        fallbackStep: 3,
+        error: errs
+      };
+    }
+
+    return { allowed: true };
+  };
+
+  const goToStep = (stepNum) => {
+    // When returning to previous step, always allow and preserve all state
+    if (stepNum < currentStep) {
+      setErrors({});
+      setCurrentStep(stepNum);
+      if (wizardRef.current) {
+        wizardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+
+    // When advancing forward, enforce prerequisite validation
+    const check = canAdvanceToStep(stepNum);
+    if (!check.allowed) {
+      setErrors(check.error || {});
+      if (check.fallbackStep && check.fallbackStep !== currentStep) {
+        setCurrentStep(check.fallbackStep);
+      }
+      if (wizardRef.current) {
+        wizardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+
+    setErrors({});
+    setCurrentStep(stepNum);
+    if (wizardRef.current) {
+      wizardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
-  const handleStepClick = (targetStep) => {
-    // When returning to previous step, preserve all selected data!
-    if (targetStep < currentStep) {
-      goToStep(targetStep);
-      return;
-    }
-    if (targetStep === currentStep) return;
+  const handleStep1Next = () => {
+    goToStep(2);
+  };
 
-    // Jumping forward: validate prerequisites
-    if (targetStep === 2) {
-      if (!selectedFacility) {
-        setErrors({ facility: 'Please select an arena to continue.' });
-        return;
-      }
-      goToStep(2);
-      return;
-    }
-    if (targetStep === 3) {
-      if (!selectedSlot) {
-        setErrors({ slot: 'Please select an available time slot.' });
-        return;
-      }
-      goToStep(3);
-      return;
-    }
-    if (targetStep === 4) {
-      if (!selectedSlot) {
-        setErrors({ slot: 'Please select an available time slot.' });
-        return;
-      }
-      if (!customer.name.trim() || !customer.phone.trim() || !customer.email.trim() || !customer.agreedRules) {
-        setErrors({ form: 'Please complete all required details first.' });
-        goToStep(3);
-        return;
-      }
-      goToStep(4);
-    }
+  const handleStep2Next = () => {
+    goToStep(3);
+  };
+
+  const handleStep3Next = () => {
+    goToStep(4);
+  };
+
+  const handleStepClick = (targetStep) => {
+    if (targetStep === currentStep) return;
+    goToStep(targetStep);
   };
 
   const handleBookingSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!selectedSlot) {
-      setErrors({ slot: 'Please select an available time slot before finalizing your reservation.' });
+    if (!availabilityVerified || !selectedSlot || !authoritativeQuote || isQuoteLoading || quoteError) {
+      setErrors({ slot: quoteError || (availabilityVerified ? 'Select a slot and wait for its server price before finalizing.' : 'Live availability must be verified before finalizing.') });
       goToStep(2);
       return;
     }
@@ -628,7 +685,7 @@ export default function Booking() {
           <form onSubmit={handleBookingSubmit}>
             {/* STEP 1: Select Arena & Sport */}
             {currentStep === 1 && (
-              <div className="card-arena" style={{ padding: '1.25rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
+              <div className="card-arena" style={{ borderRadius: 'var(--radius-lg)' }}>
                 {errors.facility && (
                   <div className="booking-validation-banner">
                     <AlertCircle size={15} />
@@ -803,7 +860,7 @@ export default function Booking() {
 
             {/* STEP 2: Choose Date & Time Slot (Compact & Screen Fitting) */}
             {currentStep === 2 && (
-              <div className="card-arena" style={{ padding: '1.25rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
+              <div className="card-arena" style={{ borderRadius: 'var(--radius-lg)' }}>
                 {errors.slot && (
                   <div className="booking-validation-banner">
                     <AlertCircle size={15} />
@@ -811,9 +868,37 @@ export default function Booking() {
                   </div>
                 )}
 
-                {/* Header Strip */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.55rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {/* Connectivity Notice Banner (Defect D) */}
+                {apiConfigurationIssue && (
+                  <div className="booking-connectivity-banner">
+                    <AlertCircle size={16} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>API Configuration Notice</div>
+                      <div style={{ fontSize: '0.74rem', opacity: 0.9 }}>{apiConfigurationIssue}</div>
+                    </div>
+                  </div>
+                )}
+                {isConnectivityIssue && !apiConfigurationIssue && (
+                  <div className="booking-connectivity-banner">
+                    <AlertCircle size={16} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>Live Availability Notice</div>
+                      <div style={{ fontSize: '0.74rem', opacity: 0.9 }}>{slotsError}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={handleRetryAvailability}
+                      style={{ padding: '0.2rem 0.6rem', fontSize: '0.74rem', height: 'auto', minHeight: '32px' }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {/* Header Strip (Defect B) */}
+                <div className="booking-step2-header">
+                  <div className="booking-step2-header-left">
                     <span className="badge badge-green" style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}>{currentFacilityData.name}</span>
                     <button
                       type="button"
@@ -834,7 +919,7 @@ export default function Booking() {
                       Switch Sport <ChevronRight size={12} />
                     </button>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div className="booking-step2-header-right">
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Duration:</span>
                     <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-surface)', padding: '3px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border-subtle)' }}>
                       {[1, 2, 3].map(hrs => (
@@ -917,23 +1002,27 @@ export default function Booking() {
                   </div>
                 </div>
 
-                {/* Day / Night / All Schedule Toggle Tabs */}
+                {/* Day / Night / All Schedule Toggle Tabs (Defect A) */}
                 <div className="session-toggle-container">
                   <button
                     type="button"
                     className={`session-toggle-btn ${activeSessionTab === 'all' ? 'active-all' : ''}`}
                     onClick={() => setActiveSessionTab('all')}
                   >
-                    <Clock size={13} />
-                    <span>All available slots ({slots.length})</span>
+                    <span className="session-toggle-label">
+                      <Clock size={14} />
+                      <span>All available slots ({slots.length})</span>
+                    </span>
                   </button>
                   <button
                     type="button"
                     className={`session-toggle-btn ${activeSessionTab === 'day' ? 'active-day' : ''}`}
                     onClick={() => setActiveSessionTab('day')}
                   >
-                    <Sun size={13} className="text-olive" />
-                    <span>☀️ Standard ({daySlots.length})</span>
+                    <span className="session-toggle-label">
+                      <Sun size={14} className="text-olive" />
+                      <span>Standard ({daySlots.length})</span>
+                    </span>
                     <span className="session-rate-badge text-olive">{facilityPricing.dayRate}/hr</span>
                   </button>
                   <button
@@ -941,20 +1030,39 @@ export default function Booking() {
                     className={`session-toggle-btn ${activeSessionTab === 'night' ? 'active-night' : ''}`}
                     onClick={() => setActiveSessionTab('night')}
                   >
-                    <Moon size={13} style={{ color: 'var(--brand-orange)' }} />
-                    <span>🌙 Prime ({nightSlots.length})</span>
+                    <span className="session-toggle-label">
+                      <Moon size={14} style={{ color: 'var(--brand-orange)' }} />
+                      <span>Prime ({nightSlots.length})</span>
+                    </span>
                     <span className="session-rate-badge text-orange">{facilityPricing.nightRate}/hr</span>
                   </button>
                 </div>
 
                 <div
                   aria-live="polite"
-                  style={{ minHeight: '1.25rem', margin: '0.55rem 0', fontSize: '0.76rem', color: slotsError ? 'var(--brand-orange)' : 'var(--text-muted)' }}
+                  style={{ minHeight: '1.25rem', margin: '0.45rem 0 0.6rem', fontSize: '0.76rem', color: slotsError ? 'var(--brand-orange)' : 'var(--text-muted)' }}
                 >
-                  {isLoadingSlots ? 'Refreshing live availability…' : slotsError || 'Live availability updated for this selection.'}
+                  {isLoadingSlots
+                    ? 'Refreshing live availability…'
+                    : isConnectivityIssue
+                    ? 'Reconnect to view current bookable slots.'
+                    : slotsError || 'Live availability updated for this selection.'}
                 </div>
 
                 {/* Compact Slot Chips Grid (Screen-Fitting with 24-Hour Day + Night) */}
+                {!isLoadingSlots && !availabilityVerified ? (
+                  <div className="booking-slot-empty-state" role="status">
+                    <AlertCircle size={20} />
+                    <div><strong>Live slots are unavailable</strong><span>Reconnect and refresh before choosing a time.</span></div>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={handleRetryAvailability}>Retry</button>
+                  </div>
+                ) : !isLoadingSlots && slots.length === 0 ? (
+                  <div className="booking-slot-empty-state" role="status">
+                    <CalendarIcon size={20} />
+                    <div><strong>No bookable slots for this date</strong><span>Try another day, duration, or activity.</span></div>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => goToStep(1)}>Change activity</button>
+                  </div>
+                ) : (
                 <div className="compact-slots-scroll">
                   {activeSessionTab === 'all' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -1099,6 +1207,7 @@ export default function Booking() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Selected Slot Feedback Strip */}
                 {selectedSlot && (
@@ -1121,6 +1230,7 @@ export default function Booking() {
                     <strong style={{ color: selectedSlot.peak ? 'var(--brand-orange)' : 'var(--brand-olive-bright)' }}>
                       {isQuoteLoading ? 'Confirming price…' : quoteError ? 'Quote unavailable' : `₹${quotedTotal}`}
                     </strong>
+                    {quoteError && <button type="button" className="btn btn-outline btn-sm" onClick={() => setPricingUpdateTick(t => t + 1)}>Retry</button>}
                   </div>
                 )}
 
@@ -1170,7 +1280,7 @@ export default function Booking() {
 
             {/* STEP 3: Player & Squad Details */}
             {currentStep === 3 && (
-              <div className="card-arena" style={{ padding: '1rem 1.25rem', borderRadius: 'var(--radius-lg)' }}>
+              <div className="card-arena" style={{ borderRadius: 'var(--radius-lg)' }}>
                 {Object.keys(errors).length > 0 && (
                   <div className="booking-validation-banner">
                     <AlertCircle size={15} />
@@ -1317,7 +1427,7 @@ export default function Booking() {
 
             {/* STEP 4: Review Summary & Finalize (At the End to Finalize Booking) */}
             {currentStep === 4 && (
-              <div className="card-arena highlight" style={{ padding: '1rem 1.25rem', borderRadius: 'var(--radius-lg)' }}>
+              <div className="card-arena highlight" style={{ borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.45rem' }}>
                   <div>
                     <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Review Summary &amp; Finalize</h2>

@@ -255,11 +255,12 @@ export const api = {
     return await res.json();
   },
 
-  getBookingQuote: async ({ facilityId, date, timeSlot }) => {
+  getBookingQuote: async ({ facilityId, date, timeSlot }, requestOptions = {}) => {
     const res = await fetch(`${API_BASE_URL}/v2/quotes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ facilityId, date, timeSlot }),
+      ...requestOptions,
     });
     return await res.json();
   },
