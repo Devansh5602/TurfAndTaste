@@ -66,20 +66,10 @@ try {
 
 // API Health Check
 app.get('/api/health', (req, res) => {
-  const envKeys = Object.keys(process.env).sort();
   res.json({
     status: 'online',
     service: 'Turf & Taste Backend API',
-    timestamp: new Date().toISOString(),
-    environment: {
-      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
-      hasJwtSecret: Boolean(process.env.JWT_SECRET),
-      hasRazorpayKey: Boolean(process.env.RAZORPAY_KEY_ID),
-      razorpayKeyPrefix: process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.slice(0, 8) : null,
-      vercelEnv: process.env.VERCEL_ENV || null,
-      vercelGitCommitRef: process.env.VERCEL_GIT_COMMIT_REF || null,
-      allKeysSample: envKeys.filter(k => !k.toLowerCase().includes('secret') && !k.toLowerCase().includes('pass') && !k.toLowerCase().includes('key') && !k.toLowerCase().includes('token') && !k.toLowerCase().includes('url'))
-    }
+    timestamp: new Date().toISOString()
   });
 });
 

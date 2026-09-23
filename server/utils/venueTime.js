@@ -4,7 +4,7 @@ export const VENUE_TIME_ZONE = process.env.VENUE_TIME_ZONE || 'Asia/Kolkata';
 
 const formatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: VENUE_TIME_ZONE,
-  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   hourCycle: 'h23', weekday: 'short',
 });
 
