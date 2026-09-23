@@ -1163,7 +1163,7 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
 }
 
 .session-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-raised);
   color: var(--brand-cream);
 }
 
@@ -1176,10 +1176,10 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
 }
 
 .session-toggle-btn.active-day {
-  background: rgba(74, 222, 128, 0.12);
+  background: var(--brand-green-dim);
   color: var(--brand-olive-bright, #4ade80);
-  border-color: rgba(74, 222, 128, 0.35);
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.15);
+  border-color: var(--brand-green-border);
+  box-shadow: 0 0 10px var(--brand-green-glow);
   font-weight: 700;
 }
 
@@ -1204,7 +1204,7 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
   font-size: 0.7rem;
   font-weight: 700;
   border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--bg-raised);
   border: 1px solid var(--border-subtle);
   letter-spacing: 0.02em;
 }

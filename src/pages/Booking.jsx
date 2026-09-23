@@ -1271,8 +1271,8 @@ export default function Booking() {
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => goToStep(1)}>
                     <ChevronLeft size={15} /> Change Arena
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={handleStep2Next} style={{ padding: '0.55rem 1.35rem' }}>
-                    Continue to Details <ArrowRight size={15} />
+                  <button type="button" className="btn btn-primary" onClick={handleStep2Next} disabled={!availabilityVerified || !selectedSlot || isQuoteLoading || !authoritativeQuote || Boolean(quoteError)} style={{ padding: '0.55rem 1.35rem' }}>
+                    {isQuoteLoading ? 'Confirming price…' : quoteError ? 'Retry price check' : 'Continue to Details'} <ArrowRight size={15} />
                   </button>
                 </div>
               </div>
