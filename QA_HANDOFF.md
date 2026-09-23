@@ -78,6 +78,8 @@ Complete a whole-platform mobile-first UI, UX, workflow, and shared API QA cycle
 
 ## Current QA findings to finish
 
+- Module 9 foundation and event API routes are committed. Disposable HTTP QA confirmed anonymous management creation returns `401` and the unseeded public list returns an intentional empty array. An authenticated disposable create request returned `500` despite the equivalent SQL succeeding directly against the same SQLite file. No diagnostic code, QA data, credentials, or temporary process artifacts are committed. Next: reproduce with request-level error capture, fix the route-layer cause, then complete CRUD/public allowlisting QA before Admin UI work.
+
 1. Modules 6–7 public route QA is complete for locally available desktop/browser and source-level responsive checks. Perform the still-deferred true 390px physical/device-emulator pass when a supported device viewport is available; do not treat this as already executed.
 2. Check every submit flow for loading, success, error, cancellation, and duplicate-submission states.
 3. Verify authenticated admin workflows with configured non-production credentials and a disposable database if available.
