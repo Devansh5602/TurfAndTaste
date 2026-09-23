@@ -345,6 +345,17 @@ export default function FacilityDetail({ slug }) {
                     <p className="dining-menu-status" role="status">Loading the current counter menu…</p>
                   )}
 
+                  {foodStall && !publishedMenu && foodLoadState === 'ready' && (
+                    <section className="dining-menu-empty" aria-labelledby="menu-updating-heading">
+                      <Coffee size={20} className="text-olive" aria-hidden="true" />
+                      <div>
+                        <h4 id="menu-updating-heading">Menu updates are in progress</h4>
+                        <p>This venue is open for walk-ins. Please check with the counter for today’s available food and refreshments.</p>
+                        <Link to="/contact" className="btn btn-outline btn-sm">Location &amp; opening hours</Link>
+                      </div>
+                    </section>
+                  )}
+
                   {publishedMenu && (
                     <section className="dining-menu-section" aria-labelledby="current-menu-heading">
                       <div className="dining-menu-heading">
