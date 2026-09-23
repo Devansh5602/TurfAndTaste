@@ -283,6 +283,16 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/v2/food/admin/all`, { headers: getAuthHeaders() });
     return await res.json();
   },
+  // Public food discovery deliberately uses the allowlisted v2 endpoints.
+  // It must never fall back to an admin response or expose management fields.
+  getFoodStalls: async () => {
+    const res = await fetch(`${API_BASE_URL}/v2/food`);
+    return await res.json();
+  },
+  getFoodStall: async (identifier) => {
+    const res = await fetch(`${API_BASE_URL}/v2/food/${encodeURIComponent(identifier)}`);
+    return await res.json();
+  },
   saveFoodStall: async (stall, isCreate = false) => {
     const endpoint = isCreate ? `${API_BASE_URL}/v2/food/admin/stalls` : `${API_BASE_URL}/v2/food/admin/stalls/${encodeURIComponent(stall.id)}`;
     const res = await fetch(endpoint, { method: isCreate ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(stall) });

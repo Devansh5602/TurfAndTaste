@@ -735,6 +735,53 @@
   background: linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
 }
 
+/* Public food menu: managed content may be longer than its static fallback,
+   so each row deliberately has fluid columns and a mobile single-column card. */
+.dining-menu-status {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+}
+.dining-menu-section { margin-top: 2rem; }
+.dining-menu-heading {
+  align-items: flex-end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.dining-menu-heading h3 { font-size: 1.5rem; margin: 0.5rem 0 0; }
+.dining-menu-note { color: var(--text-secondary); font-size: 0.82rem; max-width: 16rem; text-align: right; }
+.dining-menu-categories { display: grid; gap: 1rem; }
+.dining-menu-category {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+}
+.dining-menu-category h4 { font-size: 1.08rem; margin: 0; }
+.dining-menu-category > div > p { color: var(--text-secondary); font-size: 0.84rem; line-height: 1.45; margin: 0.35rem 0 0; }
+.dining-menu-items { display: grid; gap: 0.65rem; margin-top: 0.9rem; }
+.dining-menu-item {
+  align-items: flex-start;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-top: 0.75rem;
+}
+.dining-menu-item-title { align-items: center; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.dining-menu-item h5 { color: var(--brand-cream); font-size: 0.94rem; margin: 0; }
+.dining-menu-item p { color: var(--text-secondary); font-size: 0.82rem; line-height: 1.4; margin: 0.25rem 0 0; }
+.dining-menu-item > strong { color: var(--brand-olive-bright); font-size: 0.95rem; white-space: nowrap; }
+.dining-menu-dietary { color: var(--brand-cream-muted); display: inline-block; font-size: 0.72rem; margin-top: 0.35rem; text-transform: capitalize; }
+@media (max-width: 600px) {
+  .dining-menu-heading { align-items: flex-start; flex-direction: column; }
+  .dining-menu-note { max-width: none; text-align: left; }
+  .dining-menu-item { grid-template-columns: minmax(0, 1fr); }
+  .dining-menu-item > strong { margin-top: -0.25rem; }
+}
+
 /* Brand Pillars */
 .brand-intro-grid {
   display: grid;
@@ -1783,4 +1830,3 @@
 .spec-item-val {
   color: var(--text-secondary);
 }
-

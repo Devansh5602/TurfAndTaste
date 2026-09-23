@@ -20,6 +20,18 @@ import {
   Coffee
 } from 'lucide-react';
 
+const formatMenuPrice = (paise) => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+}).format(Number(paise || 0) / 100);
+
+const displayOperatingHours = (hours) => {
+  if (!Array.isArray(hours) || hours.length === 0) return null;
+  return hours.map((entry) => entry?.label).filter(Boolean).join(' · ') || null;
+};
+
 export default function FacilityDetail({ slug }) {
   const { navigate } = useRouter();
 
@@ -31,6 +43,8 @@ export default function FacilityDetail({ slug }) {
     bookingEnabled: fallbackFacility.category !== 'dining'
   } : null);
   const [notFound, setNotFound] = useState(false);
+  const [foodStall, setFoodStall] = useState(null);
+  const [foodLoadState, setFoodLoadState] = useState('idle');
   const relatedFacilities = facilitiesData
     .filter(f => f.slug !== fallbackFacility?.slug)
     .slice(0, 3);
@@ -80,6 +94,37 @@ export default function FacilityDetail({ slug }) {
   }, [slug, fallbackFacility]);
 
   useEffect(() => {
+    let cancelled = false;
+    // Dining has a rich local presentation fallback. Only the known dining
+    // routes call the food API, so sport details do not acquire a new request
+    // or dependency on the food domain.
+    if (fallbackFacility?.category !== 'dining') {
+      setFoodStall(null);
+      setFoodLoadState('idle');
+      return () => { cancelled = true; };
+    }
+
+    setFoodLoadState('loading');
+    api.getFoodStall(slug).then((result) => {
+      if (cancelled) return;
+      const publicStall = result?.success ? result?.data?.stall : null;
+      if (publicStall) {
+        setFoodStall(publicStall);
+        setFoodLoadState('ready');
+      } else {
+        setFoodStall(null);
+        setFoodLoadState('fallback');
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setFoodStall(null);
+        setFoodLoadState('fallback');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [slug, fallbackFacility]);
+
+  useEffect(() => {
     adminStore.fetchPricingAsync().then(() => {
       setLivePricing(adminStore.getFacilityPricing(slug));
     });
@@ -102,6 +147,16 @@ export default function FacilityDetail({ slug }) {
   if (!facility) {
     return <div className="section" style={{ minHeight: '55vh', display: 'grid', placeItems: 'center' }}>Loading facility…</div>;
   }
+
+  const isDining = !facility.bookingEnabled || facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours';
+  // Content supplied by the public food endpoint has precedence when it is
+  // present. Static facility copy remains the immediate, resilient fallback.
+  const displayName = foodStall?.name || facility.name;
+  const displayDescription = foodStall?.description || foodStall?.shortDescription || facility.fullDesc;
+  const displayImage = foodStall?.coverImageUrl || facility.image;
+  const managedHours = displayOperatingHours(foodStall?.operatingHours);
+  const publishedMenu = foodStall?.menuItems?.length ? foodStall : null;
+  const isParlour = foodStall?.stallType === 'parlour' || facility.id === 'snack-parlours';
 
   return (
     <div className="page-facility-detail">
@@ -128,16 +183,16 @@ export default function FacilityDetail({ slug }) {
               </div>
 
               <h1 style={{ marginBottom: '1.25rem', fontSize: 'clamp(2.4rem, 5.5vw, 4rem)' }}>
-                {facility.name}
+                {displayName}
               </h1>
 
               <p style={{ fontSize: '1.15rem', lineHeight: '1.65', marginBottom: '2rem' }}>
-                {facility.fullDesc}
+                {displayDescription}
               </p>
 
               {/* CTAs */}
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                {!facility.bookingEnabled || facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+                {isDining ? (
                   <>
                     <Link to="/facilities" className="btn btn-primary btn-lg">
                       Explore Sports Arenas
@@ -168,8 +223,8 @@ export default function FacilityDetail({ slug }) {
                 aspectRatio: '16 / 10'
               }}>
                 <img 
-                  src={facility.image} 
-                  alt={facility.name} 
+                  src={displayImage}
+                  alt={displayName}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               </div>
@@ -218,7 +273,7 @@ export default function FacilityDetail({ slug }) {
 
             {/* Right Column: Pricing & Booking Architecture for Sports vs Walk-In Experience for Dining */}
             <div>
-              {!facility.bookingEnabled || facility.category === 'dining' || facility.id === 'cafe' || facility.id === 'snack-parlours' ? (
+              {isDining ? (
                 <>
                   <h3 style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
                     Walk-In <span className="text-olive">Dining &amp; Counter Orders</span>
@@ -237,7 +292,7 @@ export default function FacilityDetail({ slug }) {
                     <div style={{ marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Service hours:</span>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--brand-cream)', lineHeight: 1.2, marginTop: '0.25rem' }}>
-                        Check before visiting <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>Hours can vary by venue</span>
+                        {managedHours || 'Check before visiting'} <span style={{ fontSize: '0.9rem', fontFamily: 'var(--font-body)', color: 'var(--text-muted)' }}>{managedHours ? 'Managed venue hours' : 'Hours can vary by venue'}</span>
                       </div>
                     </div>
 
@@ -253,14 +308,14 @@ export default function FacilityDetail({ slug }) {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <Utensils size={18} className="text-olive" />
-                        <strong style={{ fontSize: '0.92rem', color: 'var(--brand-cream)' }}>Artisan Food &amp; Recovery Smoothies</strong>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--brand-cream)' }}>{isParlour ? 'Quick counter food & refreshments' : 'Artisan food & recovery smoothies'}</strong>
                       </div>
                       <p style={{ fontSize: '0.88rem', lineHeight: '1.55', color: 'var(--text-secondary)', margin: 0 }}>
-                        Enjoy fresh chef-prepared bowls, wood-fired pizzas, healthy wraps, and cold-pressed juices directly from our counter.
+                        {foodStall?.shortDescription || 'Enjoy fresh counter food and refreshments while you recharge between sessions.'}
                       </p>
                       <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--brand-cream-muted)' }}>
                         <Coffee size={15} className="text-orange" />
-                        <span>Open-Air Turf Deck &amp; Indoor AC Lounge Seating</span>
+                        <span>{isParlour ? 'Fast concourse counter service near the arenas' : 'Open-air turf deck & indoor AC lounge seating'}</span>
                       </div>
                     </div>
 
@@ -277,7 +332,7 @@ export default function FacilityDetail({ slug }) {
                       <Info size={18} className="text-olive" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <div style={{ fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
                         <strong style={{ color: 'var(--brand-cream)', display: 'block', marginBottom: '0.2rem' }}>Walk-in Service Model</strong>
-                        Turf &amp; Taste Café operates on a walk-in counter ordering model for all players and visitors. No advance reservation or private event packages are required.
+                        {isParlour ? 'The snack parlour serves players and visitors through a walk-in counter. No advance reservation is required.' : 'Turf & Taste Café operates on a walk-in counter ordering model for all players and visitors. No advance reservation is required.'}
                       </div>
                     </div>
 
@@ -285,6 +340,54 @@ export default function FacilityDetail({ slug }) {
                       Explore Sports Arenas &amp; Rates
                     </Link>
                   </div>
+
+                  {foodLoadState === 'loading' && (
+                    <p className="dining-menu-status" role="status">Loading the current counter menu…</p>
+                  )}
+
+                  {publishedMenu && (
+                    <section className="dining-menu-section" aria-labelledby="current-menu-heading">
+                      <div className="dining-menu-heading">
+                        <div>
+                          <span className="badge badge-olive">Current counter menu</span>
+                          <h3 id="current-menu-heading">Available at {foodStall.name}</h3>
+                        </div>
+                        <span className="dining-menu-note">Prices and availability are managed by the venue.</span>
+                      </div>
+
+                      <div className="dining-menu-categories">
+                        {(foodStall.categories || []).map((category) => {
+                          const items = foodStall.menuItems.filter((item) => item.categoryId === category.id);
+                          if (items.length === 0) return null;
+                          return (
+                            <section className="dining-menu-category" key={category.id} aria-labelledby={`menu-category-${category.id}`}>
+                              <div>
+                                <h4 id={`menu-category-${category.id}`}>{category.name}</h4>
+                                {category.description && <p>{category.description}</p>}
+                              </div>
+                              <div className="dining-menu-items">
+                                {items.map((item) => (
+                                  <article className="dining-menu-item" key={item.id}>
+                                    <div>
+                                      <div className="dining-menu-item-title">
+                                        <h5>{item.name}</h5>
+                                        {item.featured && <span className="badge badge-orange">Featured</span>}
+                                      </div>
+                                      {item.description && <p>{item.description}</p>}
+                                      {item.dietaryType && item.dietaryType !== 'unspecified' && (
+                                        <span className="dining-menu-dietary">{item.dietaryType.replace('_', ' ')}</span>
+                                      )}
+                                    </div>
+                                    <strong>{formatMenuPrice(item.pricePaise)}</strong>
+                                  </article>
+                                ))}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
                 </>
               ) : (
                 <>

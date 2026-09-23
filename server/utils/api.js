@@ -17,6 +17,10 @@ export const isPlainObject = (value) => (
 export const safeJsonParse = (value, fallback = {}) => {
   try {
     const parsed = JSON.parse(value);
+    // Preserve the caller's expected JSON shape. Most v2 metadata is an
+    // object, while explicitly typed fields such as food operating hours are
+    // arrays. Do not let a malformed or wrong-shaped database value escape.
+    if (Array.isArray(fallback)) return Array.isArray(parsed) ? parsed : fallback;
     return isPlainObject(parsed) ? parsed : fallback;
   } catch {
     return fallback;
