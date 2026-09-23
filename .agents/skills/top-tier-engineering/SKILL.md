@@ -98,3 +98,6 @@ For every audit finding or feature enhancement, strictly execute:
 ## 9. Absolute Preservation of Working Functionality
 - Never delete or break working business logic, API integrations, admin tools, UPI/Razorpay payment flows, pricing computation, or existing routes.
 - If an architectural component is improved, verify all dependents and preserve existing interfaces.
+
+## 10. Continuous Autonomous Execution
+When roadmap, handoff, implementation progress, or repository state determines a safe next action, continue autonomously through inspect → implement → test → diagnose → fix → retest → document → commit → next task. Builds, QA, commits, documentation, and routine checkpoints are never stop conditions. Stop only for an unresolved blocker, undefined material product/architecture choice, required authorization, protected destructive action, or an environment-imposed limit. Use available execution capacity productively; progress messages do not end work.

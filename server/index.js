@@ -15,6 +15,7 @@ import facilityRoutes from './routes/facilities.js';
 import v2SettingsRoutes from './routes/v2/settings.js';
 import v2QuoteRoutes from './routes/v2/quotes.js';
 import v2FoodRoutes from './routes/v2/food.js';
+import v2EventRoutes from './routes/v2/events.js';
 import { sendError } from './utils/api.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -55,6 +56,7 @@ app.use('/api/facilities', facilityRoutes);
 app.use('/api/v2/settings', v2SettingsRoutes);
 app.use('/api/v2/quotes', v2QuoteRoutes);
 app.use('/api/v2/food', v2FoodRoutes);
+app.use('/api/v2/events', v2EventRoutes);
 app.use('/api', pricingRoutes); // Alias for /api/timings
 
 // 404 Handler for undefined API routes
