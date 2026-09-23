@@ -7,7 +7,7 @@ const TABS = [
   { path: '/facilities',  label: 'Venues',     Icon: Layers,        id: 'facilities' },
   { path: '/booking',     label: 'Book',       Icon: Calendar,      id: 'book', special: true },
   { path: '/my-bookings', label: 'Bookings',   Icon: BookmarkCheck, id: 'my-bookings' },
-  { path: '/profile',     label: 'Profile',    Icon: User,          id: 'profile' },
+  { path: '/profile',     label: 'Details',    Icon: User,          id: 'profile' },
 ];
 
 export default function BottomTabBar() {

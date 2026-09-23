@@ -40,7 +40,7 @@ cd android
 
 ## 3. Backend API Connection for Mobile
 
-When running on the web, the app connects to `/api` (local Vite proxy). On mobile apps, the app runs locally inside a native Webview (`https://localhost`).
+When running on the web, the app connects to `/api` (local Vite proxy). On mobile apps, the app runs locally inside a native WebView and **does not have that proxy**. A packaged Android/iOS build must be built with an explicit `VITE_API_URL`; otherwise the app fails fast with a configuration error instead of trying to parse the WebView app shell as an API response.
 
 To connect the mobile app to your Express backend:
 1. In development on an Android Emulator:
@@ -49,6 +49,8 @@ To connect the mobile app to your Express backend:
    Set `VITE_API_URL=http://<YOUR_PC_LAN_IP>:5000/api` (e.g. `http://192.168.1.10:5000/api`)
 3. In production:
    Set `VITE_API_URL=https://your-domain.com/api` before running `npm run cap:sync`.
+
+`VITE_API_URL` is baked into the web bundle at build time. Confirm it targets a reachable API (not `localhost`) before distributing an APK. Do not put `RAZORPAY_KEY_SECRET` or any private gateway key in a `VITE_*` variable. Razorpay's publishable key is returned only with a server-created payment order.
 
 ---
 

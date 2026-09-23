@@ -6,7 +6,6 @@
 import { api } from './api';
 
 export const PAYMENT_CONFIG = {
-  DEFAULT_KEY_ID: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TbF1a3Bp9BA4sZ',
   CURRENCY: 'INR'
 };
 
@@ -28,7 +27,10 @@ export const initializePaymentOrder = async ({ type, bookingReference, customer,
         orderId: res.orderId,
         amount: res.amount,
         currency: res.currency,
-        keyId: res.keyId || PAYMENT_CONFIG.DEFAULT_KEY_ID,
+        // The publishable gateway key comes from the same server that created
+        // the persisted, signed-order context. Never use a bundled fallback
+        // key that can be out of sync with that order.
+        keyId: res.keyId,
         isLiveRazorpay: res.isLiveRazorpay,
         paymentType: type,
         status: 'created'
@@ -62,7 +64,12 @@ export const openRazorpayCheckout = ({
     return;
   }
 
-  const effectiveKey = keyId || PAYMENT_CONFIG.DEFAULT_KEY_ID;
+  if (!keyId) {
+    onError(new Error('The payment gateway is not configured for this environment. Please choose UPI review or contact the arena.'));
+    return;
+  }
+
+  const effectiveKey = keyId;
   const rawPhone = String(customer?.phone || '').replace(/[^0-9]/g, '');
   const cleanPhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : rawPhone;
 

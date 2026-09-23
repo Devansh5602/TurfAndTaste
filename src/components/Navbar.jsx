@@ -63,9 +63,9 @@ export default function Navbar() {
             <Link
               to="/profile"
               className={`btn btn-outline btn-sm${currentPath === '/profile' ? ' active' : ''}`}
-              title="Player Profile"
+              title="Booking details"
             >
-              <User size={15} /> Profile
+              <User size={15} /> Details
             </Link>
             <Link
               to="/admin"
@@ -85,8 +85,8 @@ export default function Navbar() {
             <Link
               to="/profile"
               className={`header-profile-btn${currentPath === '/profile' ? ' active' : ''}`}
-              aria-label="Player Profile"
-              title="Player Profile"
+              aria-label="Booking details"
+              title="Booking details"
             >
               <User size={19} />
             </Link>
@@ -171,7 +171,7 @@ export default function Navbar() {
             onClick={() => setDrawerOpen(false)}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-              <User size={16} /> Player Profile & Settings
+              <User size={16} /> Booking Details & Settings
             </span>
             <ChevronRight size={16} className="mobile-nav-arrow" />
           </Link>

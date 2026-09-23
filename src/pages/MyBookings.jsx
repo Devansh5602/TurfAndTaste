@@ -227,7 +227,7 @@ export default function MyBookings() {
             {categorizedBookings.map((booking) => {
               const facName = booking.facility || booking.facilityName || 'Sports Arena';
               const timeDisplay = booking.slot?.time || booking.time || '60 Min Session';
-              const customerName = booking.customer?.name || booking.customerName || 'Player';
+              const customerName = booking.customer?.name || booking.customerName || 'Booking guest';
               const amountDisplay = booking.amount || (booking.paymentType === 'full' ? 'Full Paid' : 'Token Deposit');
 
               return (
@@ -385,13 +385,13 @@ export default function MyBookings() {
                 <div className="pass-field">
                   <span className="pass-field-label">Primary Player</span>
                   <span className="pass-field-value">
-                    {selectedBooking.customer?.name || selectedBooking.customerName || 'Player'}
+                    {selectedBooking.customer?.name || selectedBooking.customerName || 'Booking guest'}
                   </span>
                 </div>
                 <div className="pass-field">
                   <span className="pass-field-label">Contact</span>
                   <span className="pass-field-value">
-                    {selectedBooking.customer?.phone || selectedBooking.customerPhone || 'N/A'}
+                    {selectedBooking.customer?.phone || selectedBooking.customerPhone || 'Not provided'}
                   </span>
                 </div>
               </div>

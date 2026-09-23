@@ -11,7 +11,74 @@
  * Set VITE_API_URL in .env or .env.local to override.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { Capacitor } from '@capacitor/core';
+
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const isNativeApp = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+
+// The Vite proxy only exists while developing the website. A packaged
+// Capacitor app is served from its own WebView origin, so a relative `/api`
+// request can resolve to the app shell and return index.html rather than JSON.
+// Refuse that unsafe ambiguity early and require an explicitly reachable API.
+const API_BASE_URL = configuredApiBaseUrl || '/api';
+
+export const getApiConfigurationIssue = () => {
+  if (isNativeApp && !configuredApiBaseUrl) {
+    return 'This mobile build has no API endpoint configured. Rebuild with VITE_API_URL set to the reachable HTTPS API base URL (for example, https://api.example.com/api).';
+  }
+  return null;
+};
+
+const apiFetch = async (path, options) => {
+  const configurationIssue = getApiConfigurationIssue();
+  if (configurationIssue) {
+    const error = new Error(configurationIssue);
+    error.code = 'API_CONFIGURATION_REQUIRED';
+    throw error;
+  }
+
+  const url = path;
+  let response;
+  try {
+    response = await globalThis.fetch(url, options);
+  } catch (cause) {
+    const error = new Error('Unable to reach the Turf & Taste service. Check your connection and try again.');
+    error.code = 'API_NETWORK_ERROR';
+    error.cause = cause;
+    throw error;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!/application\/json|\+json/i.test(contentType)) {
+    // Consume only a small preview for diagnostics. It is intentionally not
+    // surfaced to customers because it may contain a proxy/server error page.
+    const preview = (await response.text()).slice(0, 120).replace(/\s+/g, ' ').trim();
+    const endpoint = String(path).replace(/^https?:\/\/[^/]+/i, '');
+    const error = new Error(`The service returned an unexpected non-JSON response (${response.status}) for ${endpoint}. Verify the mobile API URL and server route.`);
+    error.code = 'API_UNEXPECTED_RESPONSE';
+    error.status = response.status;
+    error.endpoint = endpoint;
+    error.responsePreview = preview;
+    throw error;
+  }
+  const parseJson = response.json.bind(response);
+  response.json = async () => {
+    try {
+      return await parseJson();
+    } catch (cause) {
+      const error = new Error('The service returned malformed JSON. Please retry; if this continues, contact the arena.');
+      error.code = 'API_INVALID_JSON';
+      error.status = response.status;
+      error.cause = cause;
+      throw error;
+    }
+  };
+  return response;
+};
+
+// Keep existing API methods concise while ensuring every service request gets
+// the native-configuration and JSON-content safeguards above.
+const fetch = apiFetch;
 
 const getAuthHeaders = () => {
   const token = typeof window !== 'undefined' ? sessionStorage.getItem('tt_admin_jwt') : null;

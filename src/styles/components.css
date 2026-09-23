@@ -718,6 +718,15 @@ input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--b
   .stepper-pill-label {
     font-size: 0.75rem;
   }
+  /* Four full step labels do not fit safely on narrow phones. The header
+     already announces the current step, so retain its text and use the
+     numbered sequence for context rather than clipping the final control. */
+  .stepper-pill-label {
+    display: none;
+  }
+  .stepper-pill.active .stepper-pill-label {
+    display: inline;
+  }
   .stepper-divider {
     min-width: 4px;
     height: 2px;

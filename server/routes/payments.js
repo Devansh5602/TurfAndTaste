@@ -66,22 +66,11 @@ router.post('/create-order', async (req, res) => {
       });
     }
 
-    // Fallback simulation mode
-    const mockOrderId = `order_sim_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
-
-    await dbAsync.run(
-      'INSERT INTO payment_orders (order_id, quote_id, booking_reference, expected_amount, payment_type, quote_context) VALUES (?, ?, ?, ?, ?, ?)',
-      [mockOrderId, quote.quoteId, bookingReference || quote.quoteId, numericAmount, requestedPaymentType, JSON.stringify(quote)],
-    );
-    res.json({
-      success: true,
-      isLiveRazorpay: false,
-      orderId: mockOrderId,
-      amount: numericAmount,
-      currency: 'INR',
-      keyId: 'rzp_test_simulated_key',
-      quoteId: quote.quoteId,
-      message: 'Simulated Payment Order initialized'
+    // A browser must never receive a fake order/key and attempt a gateway
+    // checkout. Manual UPI remains a separate, staff-reviewed flow.
+    return res.status(503).json({
+      success: false,
+      error: 'Online payments are not configured for this environment. Please use UPI review or contact the arena.'
     });
   } catch (err) {
     console.error('[Payment Order Error]:', err);
@@ -152,9 +141,12 @@ router.post('/verify', async (req, res) => {
       const facilityName = quote.facilityName;
       const date = quote.date;
       const timeSlot = quote.timeSlot;
-      const customerName = b.customer?.name || b.customerName || 'Guest Player';
-      const customerPhone = b.customer?.phone || b.customerPhone || 'N/A';
-      const customerEmail = b.customer?.email || b.customerEmail || 'N/A';
+      const customerName = String(b.customer?.name || b.customerName || '').trim();
+      const customerPhone = String(b.customer?.phone || b.customerPhone || '').replace(/\D/g, '');
+      const customerEmail = String(b.customer?.email || b.customerEmail || '').trim();
+      if (customerName.length < 2 || !/^[6-9]\d{9}$/.test(customerPhone)) {
+        return res.status(400).json({ success: false, error: 'A valid customer name and 10-digit mobile number are required to confirm payment.' });
+      }
       const teamName = b.customer?.teamName || b.teamName || '';
       const duration = quote.durationHours;
       const bPaymentType = orderContext.payment_type;

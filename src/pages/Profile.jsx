@@ -5,24 +5,25 @@ import ThemeToggle from '../components/ThemeToggle';
 import {
   User, Phone, Mail, BookmarkCheck, CreditCard,
   Settings, HelpCircle, Shield, LogOut, ChevronRight,
-  Edit2, Check, X, ShieldAlert, Sparkles, Trophy,
+  Edit2, Check, X, ShieldAlert, Sparkles,
   FileText, MessageCircle, ExternalLink
 } from 'lucide-react';
 
 export default function Profile() {
   const { navigate } = useRouter();
 
-  // Load user profile from localStorage or provide clean defaults
+  // This is device-local booking convenience data, not a customer account or
+  // authenticated identity. Customer account/OTP work is intentionally a
+  // later module; never render a seeded persona as a signed-in user.
   const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('turf_user_profile');
       if (stored) return JSON.parse(stored);
     } catch {}
     return {
-      name: 'Player',
+      name: '',
       phone: localStorage.getItem('turf_user_phone') || '',
       email: localStorage.getItem('turf_user_email') || '',
-      memberSince: '2026',
     };
   });
 
@@ -32,7 +33,7 @@ export default function Profile() {
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [totalBookingsCount, setTotalBookingsCount] = useState(0);
   const [customerBookings, setCustomerBookings] = useState([]);
-  const hasProfileDetails = Boolean(profile.phone && profile.email && profile.name && profile.name !== 'Player');
+  const hasProfileDetails = Boolean(profile.phone && profile.email && profile.name);
 
   useEffect(() => {
     const phone = String(profile.phone || '').replace(/\D/g, '').slice(-10);
@@ -83,19 +84,16 @@ export default function Profile() {
               <div className="profile-avatar">
                 <User size={36} className="text-green" />
               </div>
-              <div className="profile-badge-tier">
-                <Trophy size={12} className="text-orange" />
-              </div>
             </div>
 
             <div className="profile-details">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <h1 className="profile-name">{profile.name}</h1>
+                <h1 className="profile-name">{profile.name || 'Guest booking details'}</h1>
                 <button
                   onClick={() => { setEditForm(profile); setIsEditing(true); }}
                   className="profile-edit-btn"
-                  title="Edit Profile"
-                  aria-label="Edit Profile"
+                  title="Edit booking details"
+                  aria-label="Edit booking details"
                 >
                   <Edit2 size={13} />
                 </button>
@@ -111,6 +109,9 @@ export default function Profile() {
               </div>
             </div>
           </div>
+          <p style={{ margin: '0.75rem 0 0', color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.45 }}>
+            Saved on this device for faster booking. This is not a signed-in customer account.
+          </p>
 
           {/* Quick Stats Strip */}
           <div className="profile-stats-strip">
@@ -120,8 +121,8 @@ export default function Profile() {
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat-box">
-              <span className="profile-stat-number text-green">{hasProfileDetails ? 'Member' : 'Guest'}</span>
-              <span className="profile-stat-label">Status Tier</span>
+              <span className="profile-stat-number text-green">{hasProfileDetails ? 'Saved' : 'Guest'}</span>
+              <span className="profile-stat-label">Device details</span>
             </div>
             <div className="profile-stat-divider" />
             <div className="profile-stat-box">
@@ -158,7 +159,7 @@ export default function Profile() {
             </div>
             <div className="profile-menu-content">
               <span className="profile-menu-title">Payment & Receipts</span>
-              <span className="profile-menu-desc">UPI, Razorpay tokens, and booking deposits</span>
+              <span className="profile-menu-desc">Payment review, confirmations, and booking receipts</span>
             </div>
             <ChevronRight size={18} className="text-muted" />
           </button>
@@ -233,8 +234,8 @@ export default function Profile() {
               <LogOut size={18} />
             </div>
             <div className="profile-menu-content">
-              <span className="profile-menu-title" style={{ color: '#EF4444' }}>Reset App Data</span>
-              <span className="profile-menu-desc">Clear cached credentials and restart session</span>
+              <span className="profile-menu-title" style={{ color: '#EF4444' }}>Clear device details</span>
+              <span className="profile-menu-desc">Remove saved booking details and restart as a guest</span>
             </div>
             <ChevronRight size={18} className="text-muted" />
           </button>
@@ -252,7 +253,7 @@ export default function Profile() {
         <div className="modal-overlay" onClick={() => setIsEditing(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Edit Player Profile</h3>
+              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Save booking details on this device</h3>
               <button onClick={() => setIsEditing(false)} className="modal-close-btn" aria-label="Close">
                 <X size={18} />
               </button>

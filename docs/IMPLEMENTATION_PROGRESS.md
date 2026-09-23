@@ -7,6 +7,14 @@
 - **Existing stable capabilities:** public facility discovery, customer booking wizard, server-side overlap checks, pricing/timing administration, maintenance blocks, direct-UTR review flow, Razorpay signature verification path, admin booking operations, inquiries, and annual archive generation.
 - **Latest checks before v2 work:** `npm run build`, server syntax checks, and diff validation passed in the prior QA cycle. Capacitor Android sync remains blocked locally because Capacitor 8 needs Node 22 while the available runtime is Node 20.
 
+## Android / clean-install stabilization — 2026-09-23
+
+- A physical Android test at approximately **384 × 832 CSS pixels** reported a payment failure that parsed an HTML/DOCTYPE response as JSON. The authoritative branch trace found that a bundled Capacitor app without `VITE_API_URL` falls back to relative `/api`; Vite's web-only proxy is absent inside the WebView, so that request can resolve to the app shell rather than Express.
+- The API client now rejects an unconfigured native API endpoint before making a relative request and detects non-JSON/malformed JSON responses with a safe endpoint/status diagnostic. Android/iOS builds must set a device-reachable `VITE_API_URL` (HTTPS for deployed builds) before `cap:sync`; no secret is exposed through Vite variables.
+- Razorpay checkout now uses only the publishable key returned by the server-created order. The former simulated order/key fallback was removed: an unconfigured gateway returns `503`, while manual UPI remains a separate `Payment Review` flow. Isolated QA created a real Razorpay **test** order from a signed quote (₹200 deposit) and verified an invalid signature returns `400` before booking confirmation. A successful provider capture/callback/replay still requires a real test-gateway completion and is not claimed here.
+- A clean browser session at the mandatory 384 × 832 viewport no longer shows a seeded `Player`/`Member` identity. The Profile route is explicitly device-local **booking details**, not a login; guest booking is supported, while registration, login, logout, session restoration, customer profile sync, and identity-protected history remain unimplemented **Module 13** work. The legacy phone/email lookup is not an authentication boundary.
+- Focused browser viewport QA at 384 × 832 found and fixed a clipped booking-stepper label. The active step remains named while the numbered sequence stays visible on narrow screens. Home, Facilities, valid/invalid Facility Detail, Booking, Inquiry, Pricing, Contact, About, My Bookings, and guest details were exercised with no document-level horizontal overflow. This is browser viewport evidence only; it is not a replacement for a rebuilt physical Android regression run.
+
 ## Audit summary — 2026-09-22
 
 ### Current implementation strengths
