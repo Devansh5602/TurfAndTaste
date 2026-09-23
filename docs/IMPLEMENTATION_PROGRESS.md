@@ -21,6 +21,7 @@
 - Live availability is now a hard integrity boundary. A failed request produces a recovery state with no locally generated selectable slots, invalidates downstream slot/quote state, and prevents Step 3 progression. Quote confirmation has explicit requesting/success/error states, cancellation, stale-response protection, a 15-second timeout, and retry—there is no infinite “confirming server price” path.
 - The server now computes availability from managed facility schedules and `Asia/Kolkata` venue time (configurable via `VENUE_TIME_ZONE`). Past dates, already-started current-day slots, inactive facilities, closed days, maintenance, bookings, and slots extending after closing are excluded/rejected independently of the client. This does not add a new lead-time policy.
 - Isolated SQLite API QA verified future availability and past-slot quote rejection; server syntax, production build, and `git diff --check` pass. Physical Android re-verification remains pending a Node 22+ Capacitor build with an explicit reachable HTTPS `VITE_API_URL`; no physical-device or Razorpay-success claim is made for this slice.
+- Browser regression at 360×800, 384×832, and 412×860 found no document overflow. The offline booking state presents a recovery action and disables continuation rather than exposing stale inventory; light-theme token inspection confirms the session controls and docked action surface use light semantic values. Device-native keyboard, safe-area and payment execution still require the rebuilt APK gate.
 
 ## Audit summary — 2026-09-22
 
