@@ -141,6 +141,44 @@
   --z-toast:    2000;
   --z-tab-bar:  950;
 
+  /* ── Breakpoints & Layout Container Sizing ── */
+  --container-max:        1240px;
+  --container-mobile-max: 480px;
+  --breakpoint-sm:        640px;
+  --breakpoint-md:        768px;
+  --breakpoint-lg:        1024px;
+  --breakpoint-xl:        1280px;
+
+  /* ══════════════════════════════════════════════
+     SEMANTIC DESIGN TOKENS FOUNDATION
+     Mapped 1:1 to Theme Engine for Figma Redesign
+     ══════════════════════════════════════════════ */
+  --color-bg-base:             var(--bg-base);
+  --color-bg-surface:          var(--bg-surface);
+  --color-bg-surface-elevated: var(--bg-surface-elevated);
+  --color-bg-card:             var(--bg-card);
+  --color-bg-input:            var(--bg-input);
+  --color-bg-overlay:          var(--bg-overlay);
+
+  --color-text-primary:        var(--text-primary);
+  --color-text-secondary:      var(--text-secondary);
+  --color-text-muted:          var(--text-muted);
+
+  --color-brand-primary:       var(--brand-green);
+  --color-brand-primary-light: var(--brand-green-bright);
+  --color-brand-primary-deep:  var(--brand-green-deep);
+  --color-brand-secondary:     var(--brand-orange);
+  --color-brand-accent:        var(--brand-orange-bright);
+
+  --color-status-success:      var(--brand-green);
+  --color-status-warning:      var(--brand-orange);
+  --color-status-danger:       var(--brand-crimson);
+  --color-status-info:         #3B82F6;
+
+  --color-border-subtle:       var(--border-subtle);
+  --color-border-strong:       var(--border-strong);
+  --color-border-focus:        var(--border-highlight);
+
   /* ── Misc ── */
   --font-size-data: 0.8125rem;
 }

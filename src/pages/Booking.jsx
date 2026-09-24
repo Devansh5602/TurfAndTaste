@@ -12,6 +12,7 @@ import {
 import CourtBackground from '../components/CourtBackground';
 import SectionHeading from '../components/SectionHeading';
 import ConfirmationModal from '../components/ConfirmationModal';
+import BookingStepperNav from '../components/booking/BookingStepperNav';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -618,69 +619,7 @@ export default function Booking() {
           </div>
 
           {/* Stepper Progress Bar: [✓ Arena] — [2 Slot] — [3 Details] — [4 Summary] */}
-          <nav className="booking-stepper" aria-label="Booking steps progress">
-            {/* Step 1 */}
-            <button
-              type="button"
-              className={`stepper-pill ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}
-              onClick={() => handleStepClick(1)}
-              aria-label="Step 1: Arena"
-              aria-current={currentStep === 1 ? 'step' : undefined}
-            >
-              <span className="stepper-pill-icon">
-                {currentStep > 1 ? <Check size={12} strokeWidth={3} /> : '1'}
-              </span>
-              <span className="stepper-pill-label">Arena</span>
-            </button>
-
-            <div className={`stepper-divider ${currentStep > 1 ? 'filled' : ''}`} />
-
-            {/* Step 2 */}
-            <button
-              type="button"
-              className={`stepper-pill ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : currentStep < 2 ? 'future' : ''}`}
-              onClick={() => handleStepClick(2)}
-              aria-label="Step 2: Slot"
-              aria-current={currentStep === 2 ? 'step' : undefined}
-            >
-              <span className="stepper-pill-icon">
-                {currentStep > 2 ? <Check size={12} strokeWidth={3} /> : '2'}
-              </span>
-              <span className="stepper-pill-label">Slot</span>
-            </button>
-
-            <div className={`stepper-divider ${currentStep > 2 ? 'filled' : ''}`} />
-
-            {/* Step 3 */}
-            <button
-              type="button"
-              className={`stepper-pill ${currentStep === 3 ? 'active' : ''} ${currentStep > 3 ? 'completed' : currentStep < 3 ? 'future' : ''}`}
-              onClick={() => handleStepClick(3)}
-              aria-label="Step 3: Details"
-              aria-current={currentStep === 3 ? 'step' : undefined}
-            >
-              <span className="stepper-pill-icon">
-                {currentStep > 3 ? <Check size={12} strokeWidth={3} /> : '3'}
-              </span>
-              <span className="stepper-pill-label">Details</span>
-            </button>
-
-            <div className={`stepper-divider ${currentStep > 3 ? 'filled' : ''}`} />
-
-            {/* Step 4 */}
-            <button
-              type="button"
-              className={`stepper-pill ${currentStep === 4 ? 'active' : ''} ${currentStep < 4 ? 'future' : ''}`}
-              onClick={() => handleStepClick(4)}
-              aria-label="Step 4: Summary"
-              aria-current={currentStep === 4 ? 'step' : undefined}
-            >
-              <span className="stepper-pill-icon">
-                4
-              </span>
-              <span className="stepper-pill-label">Summary</span>
-            </button>
-          </nav>
+          <BookingStepperNav currentStep={currentStep} onStepClick={handleStepClick} />
 
           <form onSubmit={handleBookingSubmit}>
             {/* STEP 1: Select Arena & Sport */}
