@@ -34,6 +34,7 @@
   - [Installation](#installation)
   - [Running Locally](#running-locally)
 - [Environment Variables](#-environment-variables)
+- [Branch & Deployment Workflow](#-branch--deployment-workflow)
 - [API Reference](#-api-reference)
 - [Keyboard Shortcuts](#-keyboard-shortcuts)
 - [Production Build](#-production-build)
@@ -298,6 +299,21 @@ SMTP_FROM="Turf & Taste Sports Complex" <alerts@turfandtaste.com>
 ```
 
 > **Note**: If `DATABASE_URL` is omitted or temporarily unreachable, the backend automatically operates in graceful in-memory storage mode so development is never blocked.
+
+---
+
+## 🔀 Branch & Deployment Workflow
+
+Turf & Taste operates on a four-tier Git & deployment release model:
+
+- **`main`**: Production source and deployment (`https://turf-and-taste.vercel.app`).
+- **`develop`**: Shared integration baseline for all new features and backend changes.
+- **`release/web`**: Web pre-production and QA deployment.
+- **`release/app`**: Mobile / backend QA and stable API target for Capacitor APK builds.
+
+> **Single Shared Backend**: All backend/API/database updates originate from `develop` and propagate down to both release branches.
+
+For full details on working branch conventions, environment variable mapping, and release procedures, see [`docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md`](./docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md).
 
 ---
 
