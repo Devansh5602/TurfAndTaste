@@ -16,6 +16,7 @@ import Inquiry from './pages/Inquiry';
 import Admin from './pages/Admin';
 import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
+import CustomerMobilePrototype from './prototype/customerMobile/CustomerMobilePrototype';
 
 function NotFound() {
   return (
@@ -40,6 +41,7 @@ function RouteRenderer() {
   }
 
   switch (path) {
+    case '/prototype/customer-mobile': return <CustomerMobilePrototype />;
     case '/':            return <Home />;
     case '/about':       return <About />;
     case '/facilities':  return <Facilities />;
@@ -58,7 +60,12 @@ function RouteRenderer() {
 function AppLayout() {
   const { currentPath } = useRouter();
   const path = currentPath.toLowerCase().replace(/\/$/, '') || '/';
+  const isPrototypeRoute = path === '/prototype/customer-mobile';
   const isAppFlowRoute = ['/booking', '/my-bookings', '/profile', '/admin'].includes(path);
+
+  if (isPrototypeRoute) {
+    return <RouteRenderer />;
+  }
 
   return (
     <div className="app-shell">
