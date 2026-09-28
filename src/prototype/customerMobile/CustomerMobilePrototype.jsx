@@ -36,7 +36,7 @@ function Header({ title, back, onBack, actions = true }) {
 }
 
 function BottomNav({ screen, go }) {
-  const items = [['home', 'Home', 'home'], ['bookings', 'Bookings', 'bookings'], ['events', 'Explore', 'events'], ['dining', 'Dining', 'dining'], ['profile', 'Profile', 'profile']];
+  const items = [['home', 'Home', 'home'], ['bookings', 'Bookings', 'bookings'], ['events', 'Events', 'events'], ['dining', 'Dining', 'dining'], ['profile', 'Profile', 'profile']];
   return <nav className="cm-bottom-nav" aria-label="Customer navigation">{items.map(([icon, label, route]) => <button key={route} className={screen === route || (route === 'home' && screen === 'home') ? 'active' : ''} onClick={() => go(route)}><AppIcon name={icon} /><span>{label}</span></button>)}</nav>;
 }
 
@@ -110,38 +110,48 @@ export default function CustomerMobilePrototype() {
 
 function HomeScreen({ go, beginBooking }) {
   return <div className="cm-page cm-home">
-    <header className="cm-home-header">
-      <button className="cm-location-selector" aria-label="Current location: Patan, Gujarat">
-        <span className="cm-location-pin"><MapPin size={17}/></span>
-        <span><small>YOUR LOCATION</small><strong>Patan, Gujarat</strong></span>
-        <ChevronDown size={15}/>
-      </button>
-      <button className="cm-icon-button" aria-label="Notifications"><Bell /></button>
+    <header className="cm-home-header" aria-label="Home header">
+      <h1>Home</h1>
+      <div className="cm-home-header-actions">
+        <button className="cm-icon-button" aria-label="Notifications"><Bell /></button>
+        <button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button>
+      </div>
     </header>
+
+    <button className="cm-location-selector" aria-label="Current location: Bopal, Ahmedabad">
+      <span className="cm-location-pin"><MapPin size={16}/></span>
+      <span><small>LOCATION</small><strong>Bopal, Ahmedabad</strong></span>
+      <ChevronDown size={15}/>
+    </button>
 
     <section className="cm-clubhouse-greeting">
       <p className="cm-overline">CLUBHOUSE LOUNGE</p>
       <h1>Good afternoon,<br/>Devansh</h1>
-      <p>Choose a court, gather your crew, and make today count.</p>
     </section>
 
     <button className="cm-reserve-spotlight" onClick={() => beginBooking()}>
       <img src="/images/hero_arena.jpg" alt=""/>
       <span className="cm-spotlight-scrim"/>
-      <span className="cm-spotlight-copy"><small>RESERVE YOUR SLOT</small><strong>Ready for<br/><em>your game?</em></strong><span>Check live venue availability</span></span>
-      <span className="cm-spotlight-action" aria-hidden="true"><ArrowRight size={18}/></span>
-      <span className="cm-spotlight-availability"><i/> Live availability</span>
+      <span className="cm-spotlight-copy"><small>PRIME EVENING SLOTS</small><strong>Reserve Your Slot</strong><span>Fast Filling Today</span></span>
+      <span className="cm-spotlight-tags"><i>FAST FILLING</i></span>
+      <span className="cm-spotlight-book">Book Now <ArrowRight size={16}/></span>
     </button>
 
     <section className="cm-home-arenas">
-      <div className="cm-home-section-head"><div><p className="cm-overline">PLAY YOUR WAY</p><h2>Authorized Arenas</h2></div><button onClick={() => go('facilities')}>View all <ChevronRight size={15}/></button></div>
-      <div className="cm-home-sport-filters" aria-label="Sport filters"><button className="selected">All</button><button>Cricket</button><button>Skating</button><button>Pickle Ball</button><button>Practice</button></div>
-      <div className="cm-home-arena-list">{prototypeFacilities.slice(0, 3).map((facility) => <button key={facility.id} className="cm-home-arena-card" onClick={() => go('facility', { facility })}><img src={facility.image} alt=""/><span><small>{facility.label}</small><strong>{facility.name}</strong><em><Star size={12} fill="currentColor"/>{facility.rating}</em></span></button>)}</div>
+      <div className="cm-home-section-head"><div><h2>Authorized Arenas</h2></div><button onClick={() => go('facilities')}>See all <ChevronRight size={15}/></button></div>
+      <div className="cm-home-sport-filters" aria-label="Authorized sports">
+        <button className="selected">All Activities</button>
+        {prototypeFacilities.map((facility) => <button key={facility.id}>{facility.name}</button>)}
+      </div>
     </section>
 
     <section className="cm-quick-match-section">
-      <div className="cm-home-section-head"><div><p className="cm-overline">BOOK IN MINUTES</p><h2>Quick Match Booking</h2></div></div>
-      <button className="cm-quick-match-card" onClick={() => beginBooking(prototypeFacilities[0])}><span className="cm-quick-match-icon"><CalendarDays size={19}/></span><span><strong>Find an open session</strong><small>Pick a venue, date and time</small></span><span className="cm-quick-match-arrow"><ArrowRight size={17}/></span></button>
+      <div className="cm-home-section-head"><div><h2>Quick Match Booking</h2></div></div>
+      <div className="cm-quick-match-list">{prototypeFacilities.map((facility) => <button className="cm-quick-match-card" key={facility.id} onClick={() => beginBooking(facility)}>
+        <span className="cm-quick-match-media"><img src={facility.image} alt=""/><span className="cm-quick-match-overlay cm-quick-match-rating"><Star size={12} fill="currentColor"/>{facility.rating}</span><span className="cm-quick-match-overlay cm-quick-match-distance"><MapPin size={12}/> Bopal</span><span className="cm-quick-match-overlay cm-quick-match-status">Open now</span></span>
+        <span className="cm-quick-match-details"><span className="cm-quick-match-badge">{facility.service}</span><strong>{facility.name}</strong><small><MapPin size={12}/> Bopal, Ahmedabad</small><span className="cm-quick-match-rate"><b>From</b> [Configured Tariff]</span><em><Clock3 size={12}/> [Next available slot]</em></span>
+        <span className="cm-quick-match-cta">Book Slot <ArrowRight size={15}/></span>
+      </button>)}</div>
     </section>
   </div>;
 }
