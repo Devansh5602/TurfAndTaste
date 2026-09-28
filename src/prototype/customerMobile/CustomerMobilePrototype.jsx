@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, ChevronRight, CircleAlert,
+  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert,
   Clock3, CreditCard, FileText, HelpCircle, Home, Info, LockKeyhole, MapPin,
   Menu, Moon, NotebookTabs, PlayCircle, Plus, ReceiptText, Search, Settings,
   ShieldCheck, Sparkles, Star, Sun, TicketCheck, UtensilsCrossed, UserRound,
@@ -109,7 +109,41 @@ export default function CustomerMobilePrototype() {
 }
 
 function HomeScreen({ go, beginBooking }) {
-  return <div className="cm-page cm-home"><Header /><section className="cm-hero"><p className="cm-overline">YOUR CLUBHOUSE, YOUR TIME</p><h1>Find your<br /><em>next play.</em></h1><p>Discover the grounds, pick a session and make it yours.</p><Button onClick={() => beginBooking()} icon={ArrowRight}>Book a venue</Button></section><section><SectionTitle eyebrow="DISCOVER" title="Play your way" action="See all" onAction={() => go('facilities')} /><div className="cm-horizontal-list">{prototypeFacilities.slice(0, 3).map((facility) => <FacilityCard key={facility.id} facility={facility} go={go} compact />)}</div></section><section className="cm-quick-grid"><button onClick={() => go('events')}><CalendarDays /><span>Events</span><small>What’s on</small></button><button onClick={() => go('dining')}><UtensilsCrossed /><span>Dining</span><small>Explore outlets</small></button></section><section><SectionTitle eyebrow="AT THE CLUBHOUSE" title="Coming up" action="View events" onAction={() => go('events')} />{prototypeEvents.slice(0, 1).map((item) => <button className="cm-event-strip" key={item.id} onClick={() => go('event', { event: item })}><img src={item.image} alt="" /><div><span>{item.date}</span><strong>{item.title}</strong><small>{item.time}</small></div><ChevronRight /></button>)}</section></div>;
+  return <div className="cm-page cm-home">
+    <header className="cm-home-header">
+      <button className="cm-location-selector" aria-label="Current location: Patan, Gujarat">
+        <span className="cm-location-pin"><MapPin size={17}/></span>
+        <span><small>YOUR LOCATION</small><strong>Patan, Gujarat</strong></span>
+        <ChevronDown size={15}/>
+      </button>
+      <button className="cm-icon-button" aria-label="Notifications"><Bell /></button>
+    </header>
+
+    <section className="cm-clubhouse-greeting">
+      <p className="cm-overline">CLUBHOUSE LOUNGE</p>
+      <h1>Good afternoon,<br/>Devansh</h1>
+      <p>Choose a court, gather your crew, and make today count.</p>
+    </section>
+
+    <button className="cm-reserve-spotlight" onClick={() => beginBooking()}>
+      <img src="/images/hero_arena.jpg" alt=""/>
+      <span className="cm-spotlight-scrim"/>
+      <span className="cm-spotlight-copy"><small>RESERVE YOUR SLOT</small><strong>Ready for<br/><em>your game?</em></strong><span>Check live venue availability</span></span>
+      <span className="cm-spotlight-action" aria-hidden="true"><ArrowRight size={18}/></span>
+      <span className="cm-spotlight-availability"><i/> Live availability</span>
+    </button>
+
+    <section className="cm-home-arenas">
+      <div className="cm-home-section-head"><div><p className="cm-overline">PLAY YOUR WAY</p><h2>Authorized Arenas</h2></div><button onClick={() => go('facilities')}>View all <ChevronRight size={15}/></button></div>
+      <div className="cm-home-sport-filters" aria-label="Sport filters"><button className="selected">All</button><button>Cricket</button><button>Skating</button><button>Pickle Ball</button><button>Practice</button></div>
+      <div className="cm-home-arena-list">{prototypeFacilities.slice(0, 3).map((facility) => <button key={facility.id} className="cm-home-arena-card" onClick={() => go('facility', { facility })}><img src={facility.image} alt=""/><span><small>{facility.label}</small><strong>{facility.name}</strong><em><Star size={12} fill="currentColor"/>{facility.rating}</em></span></button>)}</div>
+    </section>
+
+    <section className="cm-quick-match-section">
+      <div className="cm-home-section-head"><div><p className="cm-overline">BOOK IN MINUTES</p><h2>Quick Match Booking</h2></div></div>
+      <button className="cm-quick-match-card" onClick={() => beginBooking(prototypeFacilities[0])}><span className="cm-quick-match-icon"><CalendarDays size={19}/></span><span><strong>Find an open session</strong><small>Pick a venue, date and time</small></span><span className="cm-quick-match-arrow"><ArrowRight size={17}/></span></button>
+    </section>
+  </div>;
 }
 
 function FacilitiesScreen({ go }) { return <div className="cm-page"><Header title="Discover venues" back onBack={() => go('home')} /><div className="cm-intro"><p className="cm-overline">FIND YOUR GAME</p><h2>Made for movement.</h2><p>Choose the space that fits your session.</p></div><div className="cm-search"><Search size={18}/><input placeholder="Search a sport or venue" aria-label="Search venues" /></div><div className="cm-filter-row"><button className="selected">All venues</button><button>Popular</button><button>Open now</button></div><div className="cm-stacked-list">{prototypeFacilities.map((facility) => <FacilityCard key={facility.id} facility={facility} go={go} />)}</div></div>; }
