@@ -3,19 +3,22 @@ import {
   ArrowLeft, ArrowRight, Bell, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert,
   Clock3, CreditCard, FileText, HelpCircle, Home, Info, LockKeyhole, MapPin,
   Menu, Moon, NotebookTabs, PlayCircle, Plus, ReceiptText, Search, Settings,
-  ShieldCheck, Share2, Sparkles, Star, Sun, TicketCheck, UtensilsCrossed, UserRound,
+  ShieldCheck, Share2, Sparkles, Star, Sun, TicketCheck, Trophy, UtensilsCrossed, UserRound,
   UsersRound, WifiOff, X,
 } from 'lucide-react';
 import { prototypeEvents, prototypeFacilities, prototypeOutlets, infoPages } from './data';
+import {
+  VENUE_TIME_ZONE, getVenueNow, generateBookingDays, formatSlotEnd,
+  formatSlotLabel, MORNING_SLOTS, EVENING_SLOTS, getSlotState, calculateBookingPricing
+} from './bookingScheduler';
 import { useRouter } from '../../context/RouterContext';
 import './customerMobile.css';
 
 const steps = ['Sports & Venue', 'Schedule', 'Details', 'Pay'];
-const slots = ['6:00 AM', '7:00 AM', '8:00 AM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'];
 
 function AppIcon({ name, size = 18 }) {
   const props = { size, strokeWidth: 1.9, 'aria-hidden': true };
-  const icons = { home: Home, bookings: NotebookTabs, dining: UtensilsCrossed, profile: UserRound, events: CalendarDays };
+  const icons = { home: Home, facilities: Trophy, dining: UtensilsCrossed, profile: UserRound, events: CalendarDays };
   const Icon = icons[name] || Sparkles;
   return <Icon {...props} />;
 }
@@ -37,8 +40,33 @@ function Header({ title, back, onBack, actions = true }) {
 }
 
 function BottomNav({ screen, go }) {
-  const items = [['home', 'Home', 'home'], ['bookings', 'Bookings', 'bookings'], ['events', 'Events', 'events'], ['dining', 'Dining', 'dining'], ['profile', 'Profile', 'profile']];
-  return <nav className="cm-bottom-nav" aria-label="Customer navigation">{items.map(([icon, label, route]) => <button key={route} className={screen === route || (route === 'home' && screen === 'home') ? 'active' : ''} onClick={() => go(route)}><AppIcon name={icon} /><span>{label}</span></button>)}</nav>;
+  // Canonical Customer Mobile navigation items (position remains fixed everywhere)
+  const items = [
+    ['home', 'Home', 'home', Home],
+    ['facilities', 'Venues', 'facilities', Trophy],
+    ['dining', 'Dining', 'dining', UtensilsCrossed],
+    ['events', 'Events', 'events', CalendarDays],
+    ['profile', 'Profile', 'profile', UserRound],
+  ];
+  return (
+    <nav className="cm-bottom-nav" aria-label="Customer navigation">
+      {items.map(([id, label, route, Icon]) => {
+        const isActive = screen === id || (id === 'home' && screen === 'home') || (id === 'facilities' && screen === 'facilities');
+        return (
+          <button
+            key={id}
+            className={isActive ? 'active' : ''}
+            onClick={() => go(route)}
+            aria-label={label}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            <Icon size={18} strokeWidth={isActive ? 2.4 : 1.9} aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
 }
 
 function FacilityCard({ facility, go, compact = false }) {
@@ -81,9 +109,16 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   const [history, setHistory] = useState([]);
   const [theme, setTheme] = useState(() => new URLSearchParams(window.location.search).get('theme') === 'midnight' ? 'dark' : 'ivory');
   const [selectedFacility, setSelectedFacility] = useState(prototypeFacilities[0]);
+
+  // Dynamic booking state
+  const bookingDays = useMemo(() => generateBookingDays(5), []);
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+  const selectedDate = bookingDays[selectedDateIndex] || bookingDays[0];
+  const [selectedDuration, setSelectedDuration] = useState(1.5); // 1, 1.5, 2
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [bookingStep, setBookingStep] = useState(initialBookingStep);
   const [bookingDetails, setBookingDetails] = useState({ name: '', phone: '', email: '', note: '' });
+
   const [paymentFailure, setPaymentFailure] = useState(initialScreen === 'payment-failure');
   const [event, setEvent] = useState(prototypeEvents[0]);
   const [outlet, setOutlet] = useState(prototypeOutlets[0]);
@@ -91,6 +126,9 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   const [authScreen, setAuthScreen] = useState(initialScreen === 'auth-create' ? 'create' : initialScreen === 'auth-forgot' ? 'forgot' : initialScreen === 'auth-reset' ? 'reset' : initialScreen === 'auth-expired' ? 'expired' : 'signin');
   const [bookingMode, setBookingMode] = useState(initialScreen === 'events-loading' ? 'loading' : initialScreen === 'events-empty' ? 'empty' : 'normal');
   const [diningMode, setDiningMode] = useState(initialScreen === 'dining-loading' ? 'loading' : initialScreen === 'dining-unavailable' ? 'unavailable' : 'normal');
+
+  const pricing = useMemo(() => calculateBookingPricing(selectedFacility, selectedDuration), [selectedFacility, selectedDuration]);
+  const selectedSlotLabel = selectedSlot ? formatSlotLabel(selectedSlot, selectedDuration) : '';
 
   const routes = {
     home: '/', facilities: '/facilities', facility: '/facilities/detail',
@@ -101,8 +139,12 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
     outlet: '/dining/outlet', menu: '/dining/menu', notices: '/updates', contact: '/contact-support',
     rules: '/ground-rules', about: '/about-clubhouse', terms: '/terms', privacy: '/privacy', offline: '/offline', 'system-error': '/system-error',
   };
+
   const go = (next, data = {}) => {
-    if (data.facility) setSelectedFacility(data.facility);
+    if (data.facility) {
+      setSelectedFacility(data.facility);
+      setSelectedSlot(null);
+    }
     if (data.event) setEvent(data.event);
     if (data.outlet) setOutlet(data.outlet);
     if (data.info) setInfo(data.info);
@@ -114,10 +156,43 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
     setHistory((items) => [...items, screen]);
     setScreen(next);
   };
-  const back = () => { if (history.length) { const previous = history.at(-1) || 'home'; setHistory((items) => items.slice(0, -1)); setScreen(previous); return; } window.history.back(); };
-  const beginBooking = (facility = selectedFacility) => { setSelectedFacility(facility); setSelectedSlot(null); setBookingStep(1); navigate('/booking/step-1'); };
-  const bookingTitle = steps[bookingStep - 1];
-  const selectedSlotLabel = selectedSlot ? `${selectedSlot} – ${Number(selectedSlot.slice(0, 1)) + 1}:00 ${selectedSlot.includes('PM') ? 'PM' : 'AM'}` : '';
+
+  const back = () => {
+    if (history.length) {
+      const previous = history.at(-1) || 'home';
+      setHistory((items) => items.slice(0, -1));
+      setScreen(previous);
+      return;
+    }
+    window.history.back();
+  };
+
+  const beginBooking = (facility = selectedFacility) => {
+    setSelectedFacility(facility);
+    setSelectedSlot(null);
+    setBookingStep(1);
+    navigate('/booking/step-1');
+  };
+
+  const handleFacilityChange = (facility) => {
+    setSelectedFacility(facility);
+    setSelectedSlot(null);
+  };
+
+  const handleDateChange = (index) => {
+    setSelectedDateIndex(index);
+    setSelectedSlot(null);
+  };
+
+  const handleDurationChange = (duration) => {
+    setSelectedDuration(duration);
+    if (selectedSlot) {
+      const { selectable } = getSlotState(selectedSlot, selectedDate.dateString, duration);
+      if (!selectable) {
+        setSelectedSlot(null);
+      }
+    }
+  };
 
   const isFocusedScreen = [
     'booking', 'facility', 'processing', 'payment-failure', 'success', 'pass',
@@ -127,14 +202,47 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   ].includes(screen);
   const showBottomNav = !isFocusedScreen;
 
-  const page = useMemo(() => {
+  const renderPage = () => {
     if (screen === 'home') return <HomeScreen go={go} beginBooking={beginBooking} />;
     if (screen === 'facilities') return <FacilitiesScreen go={go} />;
     if (screen === 'facility') return <FacilityDetail facility={selectedFacility} beginBooking={beginBooking} back={back} go={go} />;
-    if (screen === 'booking') return <BookingScreen back={back} bookingStep={bookingStep} setBookingStep={setBookingStep} selectedFacility={selectedFacility} onFacilityChange={(facility) => { setSelectedFacility(facility); setSelectedSlot(null); }} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} setBookingDetails={setBookingDetails} go={go} />;
-    if (screen === 'processing' || screen === 'payment-failure') return <ProcessingScreen back={back} failed={paymentFailure || screen === 'payment-failure'} setFailed={setPaymentFailure} selectedFacility={selectedFacility} onReview={() => { setBookingStep(4); setScreen('booking'); }} go={go} />;
-    if (screen === 'success') return <SuccessScreen go={go} />;
-    if (screen === 'pass') return <PassScreen go={go} back={back} />;
+    if (screen === 'booking') return (
+      <BookingScreen
+        back={back}
+        bookingStep={bookingStep}
+        setBookingStep={setBookingStep}
+        selectedFacility={selectedFacility}
+        onFacilityChange={handleFacilityChange}
+        bookingDays={bookingDays}
+        selectedDateIndex={selectedDateIndex}
+        selectedDate={selectedDate}
+        onDateChange={handleDateChange}
+        selectedDuration={selectedDuration}
+        onDurationChange={handleDurationChange}
+        selectedSlot={selectedSlot}
+        setSelectedSlot={setSelectedSlot}
+        selectedSlotLabel={selectedSlotLabel}
+        bookingDetails={bookingDetails}
+        setBookingDetails={setBookingDetails}
+        pricing={pricing}
+        go={go}
+      />
+    );
+    if (screen === 'processing' || screen === 'payment-failure') return (
+      <ProcessingScreen
+        back={back}
+        failed={paymentFailure || screen === 'payment-failure'}
+        setFailed={setPaymentFailure}
+        selectedFacility={selectedFacility}
+        selectedDate={selectedDate}
+        selectedSlotLabel={selectedSlotLabel}
+        pricing={pricing}
+        onReview={() => { setBookingStep(4); setScreen('booking'); }}
+        go={go}
+      />
+    );
+    if (screen === 'success') return <SuccessScreen go={go} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} />;
+    if (screen === 'pass') return <PassScreen go={go} back={back} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} />;
     if (screen === 'bookings') return <BookingsScreen go={go} />;
     if (screen === 'auth') return <SafeAuthScreen back={back} authScreen={authScreen} setAuthScreen={setAuthScreen} go={go} />;
     if (screen === 'profile') return <SafeProfileScreen go={go} theme={theme} />;
@@ -152,11 +260,11 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
     if (screen === 'offline') return <OfflineScreen go={go} />;
     if (screen === 'system-error') return <SystemErrorScreen back={back} go={go} />;
     return <HomeScreen go={go} beginBooking={beginBooking} />;
-  }, [screen, bookingStep, selectedFacility, selectedSlot, selectedSlotLabel, paymentFailure, event, outlet, info, theme, authScreen, bookingMode, diningMode]);
+  };
 
   return <div className={`cm-prototype cm-theme-${theme}`}>
     <div className="cm-phone-frame">
-      <main className={`cm-scroll ${!showBottomNav ? 'cm-scroll-full' : ''}`}>{page}</main>
+      <main className={`cm-scroll ${!showBottomNav ? 'cm-scroll-full' : ''}`}>{renderPage()}</main>
       {showBottomNav && <BottomNav screen={screen} go={go} />}
     </div>
     <aside className="cm-preview-note"><span>Customer App · Mobile</span><strong>Curated Figma prototype</strong><p>Use the phone preview to explore the approved customer flows.</p></aside>
@@ -215,14 +323,41 @@ function FacilitiesScreen({ go }) { const curatedVenues = prototypeFacilities.fi
 
 function FacilityDetail({ facility, beginBooking, back, go }) { return <div className="cm-page cm-curated-detail"><header className="cm-detail-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Facility Detail</h1><div><button className="cm-icon-button" aria-label="Save facility"><Bookmark/></button><button className="cm-icon-button" aria-label="Share facility"><Share2/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-curated-detail-media"><img src={facility.image} alt=""/><span className="cm-detail-active"><i/>ACTIVE & BOOKABLE</span><span className="cm-detail-service">⚯ {facility.name}</span><span className="cm-detail-photos">▣ 1 of 4 Photos</span></div><section className="cm-curated-detail-copy"><div className="cm-detail-reference"><span>FACILITY REFERENCE</span><b>{facility.service}</b></div><h2>{facility.venueName}</h2><div className="cm-detail-review"><Star size={16} fill="currentColor"/> <strong>{facility.rating}</strong> <i/> <button onClick={() => go('reviews')}>{facility.reviewCount} Verified Reviews →</button></div><span className="cm-detail-service-line">⚯ {facility.name} · {facility.label}</span><div className="cm-detail-feature-grid"><div><Clock3/><small>Slot Duration</small><strong>60m / 90m Blocks</strong></div><div><Clock3/><small>Operating Window</small><strong>06:00 AM – 10:00 PM</strong></div><div><Sparkles/><small>Pitch Surface</small><strong>Synthetic Turfed Enclosure</strong></div><div><UsersRound/><small>Equipment</small><strong>Feeder & Stumps Provided</strong></div></div><h3>About This Facility</h3><div className="cm-detail-content-card"><p>{facility.description}</p><span>✿ Indoor Covered Bay　⚯ Power Feeder Ports</span></div><div className="cm-detail-heading-row"><h3>Pricing & Tariffs</h3><small>Member Rates Apply</small></div><div className="cm-detail-tariff"><div><h2>{facility.tariff}</h2><b>Standard Tier</b></div><p>Based on verified patron bookings</p><div className="cm-detail-tariff-table"><span>Standard Lane (Off-Peak)<strong>{facility.tariff} / hr</strong></span><span>Prime Lane (Peak Evening)<strong>{facility.tariff} / hr</strong></span><span>Equipment Provision<strong>Included</strong></span></div><em>Based on verified patron bookings</em></div><h3>Venue Guidelines</h3><div className="cm-guidelines"><div><span>◉</span><p><strong>Approved Footwear</strong>Flat rubber-soled turf trainers or non-marking sports shoes required. Metal spikes strictly prohibited.</p></div><div><span>▦</span><p><strong>Turnstile Check-In</strong>Digital pass scan at turnstile gate 10 mins prior to slot commencement.</p></div><div><span>◒</span><p><strong>Equipment Provision</strong>Club training balls included; protective batting gear and pads available on request at bay desk.</p></div></div></section><BookingBar label={facility.name} ctaText="Select Date & Time" onClick={() => beginBooking(facility)} detail={`Starting from ${facility.tariff}/hr`} /></div>; }
 
-function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, onFacilityChange, selectedSlot, setSelectedSlot, selectedSlotLabel, bookingDetails, setBookingDetails, go }) {
+function BookingScreen({
+  back,
+  bookingStep,
+  setBookingStep,
+  selectedFacility,
+  onFacilityChange,
+  bookingDays,
+  selectedDateIndex,
+  selectedDate,
+  onDateChange,
+  selectedDuration,
+  onDurationChange,
+  selectedSlot,
+  setSelectedSlot,
+  selectedSlotLabel,
+  bookingDetails,
+  setBookingDetails,
+  pricing,
+  go
+}) {
   const detailsReady = bookingDetails.name.trim().length >= 2 && bookingDetails.phone.replace(/\D/g, '').length >= 10;
-  const canContinue = bookingStep === 1 ? Boolean(selectedFacility) : bookingStep === 2 ? Boolean(selectedSlot) : bookingStep === 3 ? detailsReady : true;
+  const canContinue = bookingStep === 1
+    ? Boolean(selectedFacility)
+    : bookingStep === 2
+      ? Boolean(selectedSlot)
+      : bookingStep === 3
+        ? detailsReady
+        : true;
+
   const continueStep = () => {
     if (!canContinue) return;
     if (bookingStep < 4) setBookingStep(bookingStep + 1);
     else go('processing');
   };
+
   const handleBack = () => {
     if (bookingStep > 1) {
       setBookingStep(bookingStep - 1);
@@ -230,10 +365,38 @@ function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, on
       back();
     }
   };
-  const nextCtaText = bookingStep === 1 ? 'Select Date & Time' : bookingStep === 2 ? 'Continue to Details' : bookingStep === 3 ? 'Review Booking' : 'Proceed to Pay';
-  const barLabel = bookingStep === 1 ? (selectedFacility ? selectedFacility.name : 'Select Sport & Service') : bookingStep === 2 ? (selectedSlot ? selectedFacility.venueName : 'Select an available slot') : bookingStep === 3 ? (detailsReady ? `Lead: ${bookingDetails.name.trim()}` : 'Guest Details Required') : 'Confirm & Pay';
-  const title = bookingStep === 1 ? 'Select Sport & Venue' : bookingStep === 2 ? 'Select Date & Slot' : bookingStep === 3 ? 'Guest Details' : 'Review & Pay';
-  const actionDetail = bookingStep === 1 ? (selectedFacility ? `1 arena selected · ${selectedFacility.tariff}/hr` : 'Step 1 of 4 · Choose a sport') : bookingStep === 2 ? (selectedSlotLabel || 'Choose a time slot to continue') : bookingStep === 3 ? (detailsReady ? 'Contact details verified' : 'Full name & 10-digit mobile required') : 'Total: ₹900.00 · Secure Checkout';
+
+  const nextCtaText = bookingStep === 1
+    ? 'Select Date & Time'
+    : bookingStep === 2
+      ? 'Continue to Details'
+      : bookingStep === 3
+        ? 'Review Booking'
+        : 'Proceed to Pay';
+
+  const barLabel = bookingStep === 1
+    ? (selectedFacility ? selectedFacility.name : 'Select Sport & Service')
+    : bookingStep === 2
+      ? (selectedSlot ? `${selectedFacility.venueName} · ${selectedSlot}` : 'Select an available slot')
+      : bookingStep === 3
+        ? (detailsReady ? `Lead: ${bookingDetails.name.trim()}` : 'Guest Details Required')
+        : 'Confirm & Pay';
+
+  const title = bookingStep === 1
+    ? 'Select Sport & Venue'
+    : bookingStep === 2
+      ? 'Select Date & Slot'
+      : bookingStep === 3
+        ? 'Guest Details'
+        : 'Review & Pay';
+
+  const actionDetail = bookingStep === 1
+    ? (selectedFacility ? `1 arena selected · ${selectedFacility.tariff}/hr` : 'Step 1 of 4 · Choose a sport')
+    : bookingStep === 2
+      ? (selectedSlotLabel || `${selectedDuration} hr block · Choose a time slot`)
+      : bookingStep === 3
+        ? (detailsReady ? 'Contact details verified' : 'Full name & 10-digit mobile required')
+        : `Total: ₹${pricing.totalPayable} · Secure Checkout`;
 
   return <div className="cm-page cm-booking">
     <header className="cm-booking-top">
@@ -241,6 +404,7 @@ function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, on
       <div><span>TURF & TASTE</span><h1>{title}</h1></div>
       <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
     </header>
+
     <div className="cm-booking-progress" aria-label={`Step ${bookingStep} of 4`}>
       {steps.map((step, index) => {
         const stepNum = index + 1;
@@ -259,6 +423,7 @@ function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, on
         );
       })}
     </div>
+
     <div className="cm-booking-context">
       <img src={selectedFacility ? selectedFacility.image : '/images/hero_arena.jpg'} alt=""/>
       <div>
@@ -267,10 +432,43 @@ function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, on
       </div>
       {bookingStep > 1 && <button onClick={() => { setSelectedSlot(null); setBookingStep(1); }}>Change</button>}
     </div>
-    {bookingStep === 1 && <StepVenue selectedFacility={selectedFacility} onFacilityChange={onFacilityChange} />}
-    {bookingStep === 2 && <StepSlots selectedFacility={selectedFacility} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot} />}
-    {bookingStep === 3 && <StepDetails selectedFacility={selectedFacility} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} setBookingDetails={setBookingDetails} />}
-    {bookingStep === 4 && <StepReview selectedFacility={selectedFacility} selectedSlotLabel={selectedSlotLabel} />}
+
+    {bookingStep === 1 && (
+      <StepVenue selectedFacility={selectedFacility} onFacilityChange={onFacilityChange} />
+    )}
+    {bookingStep === 2 && (
+      <StepSlots
+        selectedFacility={selectedFacility}
+        bookingDays={bookingDays}
+        selectedDateIndex={selectedDateIndex}
+        selectedDate={selectedDate}
+        onDateChange={onDateChange}
+        selectedDuration={selectedDuration}
+        onDurationChange={onDurationChange}
+        selectedSlot={selectedSlot}
+        setSelectedSlot={setSelectedSlot}
+      />
+    )}
+    {bookingStep === 3 && (
+      <StepDetails
+        selectedFacility={selectedFacility}
+        selectedDate={selectedDate}
+        selectedSlotLabel={selectedSlotLabel}
+        bookingDetails={bookingDetails}
+        setBookingDetails={setBookingDetails}
+      />
+    )}
+    {bookingStep === 4 && (
+      <StepReview
+        selectedFacility={selectedFacility}
+        selectedDate={selectedDate}
+        selectedDuration={selectedDuration}
+        selectedSlotLabel={selectedSlotLabel}
+        bookingDetails={bookingDetails}
+        pricing={pricing}
+      />
+    )}
+
     <BookingBar
       label={barLabel}
       detail={actionDetail}
@@ -321,64 +519,112 @@ function StepVenue({ selectedFacility, onFacilityChange }) {
   </section>;
 }
 
-function StepSlots({ selectedFacility, selectedSlot, setSelectedSlot }) {
-  const dates = ['Mon 22', 'Tue 23', 'Wed 24', 'Thu 25', 'Fri 26'];
-  const [selectedDateIndex, setSelectedDateIndex] = useState(1);
-  const morning = slots.slice(0, 3);
-  const evening = slots.slice(3);
+function StepSlots({
+  selectedFacility,
+  bookingDays,
+  selectedDateIndex,
+  selectedDate,
+  onDateChange,
+  selectedDuration,
+  onDurationChange,
+  selectedSlot,
+  setSelectedSlot
+}) {
+  const durationLabel = selectedDuration === 1 ? '60-minute' : selectedDuration === 1.5 ? '90-minute' : '120-minute';
+
   return <section className="cm-step">
     <div className="cm-step-heading">
       <p className="cm-overline">{selectedFacility ? selectedFacility.name.toUpperCase() : 'SCHEDULE'}</p>
       <h2>Select Date &amp; Time</h2>
-      <p>Asia/Kolkata (IST) · 90-minute standard slot</p>
+      <p>Asia/Kolkata (IST) · {durationLabel} standard slot</p>
     </div>
-    <div className="cm-date-strip cm-source-dates" aria-label="Select date">
-      {dates.map((date, index) => (
+
+    <div className="cm-date-strip cm-source-dates" aria-label="Select booking date">
+      {bookingDays.map((day, index) => {
+        const isSelected = index === selectedDateIndex;
+        return (
+          <button
+            key={day.dateString}
+            className={isSelected ? 'selected' : ''}
+            onClick={() => onDateChange(index)}
+            aria-pressed={isSelected}
+            aria-label={`${day.displayFull}${day.isToday ? ' (Today)' : ''}`}
+          >
+            <small>{day.isToday ? 'Today' : day.dayName}</small>
+            <strong>{day.dayNum}</strong>
+          </button>
+        );
+      })}
+    </div>
+
+    <div className="cm-duration" aria-label="Match duration selection">
+      <span>Match Duration</span>
+      {[1, 1.5, 2].map((dur) => (
         <button
-          key={date}
-          className={index === selectedDateIndex ? 'selected' : ''}
-          onClick={() => setSelectedDateIndex(index)}
+          key={dur}
+          className={selectedDuration === dur ? 'selected' : ''}
+          onClick={() => onDurationChange(dur)}
+          aria-pressed={selectedDuration === dur}
         >
-          <small>{date.split(' ')[0]}</small>
-          <strong>{date.split(' ')[1]}</strong>
+          {dur} {dur === 1 ? 'hr' : 'hrs'}
         </button>
       ))}
     </div>
-    <div className="cm-duration">
-      <span>Match Duration</span>
-      <button>1 hr</button>
-      <button className="selected">1.5 hrs</button>
-      <button>2 hrs</button>
-    </div>
+
     <div className="cm-availability-legend">
       <span><i/>Available</span>
       <span><i/>Filling Fast</span>
       <span><i/>Booked</span>
     </div>
-    <SlotGroup title="Morning (Early Bird)" note="Special Rate Available" slotItems={morning} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/>
-    <SlotGroup title="Evening & Floodlit (Prime)" note="Peak Hours" slotItems={evening} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/>
+
+    <SlotGroup
+      title="Morning (Early Bird)"
+      note="Special Rate Available"
+      slotItems={MORNING_SLOTS}
+      dateString={selectedDate.dateString}
+      durationHours={selectedDuration}
+      selectedSlot={selectedSlot}
+      setSelectedSlot={setSelectedSlot}
+    />
+
+    <SlotGroup
+      title="Evening & Floodlit (Prime)"
+      note="Peak Hours"
+      slotItems={EVENING_SLOTS}
+      dateString={selectedDate.dateString}
+      durationHours={selectedDuration}
+      selectedSlot={selectedSlot}
+      setSelectedSlot={setSelectedSlot}
+    />
   </section>;
 }
 
-function SlotGroup({ title, note, slotItems, selectedSlot, setSelectedSlot }) {
+function SlotGroup({ title, note, slotItems, dateString, durationHours, selectedSlot, setSelectedSlot }) {
   return <div className="cm-slot-group">
     <div><h3>{title}</h3><span>{note}</span></div>
     <div className="cm-slot-grid">
-      {slotItems.map((slot, index) => {
+      {slotItems.map((slot) => {
         const isSelected = slot === selectedSlot;
-        const isBusy = slot === '7:00 PM';
+        const { state, selectable, label: badgeLabel } = getSlotState(slot, dateString, durationHours);
+        const className = [
+          isSelected ? 'selected' : '',
+          state === 'booked' ? 'busy' : '',
+          state === 'past' ? 'past' : '',
+          state === 'unavailable' ? 'unavailable' : '',
+        ].filter(Boolean).join(' ');
+
         return (
           <button
-            className={`${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : ''}`}
             key={slot}
-            disabled={isBusy}
-            onClick={() => setSelectedSlot(slot)}
+            className={className}
+            disabled={!selectable}
+            onClick={() => selectable && setSelectedSlot(slot)}
             aria-pressed={isSelected}
-            aria-label={`${slot} slot${isBusy ? ' (Booked)' : ''}`}
+            aria-label={`${slot} - ${state}`}
           >
             {slot}
-            {isSelected && <Check size={15}/>}
-            {index === 1 && !isBusy && <small>Filling</small>}
+            {isSelected && <Check size={15} aria-hidden="true" />}
+            {!isSelected && state !== 'available' && <small>{badgeLabel}</small>}
           </button>
         );
       })}
@@ -386,30 +632,38 @@ function SlotGroup({ title, note, slotItems, selectedSlot, setSelectedSlot }) {
   </div>;
 }
 
-function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setBookingDetails }) {
-  const update = (key) => (event) => setBookingDetails((current) => ({ ...current, [key]: event.target.value }));
+function StepDetails({ selectedFacility, selectedDate, selectedSlotLabel, bookingDetails, setBookingDetails }) {
+  const update = (key) => (event) => {
+    const val = event.target.value;
+    setBookingDetails((current) => ({ ...current, [key]: val }));
+  };
+
   return <section className="cm-step">
     <div className="cm-step-heading">
       <p className="cm-overline">GUEST RESERVATION</p>
       <h2>Guest Details</h2>
       <p>We will use these details for arena check-in and booking updates.</p>
     </div>
+
     <div className="cm-guest-booking-summary">
       <img src={selectedFacility ? selectedFacility.image : '/images/box_cricket.jpg'} alt=""/>
       <div>
         <strong>{selectedFacility ? selectedFacility.venueName : 'Turf & Taste Arena'}</strong>
-        <span><CalendarDays size={12}/> Tuesday, 23 Sep 2025</span>
-        <span><Clock3 size={12}/> {selectedSlotLabel || 'Selected slot'} · 1.5 hrs</span>
+        <span><CalendarDays size={12}/> {selectedDate ? selectedDate.displayFull : 'Selected date'}</span>
+        <span><Clock3 size={12}/> {selectedSlotLabel || 'Selected slot'}</span>
       </div>
     </div>
+
     <form className="cm-form cm-source-form" onSubmit={(e) => e.preventDefault()}>
       <div className="cm-form-section-title">
         <strong>Lead Player Contact</strong>
         <span>Required</span>
       </div>
-      <label>
-        Full Name
+
+      <label htmlFor="guest-full-name">
+        <span>Full Name <span className="cm-required-badge">Required</span></span>
         <input
+          id="guest-full-name"
           value={bookingDetails.name}
           onChange={update('name')}
           placeholder="Enter lead player full name"
@@ -417,9 +671,11 @@ function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setB
           required
         />
       </label>
-      <label>
-        WhatsApp / Mobile Number
+
+      <label htmlFor="guest-phone">
+        <span>WhatsApp / Mobile Number <span className="cm-required-badge">Required</span></span>
         <input
+          id="guest-phone"
           value={bookingDetails.phone}
           onChange={update('phone')}
           inputMode="tel"
@@ -428,10 +684,12 @@ function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setB
           required
         />
       </label>
-      <small className="cm-form-hint">The entry pass QR and match updates are sent to this WhatsApp / mobile.</small>
-      <label>
-        Email Address <span>Optional</span>
+      <small className="cm-form-hint">The entry pass QR and match updates are sent to this WhatsApp / mobile number.</small>
+
+      <label htmlFor="guest-email">
+        <span>Email Address <span className="cm-optional-badge">(Optional)</span></span>
         <input
+          id="guest-email"
           value={bookingDetails.email}
           onChange={update('email')}
           inputMode="email"
@@ -439,12 +697,15 @@ function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setB
           autoComplete="email"
         />
       </label>
+
       <div className="cm-form-section-title">
         <strong>Match Preferences</strong>
       </div>
-      <label>
-        Team / group note <span>Optional</span>
+
+      <label htmlFor="guest-note">
+        <span>Team / group note <span className="cm-optional-badge">(Optional)</span></span>
         <textarea
+          id="guest-note"
           value={bookingDetails.note}
           onChange={update('note')}
           placeholder="Add equipment or pitch preferences for the venue team…"
@@ -455,35 +716,42 @@ function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setB
   </section>;
 }
 
-function StepReview({ selectedFacility, selectedSlotLabel }) {
+function StepReview({ selectedFacility, selectedDate, selectedDuration, selectedSlotLabel, bookingDetails, pricing }) {
   return <section className="cm-step">
     <div className="cm-step-heading">
       <p className="cm-overline">SECURE CHECKOUT</p>
       <h2>Review &amp; Pay</h2>
       <p>Confirm your arena reservation and payment breakdown.</p>
     </div>
+
     <div className="cm-review-card">
       <img src={selectedFacility.image} alt=""/>
       <div>
         <span className="cm-status">Pitch hold guaranteed</span>
         <strong>{selectedFacility.venueName}</strong>
         <small><MapPin size={13}/> {selectedFacility.location}</small>
-        <span><CalendarDays size={15}/> Tuesday, 23 Sep 2025</span>
-        <span><Clock3 size={15}/> {selectedSlotLabel} · 1.5 hrs</span>
+        <span><CalendarDays size={15}/> {selectedDate ? selectedDate.displayFull : 'Selected date'}</span>
+        <span><Clock3 size={15}/> {selectedSlotLabel}</span>
+        {bookingDetails.name && (
+          <span style={{ color: 'var(--cm-ink)', fontWeight: 700 }}>
+            Lead: {bookingDetails.name.trim()} · +91 {bookingDetails.phone.replace(/\D/g, '')}
+          </span>
+        )}
       </div>
     </div>
+
     <div className="cm-price-breakdown">
       <div className="cm-breakdown-top">
         <strong>Itemized Price Breakdown</strong>
         <span>Verified Rate</span>
       </div>
       <div>
-        <span>Turf Base Rate (1.5 hrs)</span>
-        <strong>₹762.71</strong>
+        <span>Turf Base Rate ({selectedDuration} {selectedDuration === 1 ? 'hr' : 'hrs'})</span>
+        <strong>₹{pricing.preGstBase}</strong>
       </div>
       <div>
         <span>Clubhouse &amp; Facility Maintenance</span>
-        <strong>₹45.00</strong>
+        <strong>₹{pricing.maintenanceFee}</strong>
       </div>
       <div>
         <span>Arena Floodlights &amp; Gear</span>
@@ -491,14 +759,15 @@ function StepReview({ selectedFacility, selectedSlotLabel }) {
       </div>
       <div className="cm-payable">
         <span>GST (18% Applied)</span>
-        <strong>₹92.29</strong>
+        <strong>₹{pricing.gstAmount}</strong>
       </div>
       <div className="cm-payable">
         <span>Total Payable</span>
-        <strong>₹900.00</strong>
+        <strong>₹{pricing.totalPayable}</strong>
       </div>
       <p><ShieldCheck size={16}/> Amount is locked and verified for this session.</p>
     </div>
+
     <button className="cm-payment-row">
       <CreditCard />
       <span>
@@ -510,7 +779,7 @@ function StepReview({ selectedFacility, selectedSlotLabel }) {
   </section>;
 }
 
-function ProcessingScreen({ back, failed, setFailed, selectedFacility, go }) {
+function ProcessingScreen({ back, failed, setFailed, selectedFacility, selectedDate, selectedSlotLabel, pricing, go }) {
   if (failed) return <div className="cm-page cm-payment-failed">
     <header className="cm-source-state-header">
       <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
@@ -529,8 +798,8 @@ function ProcessingScreen({ back, failed, setFailed, selectedFacility, go }) {
       <img src={selectedFacility.image} alt=""/>
       <strong>{selectedFacility.venueName}</strong>
       <small>HELD SESSION PREVIEW</small>
-      <p><CalendarDays size={13}/> Tuesday, 23 Sep 2025 · 6:00 PM – 7:30 PM (1.5 hrs)</p>
-      <div><span>Total Payable</span><b>₹900.00</b></div>
+      <p><CalendarDays size={13}/> {selectedDate ? selectedDate.displayFull : 'Selected date'} · {selectedSlotLabel}</p>
+      <div><span>Total Payable</span><b>₹{pricing ? pricing.totalPayable : '900.00'}</b></div>
     </div>
     <p className="cm-payment-alert">PAYMENT STATUS NOTE<br/><strong>No money has been deducted from your account.</strong></p>
     <Button onClick={() => { setFailed(false); go('processing'); }} icon={ArrowRight}>Retry Payment</Button>
@@ -558,7 +827,7 @@ function ProcessingScreen({ back, failed, setFailed, selectedFacility, go }) {
   </div>;
 }
 
-function SuccessScreen({ go }) {
+function SuccessScreen({ go, selectedFacility, selectedDate, selectedSlotLabel }) {
   return <div className="cm-page cm-centered cm-success">
     <div className="cm-success-mark"><Check size={38} /></div>
     <p className="cm-overline">BOOKING CONFIRMED</p>
@@ -567,14 +836,14 @@ function SuccessScreen({ go }) {
     <div className="cm-confirmation-ref">
       <small>BOOKING REFERENCE</small>
       <strong>TTB-2026-9482</strong>
-      <span>Skyline Box Cricket · Tuesday, 23 Sep · 6:00 PM</span>
+      <span>{selectedFacility ? selectedFacility.name : 'Skyline Box Cricket'} · {selectedDate ? selectedDate.displayShort : 'Tue 23'} · {selectedSlotLabel || '6:00 PM'}</span>
     </div>
     <Button onClick={() => go('pass')} icon={TicketCheck}>View Entry Pass</Button>
     <button className="cm-text-button" onClick={() => go('bookings')}>View My Reservations</button>
   </div>;
 }
 
-function PassScreen({ go, back }) {
+function PassScreen({ go, back, selectedFacility, selectedDate, selectedSlotLabel, bookingDetails }) {
   return <div className="cm-page cm-pass cm-curated-pass">
     <header className="cm-source-state-header">
       <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
@@ -590,16 +859,21 @@ function PassScreen({ go, back }) {
     </div>
     <div className="cm-pass-booking-name">
       <span>TURF &amp; TASTE CLUBHOUSE</span>
-      <strong>Skyline Box Cricket &amp; Training Arena</strong>
+      <strong>{selectedFacility ? selectedFacility.venueName : 'Skyline Box Cricket & Training Arena'}</strong>
     </div>
     <div className="cm-pass-ticket">
       <span className="cm-pass-label">VALID MATCH PASS</span>
       <p>REF: TTB-2026-9482</p>
-      <h1>Box Cricket Match</h1>
+      <h1>{selectedFacility ? selectedFacility.name : 'Box Cricket Match'}</h1>
       <div className="cm-pass-meta">
-        <span><CalendarDays/> DATE<br/><b>Tue, 23 Sep 2025</b></span>
-        <span><Clock3/> SLOT TIME<br/><b>6:00 PM – 7:30 PM<br/>1.5 Hours Match</b></span>
+        <span><CalendarDays/> DATE<br/><b>{selectedDate ? selectedDate.displayFull : 'Tue, 23 Sep 2026'}</b></span>
+        <span><Clock3/> SLOT TIME<br/><b>{selectedSlotLabel || '6:00 PM – 7:30 PM (1.5 hrs)'}</b></span>
       </div>
+      {bookingDetails && bookingDetails.name && (
+        <small style={{ color: 'var(--cm-ink)', fontWeight: 700, margin: '4px 0 8px' }}>
+          Player: {bookingDetails.name.trim()} · +91 {bookingDetails.phone.replace(/\D/g, '')}
+        </small>
+      )}
       <div className="cm-qr" aria-label="Digital entry QR code">
         <i/><i/><i/><i/><i/><i/><i/><i/><i/>
       </div>
@@ -720,7 +994,7 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
     {!isExpired && <form className="cm-form cm-source-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
       {isCreate && (
         <label>
-          Full Name
+          <span>Full Name <span className="cm-required-badge">Required</span></span>
           <input
             value={form.name}
             onChange={update('name')}
@@ -733,7 +1007,7 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
       )}
 
       <label>
-        {isForgot ? 'Registered Mobile Number' : 'Mobile / WhatsApp Number'}
+        <span>{isForgot ? 'Registered Mobile Number' : 'Mobile / WhatsApp Number'} <span className="cm-required-badge">Required</span></span>
         <input
           value={form.phone}
           onChange={update('phone')}
@@ -747,7 +1021,7 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
 
       {!isForgot && (
         <label>
-          Password
+          <span>{isReset ? 'New Password' : 'Password'} <span className="cm-required-badge">Required</span></span>
           <input
             value={form.password}
             onChange={update('password')}
@@ -762,7 +1036,7 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
 
       {isReset && (
         <label>
-          Confirm New Password
+          <span>Confirm New Password <span className="cm-required-badge">Required</span></span>
           <input
             value={form.confirm}
             onChange={update('confirm')}
@@ -777,7 +1051,7 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
 
       {isCreate && (
         <label>
-          Email Address <span>Optional</span>
+          <span>Email Address <span className="cm-optional-badge">Optional</span></span>
           <input
             value={form.email}
             onChange={update('email')}
