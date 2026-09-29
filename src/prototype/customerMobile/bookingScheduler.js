@@ -1,5 +1,8 @@
-// Dynamic server-authoritative and client-synchronized time scheduler
-// Uses Asia/Kolkata (IST) civil time for all booking evaluations.
+// Dynamic client-synchronized time scheduler and formatting abstraction.
+// Time Boundary Architecture:
+// 1. Client-side UI Rendering: Formats dates and slots in the venue's civil timezone (Asia/Kolkata).
+// 2. Server Authority: The client time source is an isolated rendering abstraction. Final booking validity
+//    and quote signing are strictly validated by backend authorities (server/utils/venueTime.js & quoteToken.js).
 
 export const VENUE_TIME_ZONE = 'Asia/Kolkata';
 
@@ -96,6 +99,16 @@ export function parseSlotMinutes(slotString) {
 
 export const parseSlotStartMinutes = parseSlotMinutes;
 
+export function formatMinutesTo12h(minutes) {
+  let h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const period = h >= 12 ? 'PM' : 'AM';
+  let displayH = h % 12;
+  if (displayH === 0) displayH = 12;
+  const displayM = m === 0 ? '' : `:${String(m).padStart(2, '0')}`;
+  return `${displayH}${displayM} ${period}`;
+}
+
 export function formatSlotEnd(startSlot, durationHours) {
   const startM = parseSlotMinutes(startSlot);
   const endM = startM + Math.round(durationHours * 60);
@@ -118,27 +131,45 @@ export function formatSlotLabel(startSlot, durationHours) {
 export const MORNING_SLOTS = ['6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM'];
 export const EVENING_SLOTS = ['4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM'];
 
-export function getSlotState(slot, dateString, durationHours = 1, now = new Date()) {
-  const current = getVenueNow(now);
+export function getSlotState(slot, dateString, durationHours = 1, facilityOrOptions = {}, now = new Date()) {
+  // Support both (slot, dateString, durationHours, facility, now) and (slot, dateString, durationHours, now)
+  let facility = {};
+  let currentTime = now;
+  if (facilityOrOptions instanceof Date) {
+    currentTime = facilityOrOptions;
+  } else if (facilityOrOptions && typeof facilityOrOptions === 'object') {
+    facility = facilityOrOptions;
+  }
+
+  const current = getVenueNow(currentTime);
   const startMinutes = parseSlotMinutes(slot);
   const durationMinutes = Math.round(durationHours * 60);
   const endMinutes = startMinutes + durationMinutes;
+
+  // Facility operating schedule: derive from facility config or default facility operating window (6 AM to 11 PM / 1380m)
+  const closeMinutes = facility.closeMinutes || 1380;
+  const openMinutes = facility.openMinutes || 360;
 
   // Past time check
   const isPast = dateString < current.date || (dateString === current.date && startMinutes <= current.minutes);
   if (isPast) return { state: 'past', selectable: false, label: 'Past' };
 
-  // Closing check (Facility operating hours 06:00 to 23:00 / 1380m)
-  if (endMinutes > 1380) {
-    return { state: 'unavailable', selectable: false, label: 'Closes 11 PM' };
+  // Operating window boundaries
+  if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+    const closeLabel = closeMinutes === 1440 ? 'Closes 12 AM' : `Closes ${formatMinutesTo12h(closeMinutes)}`;
+    return { state: 'unavailable', selectable: false, label: closeLabel };
   }
 
-  // Booked slot check (simulate booked slot on peak evening)
-  if (slot === '7:00 PM') {
+  // Facility-specific or simulated booked slot check
+  if (facility.bookedSlots && Array.isArray(facility.bookedSlots)) {
+    if (facility.bookedSlots.includes(slot)) {
+      return { state: 'booked', selectable: false, label: 'Booked' };
+    }
+  } else if (slot === '7:00 PM') {
     return { state: 'booked', selectable: false, label: 'Booked' };
   }
 
-  // Filling fast check
+  // Filling fast indicator
   if (slot === '8:00 AM' || slot === '6:00 PM') {
     return { state: 'filling', selectable: true, label: 'Filling' };
   }
@@ -147,17 +178,10 @@ export function getSlotState(slot, dateString, durationHours = 1, now = new Date
 }
 
 export function calculateBookingPricing(facility, durationHours = 1) {
-  const hourlyMap = {
-    fac_box_cricket: 900,
-    fac_skating: 800,
-    fac_pickleball: 700,
-    fac_cricket_nets: 600,
-    fac_shooting_machine: 900,
-  };
   let hourlyRate = 900;
   if (facility) {
-    if (facility.id && hourlyMap[facility.id]) {
-      hourlyRate = hourlyMap[facility.id];
+    if (typeof facility.hourlyRate === 'number' && facility.hourlyRate > 0) {
+      hourlyRate = facility.hourlyRate;
     } else if (facility.tariff) {
       const match = String(facility.tariff).replace(/[^\d]/g, '');
       if (match) hourlyRate = Number(match);
