@@ -3,7 +3,7 @@
 ## Current checkpoint
 
 - **Branch:** `feature/customer-mobile-curated`
-- **Latest commit:** `29b381b feat(android): add hardware back-button listener and align native build toolchain`
+- **Latest commit:** `1f03fe9 docs(handoff): record live Vercel preview staging validation and remote E2E QA`
 - **Remote upstream:** `origin/feature/customer-mobile-curated` (synced & up-to-date)
 - **Design source:** `/home/pc/www/POC/design-reference/customer-app-mobile.svg` (read-only)
 - **Figma reference:** `yUBIZk5ptihZqROIobT6S4`, curated Customer App node `97:1417`
@@ -97,6 +97,10 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization, native Capacitor sync, Android Gradle build & debug APK generation, Vercel preview staging deployment, remote E2E flow QA.
 - **NEEDS CONFIGURATION:** Adding `DATABASE_URL` and `JWT_SECRET` to Vercel Project Environment Variables (under Preview scope) to activate serverless database queries on preview URLs; attaching physical Android device for runtime ADB smoke testing.
 - **BLOCKED BY DESIGN:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
+
+## Exact Next Task
+
+- **Admin Mobile implementation**
 
 ## Continuity status
 
