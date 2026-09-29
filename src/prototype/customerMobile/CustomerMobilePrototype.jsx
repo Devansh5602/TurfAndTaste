@@ -49,8 +49,24 @@ function FacilityCard({ facility, go, compact = false }) {
   </article>;
 }
 
-function BookingBar({ label, onClick, disabled, detail }) {
-  return <div className="cm-sticky-action"><div>{detail && <small>{detail}</small>}<strong>{label}</strong></div><Button disabled={disabled} onClick={onClick} aria-label={label}><ArrowRight /></Button></div>;
+function BookingBar({ label, onClick, disabled, detail, ctaText = 'Continue' }) {
+  return (
+    <div className="cm-sticky-action">
+      <div className="cm-sticky-action-info">
+        {detail && <small>{detail}</small>}
+        <strong>{label}</strong>
+      </div>
+      <Button
+        className="cm-sticky-cta"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={`${label} - ${ctaText}`}
+      >
+        <span>{ctaText}</span>
+        <ArrowRight size={17} aria-hidden="true" />
+      </Button>
+    </div>
+  );
 }
 
 export default function CustomerMobilePrototype({ initialScreen = "home" } = {}) {
@@ -102,6 +118,15 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   const beginBooking = (facility = selectedFacility) => { setSelectedFacility(facility); setSelectedSlot(null); setBookingStep(1); navigate('/booking/step-1'); };
   const bookingTitle = steps[bookingStep - 1];
   const selectedSlotLabel = selectedSlot ? `${selectedSlot} – ${Number(selectedSlot.slice(0, 1)) + 1}:00 ${selectedSlot.includes('PM') ? 'PM' : 'AM'}` : '';
+
+  const isFocusedScreen = [
+    'booking', 'facility', 'processing', 'payment-failure', 'success', 'pass',
+    'auth', 'edit-profile', 'settings', 'appearance', 'reviews',
+    'event', 'outlet', 'menu', 'notices', 'contact', 'rules', 'about', 'terms', 'privacy',
+    'info', 'offline', 'system-error'
+  ].includes(screen);
+  const showBottomNav = !isFocusedScreen;
+
   const page = useMemo(() => {
     if (screen === 'home') return <HomeScreen go={go} beginBooking={beginBooking} />;
     if (screen === 'facilities') return <FacilitiesScreen go={go} />;
@@ -130,7 +155,10 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   }, [screen, bookingStep, selectedFacility, selectedSlot, selectedSlotLabel, paymentFailure, event, outlet, info, theme, authScreen, bookingMode, diningMode]);
 
   return <div className={`cm-prototype cm-theme-${theme}`}>
-    <div className="cm-phone-frame"><main className="cm-scroll">{page}</main><BottomNav screen={screen} go={go} /></div>
+    <div className="cm-phone-frame">
+      <main className={`cm-scroll ${!showBottomNav ? 'cm-scroll-full' : ''}`}>{page}</main>
+      {showBottomNav && <BottomNav screen={screen} go={go} />}
+    </div>
     <aside className="cm-preview-note"><span>Customer App · Mobile</span><strong>Curated Figma prototype</strong><p>Use the phone preview to explore the approved customer flows.</p></aside>
   </div>;
 }
@@ -141,7 +169,7 @@ function HomeScreen({ go, beginBooking }) {
       <h1>Home</h1>
       <div className="cm-home-header-actions">
         <button className="cm-icon-button" aria-label="Notifications"><Bell /></button>
-        <button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button>
+        <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
       </div>
     </header>
 
@@ -168,7 +196,7 @@ function HomeScreen({ go, beginBooking }) {
       <div className="cm-home-section-head"><div><h2>Authorized Arenas</h2></div><button onClick={() => go('facilities')}>See all <ChevronRight size={15}/></button></div>
       <div className="cm-home-sport-filters" aria-label="Authorized sports">
         <button className="selected">All Activities</button>
-        {prototypeFacilities.map((facility) => <button key={facility.id}>{facility.name}</button>)}
+        {prototypeFacilities.map((facility) => <button key={facility.id} onClick={() => beginBooking(facility)}>{facility.name}</button>)}
       </div>
     </section>
 
@@ -176,81 +204,605 @@ function HomeScreen({ go, beginBooking }) {
       <div className="cm-home-section-head"><div><h2>Quick Match Booking</h2></div></div>
       <div className="cm-quick-match-list">{prototypeFacilities.map((facility) => <button className="cm-quick-match-card" key={facility.id} onClick={() => beginBooking(facility)}>
         <span className="cm-quick-match-media"><img src={facility.image} alt=""/><span className="cm-quick-match-overlay cm-quick-match-rating"><Star size={12} fill="currentColor"/>{facility.rating}</span><span className="cm-quick-match-overlay cm-quick-match-distance"><MapPin size={12}/> Bopal</span><span className="cm-quick-match-overlay cm-quick-match-status">Open now</span></span>
-        <span className="cm-quick-match-details"><span className="cm-quick-match-badge">{facility.service}</span><strong>{facility.name}</strong><small><MapPin size={12}/> Bopal, Ahmedabad</small><span className="cm-quick-match-rate"><b>From</b> [Configured Tariff]</span><em><Clock3 size={12}/> [Next available slot]</em></span>
+        <span className="cm-quick-match-details"><span className="cm-quick-match-badge">{facility.service}</span><strong>{facility.name}</strong><small><MapPin size={12}/> Bopal, Ahmedabad</small><span className="cm-quick-match-rate"><b>From</b> {facility.tariff}/hr</span><em><Clock3 size={12}/> {facility.availability}</em></span>
         <span className="cm-quick-match-cta">Book Slot <ArrowRight size={15}/></span>
       </button>)}</div>
     </section>
   </div>;
 }
 
-function FacilitiesScreen({ go }) { const curatedVenues = prototypeFacilities.filter((facility) => ['box-cricket', 'skating-rink', 'shooting-machine'].includes(facility.id)); return <div className="cm-page cm-venues-page"><header className="cm-curated-top"><h1>Venues</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></div></header><div className="cm-venues-search"><Search size={19}/><input placeholder="Search arenas, turfs, sports..." aria-label="Search arenas, turfs, sports"/><button aria-label="Filter venues"><Menu size={18}/></button></div><div className="cm-venues-filter">{['All', 'Box Cricket', 'Skating Rink', 'Pickle Ball', 'Cricket Green Net Practice'].map((filter, index) => <button key={filter} className={index === 0 ? 'selected' : ''}>{filter}</button>)}</div><div className="cm-venues-meta"><span><i/>3 Arenas Open in Bopal District</span><b>FAST BOOKING</b></div><div className="cm-venues-list">{curatedVenues.map((facility) => <button key={facility.id} className="cm-venue-card" onClick={() => go('facility', { facility })}><span className="cm-venue-card-media"><img src={facility.image} alt=""/><i className="cm-venue-distance"><MapPin size={12}/>{facility.distance}</i><i className="cm-venue-rating"><Star size={12} fill="currentColor"/>{facility.rating} ({facility.reviewCount})</i><i className="cm-venue-area">{facility.area}</i><i className="cm-venue-status">{facility.status}</i></span><span className="cm-venue-card-body"><strong>{facility.venueName}</strong><small><MapPin size={13}/>{facility.location}</small><em>{facility.name}{facility.id === 'box-cricket' && ' · Cricket Green Nets'}</em><span className="cm-venue-card-bottom"><span><b>STARTING AT</b><strong>{facility.tariff}<small>/ hr</small></strong></span><i>View Arena & Slots <ArrowRight size={17}/></i></span></span></button>)}</div></div>; }
+function FacilitiesScreen({ go }) { const curatedVenues = prototypeFacilities.filter((facility) => ['box-cricket', 'skating-rink', 'shooting-machine'].includes(facility.id)); return <div className="cm-page cm-venues-page"><header className="cm-curated-top"><h1>Venues</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-venues-search"><Search size={19}/><input placeholder="Search arenas, turfs, sports..." aria-label="Search arenas, turfs, sports"/><button aria-label="Filter venues"><Menu size={18}/></button></div><div className="cm-venues-filter">{['All', 'Box Cricket', 'Skating Rink', 'Pickle Ball', 'Cricket Green Net Practice'].map((filter, index) => <button key={filter} className={index === 0 ? 'selected' : ''}>{filter}</button>)}</div><div className="cm-venues-meta"><span><i/>3 Arenas Open in Bopal District</span><b>FAST BOOKING</b></div><div className="cm-venues-list">{curatedVenues.map((facility) => <button key={facility.id} className="cm-venue-card" onClick={() => go('facility', { facility })}><span className="cm-venue-card-media"><img src={facility.image} alt=""/><i className="cm-venue-distance"><MapPin size={12}/>{facility.distance}</i><i className="cm-venue-rating"><Star size={12} fill="currentColor"/>{facility.rating} ({facility.reviewCount})</i><i className="cm-venue-area">{facility.area}</i><i className="cm-venue-status">{facility.status}</i></span><span className="cm-venue-card-body"><strong>{facility.venueName}</strong><small><MapPin size={13}/>{facility.location}</small><em>{facility.name}{facility.id === 'box-cricket' && ' · Cricket Green Nets'}</em><span className="cm-venue-card-bottom"><span><b>STARTING AT</b><strong>{facility.tariff}<small>/ hr</small></strong></span><i>View Arena & Slots <ArrowRight size={17}/></i></span></span></button>)}</div></div>; }
 
-function FacilityDetail({ facility, beginBooking, back, go }) { return <div className="cm-page cm-curated-detail"><header className="cm-detail-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Facility Detail</h1><div><button className="cm-icon-button" aria-label="Save facility"><Bookmark/></button><button className="cm-icon-button" aria-label="Share facility"><Share2/></button><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></div></header><div className="cm-curated-detail-media"><img src={facility.image} alt=""/><span className="cm-detail-active"><i/>ACTIVE & BOOKABLE</span><span className="cm-detail-service">⚯ {facility.name}</span><span className="cm-detail-photos">▣ 1 of 4 Photos</span></div><section className="cm-curated-detail-copy"><div className="cm-detail-reference"><span>[FACILITY REFERENCE]</span><b>[Facility Sector / Wing]</b></div><h2>[Facility Name]</h2><div className="cm-detail-review"><Star size={16} fill="currentColor"/> <strong>{facility.rating}</strong> <i/> <button onClick={() => go('reviews')}>[Review Count] Verified Reviews →</button></div><span className="cm-detail-service-line">⚯ Cricket Green Net Practice with Shooting Machine</span><div className="cm-detail-feature-grid"><div><Clock3/><small>Slot Duration</small><strong>60m / 90m Blocks</strong></div><div><Clock3/><small>Operating Window</small><strong>06:00 AM – 10:00 PM</strong></div><div><Sparkles/><small>Pitch Surface</small><strong>Synthetic Turfed Enclosure</strong></div><div><UsersRound/><small>Equipment</small><strong>Feeder & Stumps Provided</strong></div></div><h3>About This Facility</h3><div className="cm-detail-content-card"><p>Standard training bay equipped with heavy-duty surround tensioned netting, high-resilience synthetic turf underlay, and dedicated programming for shooting machine options. Configured for practice and coached sessions.</p><span>✿ Indoor Covered Bay　⚯ Power Feeder Ports</span></div><div className="cm-detail-heading-row"><h3>Pricing & Tariffs</h3><small>Member Rates Apply</small></div><div className="cm-detail-tariff"><div><h2>[Configured Tariff]</h2><b>Standard Tier</b></div><p>Based on verified patron bookings</p><div className="cm-detail-tariff-table"><span>Standard Net Lane (Off-Peak)<strong>[Standard / Prime Rates]</strong></span><span>Prime Net Lane (Peak Evening)<strong>[Standard / Prime Rates]</strong></span><span>Automated Feeder Inclusion<strong>Included</strong></span></div><em>Based on verified patron bookings</em></div><h3>Venue Guidelines</h3><div className="cm-guidelines"><div><span>◉</span><p><strong>Approved Footwear</strong>Flat rubber-soled turf trainers or non-marking sports shoes required. Metal spikes strictly prohibited.</p></div><div><span>▦</span><p><strong>Turnstile Check-In</strong>Digital pass scan at turnstile gate 10 mins prior to slot commencement.</p></div><div><span>◒</span><p><strong>Equipment Provision</strong>Club training balls included; protective batting gear and pads available on request at bay desk.</p></div></div></section><BookingBar label="Select Date & Time" onClick={() => beginBooking(facility)} detail="Starting from [Configured Tariff]" /></div>; }
+function FacilityDetail({ facility, beginBooking, back, go }) { return <div className="cm-page cm-curated-detail"><header className="cm-detail-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Facility Detail</h1><div><button className="cm-icon-button" aria-label="Save facility"><Bookmark/></button><button className="cm-icon-button" aria-label="Share facility"><Share2/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-curated-detail-media"><img src={facility.image} alt=""/><span className="cm-detail-active"><i/>ACTIVE & BOOKABLE</span><span className="cm-detail-service">⚯ {facility.name}</span><span className="cm-detail-photos">▣ 1 of 4 Photos</span></div><section className="cm-curated-detail-copy"><div className="cm-detail-reference"><span>FACILITY REFERENCE</span><b>{facility.service}</b></div><h2>{facility.venueName}</h2><div className="cm-detail-review"><Star size={16} fill="currentColor"/> <strong>{facility.rating}</strong> <i/> <button onClick={() => go('reviews')}>{facility.reviewCount} Verified Reviews →</button></div><span className="cm-detail-service-line">⚯ {facility.name} · {facility.label}</span><div className="cm-detail-feature-grid"><div><Clock3/><small>Slot Duration</small><strong>60m / 90m Blocks</strong></div><div><Clock3/><small>Operating Window</small><strong>06:00 AM – 10:00 PM</strong></div><div><Sparkles/><small>Pitch Surface</small><strong>Synthetic Turfed Enclosure</strong></div><div><UsersRound/><small>Equipment</small><strong>Feeder & Stumps Provided</strong></div></div><h3>About This Facility</h3><div className="cm-detail-content-card"><p>{facility.description}</p><span>✿ Indoor Covered Bay　⚯ Power Feeder Ports</span></div><div className="cm-detail-heading-row"><h3>Pricing & Tariffs</h3><small>Member Rates Apply</small></div><div className="cm-detail-tariff"><div><h2>{facility.tariff}</h2><b>Standard Tier</b></div><p>Based on verified patron bookings</p><div className="cm-detail-tariff-table"><span>Standard Lane (Off-Peak)<strong>{facility.tariff} / hr</strong></span><span>Prime Lane (Peak Evening)<strong>{facility.tariff} / hr</strong></span><span>Equipment Provision<strong>Included</strong></span></div><em>Based on verified patron bookings</em></div><h3>Venue Guidelines</h3><div className="cm-guidelines"><div><span>◉</span><p><strong>Approved Footwear</strong>Flat rubber-soled turf trainers or non-marking sports shoes required. Metal spikes strictly prohibited.</p></div><div><span>▦</span><p><strong>Turnstile Check-In</strong>Digital pass scan at turnstile gate 10 mins prior to slot commencement.</p></div><div><span>◒</span><p><strong>Equipment Provision</strong>Club training balls included; protective batting gear and pads available on request at bay desk.</p></div></div></section><BookingBar label={facility.name} ctaText="Select Date & Time" onClick={() => beginBooking(facility)} detail={`Starting from ${facility.tariff}/hr`} /></div>; }
 
 function BookingScreen({ back, bookingStep, setBookingStep, selectedFacility, onFacilityChange, selectedSlot, setSelectedSlot, selectedSlotLabel, bookingDetails, setBookingDetails, go }) {
   const detailsReady = bookingDetails.name.trim().length >= 2 && bookingDetails.phone.replace(/\D/g, '').length >= 10;
   const canContinue = bookingStep === 1 ? Boolean(selectedFacility) : bookingStep === 2 ? Boolean(selectedSlot) : bookingStep === 3 ? detailsReady : true;
-  const continueStep = () => { if (!canContinue) return; if (bookingStep < 4) setBookingStep(bookingStep + 1); else go('processing'); };
-  const nextLabel = bookingStep === 1 ? 'Choose date & slot' : bookingStep === 2 ? 'Continue to details' : bookingStep === 3 ? 'Review booking' : 'Proceed to payment';
-  const title = bookingStep === 3 ? 'Guest Details' : bookingStep === 4 ? 'Review & Pay' : 'Select Slot';
-  const actionDetail = bookingStep === 2 ? (selectedSlotLabel || 'Select an available slot') : bookingStep === 3 ? (detailsReady ? 'Guest details complete' : 'Enter your name and mobile number') : bookingStep === 4 ? 'Secure prototype payment' : 'Step 1 of 4';
-  return <div className="cm-page cm-booking"><header className="cm-booking-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><div><span>TURF & TASTE</span><h1>{title}</h1></div><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header><div className="cm-booking-progress" aria-label={`Step ${bookingStep} of 4`}>{steps.map((step, index) => <button key={step} className={index + 1 === bookingStep ? 'active' : index + 1 < bookingStep ? 'complete' : ''} onClick={() => index + 1 <= bookingStep && setBookingStep(index + 1)}><b>{index + 1 < bookingStep ? <Check size={14}/> : index + 1}</b><span>{step}</span></button>)}</div><div className="cm-booking-context"><img src={selectedFacility.image} alt=""/><div><small>{bookingStep === 1 ? 'SELECT A SERVICE' : 'SELECTED VENUE'}</small><strong>{bookingStep === 1 ? 'Select Sport & Service' : selectedFacility.venueName}</strong></div><button onClick={() => { setSelectedSlot(null); setBookingStep(1); }}>Change</button></div>{bookingStep === 1 && <StepVenue selectedFacility={selectedFacility} onFacilityChange={onFacilityChange} />}{bookingStep === 2 && <StepSlots selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot} />}{bookingStep === 3 && <StepDetails bookingDetails={bookingDetails} setBookingDetails={setBookingDetails} />}{bookingStep === 4 && <StepReview selectedFacility={selectedFacility} selectedSlotLabel={selectedSlotLabel} />}{<BookingBar label={nextLabel} detail={actionDetail} disabled={!canContinue} onClick={continueStep} />}</div>;
+  const continueStep = () => {
+    if (!canContinue) return;
+    if (bookingStep < 4) setBookingStep(bookingStep + 1);
+    else go('processing');
+  };
+  const handleBack = () => {
+    if (bookingStep > 1) {
+      setBookingStep(bookingStep - 1);
+    } else {
+      back();
+    }
+  };
+  const nextCtaText = bookingStep === 1 ? 'Select Date & Time' : bookingStep === 2 ? 'Continue to Details' : bookingStep === 3 ? 'Review Booking' : 'Proceed to Pay';
+  const barLabel = bookingStep === 1 ? (selectedFacility ? selectedFacility.name : 'Select Sport & Service') : bookingStep === 2 ? (selectedSlot ? selectedFacility.venueName : 'Select an available slot') : bookingStep === 3 ? (detailsReady ? `Lead: ${bookingDetails.name.trim()}` : 'Guest Details Required') : 'Confirm & Pay';
+  const title = bookingStep === 1 ? 'Select Sport & Venue' : bookingStep === 2 ? 'Select Date & Slot' : bookingStep === 3 ? 'Guest Details' : 'Review & Pay';
+  const actionDetail = bookingStep === 1 ? (selectedFacility ? `1 arena selected · ${selectedFacility.tariff}/hr` : 'Step 1 of 4 · Choose a sport') : bookingStep === 2 ? (selectedSlotLabel || 'Choose a time slot to continue') : bookingStep === 3 ? (detailsReady ? 'Contact details verified' : 'Full name & 10-digit mobile required') : 'Total: ₹900.00 · Secure Checkout';
+
+  return <div className="cm-page cm-booking">
+    <header className="cm-booking-top">
+      <button className="cm-icon-button" onClick={handleBack} aria-label="Go back"><ArrowLeft/></button>
+      <div><span>TURF & TASTE</span><h1>{title}</h1></div>
+      <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
+    </header>
+    <div className="cm-booking-progress" aria-label={`Step ${bookingStep} of 4`}>
+      {steps.map((step, index) => {
+        const stepNum = index + 1;
+        const isComplete = stepNum < bookingStep;
+        const isActive = stepNum === bookingStep;
+        return (
+          <button
+            key={step}
+            className={isActive ? 'active' : isComplete ? 'complete' : ''}
+            onClick={() => isComplete && setBookingStep(stepNum)}
+            aria-label={`Step ${stepNum}: ${step}`}
+          >
+            <b>{isComplete ? <Check size={14}/> : stepNum}</b>
+            <span>{step}</span>
+          </button>
+        );
+      })}
+    </div>
+    <div className="cm-booking-context">
+      <img src={selectedFacility ? selectedFacility.image : '/images/hero_arena.jpg'} alt=""/>
+      <div>
+        <small>{bookingStep === 1 ? 'STEP 1 OF 4' : 'SELECTED ARENA'}</small>
+        <strong>{bookingStep === 1 ? (selectedFacility ? selectedFacility.name : 'Choose a Service') : selectedFacility.venueName}</strong>
+      </div>
+      {bookingStep > 1 && <button onClick={() => { setSelectedSlot(null); setBookingStep(1); }}>Change</button>}
+    </div>
+    {bookingStep === 1 && <StepVenue selectedFacility={selectedFacility} onFacilityChange={onFacilityChange} />}
+    {bookingStep === 2 && <StepSlots selectedFacility={selectedFacility} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot} />}
+    {bookingStep === 3 && <StepDetails selectedFacility={selectedFacility} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} setBookingDetails={setBookingDetails} />}
+    {bookingStep === 4 && <StepReview selectedFacility={selectedFacility} selectedSlotLabel={selectedSlotLabel} />}
+    <BookingBar
+      label={barLabel}
+      detail={actionDetail}
+      ctaText={nextCtaText}
+      disabled={!canContinue}
+      onClick={continueStep}
+    />
+  </div>;
 }
 
-function StepVenue({ selectedFacility, onFacilityChange }) { return <section className="cm-step"><div className="cm-step-heading"><p className="cm-overline">AUTHORIZED ARENAS</p><h2>Select Sport & Service</h2><p>Choose the sport and session that fits your visit.</p></div><div className="cm-venue-choice-list">{prototypeFacilities.map((facility) => <button key={facility.id} className={selectedFacility.id === facility.id ? 'selected' : ''} onClick={() => onFacilityChange(facility)}><img src={facility.image} alt=""/><span><strong>{facility.name}</strong><small>{facility.label}</small>{selectedFacility.id === facility.id && <em>Selected · available times shown next</em>}</span>{selectedFacility.id === facility.id && <Check />}</button>)}</div><div className="cm-booking-venues-label"><strong>Available Venues</strong><span>Choose a service to continue to slot selection.</span></div></section>; }
+function StepVenue({ selectedFacility, onFacilityChange }) {
+  return <section className="cm-step">
+    <div className="cm-step-heading">
+      <p className="cm-overline">AUTHORIZED ARENAS</p>
+      <h2>Select Sport &amp; Service</h2>
+      <p>Choose the sport and session format for your booking.</p>
+    </div>
+    <div className="cm-venue-choice-list" aria-label="Authorized sports and services">
+      {prototypeFacilities.map((facility) => {
+        const isSelected = selectedFacility && selectedFacility.id === facility.id;
+        return (
+          <button
+            key={facility.id}
+            className={isSelected ? 'selected' : ''}
+            onClick={() => onFacilityChange(facility)}
+            aria-pressed={isSelected}
+            aria-label={`${facility.name} - ${facility.label}`}
+          >
+            <img src={facility.image} alt="" />
+            <span>
+              <strong>{facility.name}</strong>
+              <small>{facility.label} · From {facility.tariff}/hr</small>
+              {isSelected && <em>Selected · Ready to continue to schedule</em>}
+            </span>
+            {isSelected && <Check size={18} aria-hidden="true" />}
+          </button>
+        );
+      })}
+    </div>
+    <div className="cm-booking-venues-label">
+      <strong>{selectedFacility ? 'Selected Arena' : 'Available Venues'}</strong>
+      <span>
+        {selectedFacility
+          ? `${selectedFacility.venueName} · ${selectedFacility.location}`
+          : 'Choose a sport or service above to view available arenas & slots.'}
+      </span>
+    </div>
+  </section>;
+}
 
-function StepSlots({ selectedSlot, setSelectedSlot }) { const dates = ['Mon 22', 'Tue 23', 'Wed 24', 'Thu 25', 'Fri 26']; const morning = slots.slice(0, 3); const evening = slots.slice(3); return <section className="cm-step"><div className="cm-step-heading"><p className="cm-overline">BOX CRICKET</p><h2>Select Date</h2><p>Asia/Kolkata (IST)</p></div><div className="cm-date-strip cm-source-dates">{dates.map((date, index) => <button key={date} className={index === 1 ? 'selected' : ''}><small>{date.split(' ')[0]}</small><strong>{date.split(' ')[1]}</strong></button>)}</div><div className="cm-duration"><span>Match Duration</span><button>1 hr</button><button className="selected">1.5 hrs</button><button>2 hrs</button></div><div className="cm-availability-legend"><span><i/>Available</span><span><i/>Filling Fast</span><span><i/>Booked</span></div><SlotGroup title="Morning (Early Bird)" note="Special Rate ₹700" slotItems={morning} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/><SlotGroup title="Evening & Floodlit (Prime)" note="High Demand" slotItems={evening} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/></section>; }
+function StepSlots({ selectedFacility, selectedSlot, setSelectedSlot }) {
+  const dates = ['Mon 22', 'Tue 23', 'Wed 24', 'Thu 25', 'Fri 26'];
+  const [selectedDateIndex, setSelectedDateIndex] = useState(1);
+  const morning = slots.slice(0, 3);
+  const evening = slots.slice(3);
+  return <section className="cm-step">
+    <div className="cm-step-heading">
+      <p className="cm-overline">{selectedFacility ? selectedFacility.name.toUpperCase() : 'SCHEDULE'}</p>
+      <h2>Select Date &amp; Time</h2>
+      <p>Asia/Kolkata (IST) · 90-minute standard slot</p>
+    </div>
+    <div className="cm-date-strip cm-source-dates" aria-label="Select date">
+      {dates.map((date, index) => (
+        <button
+          key={date}
+          className={index === selectedDateIndex ? 'selected' : ''}
+          onClick={() => setSelectedDateIndex(index)}
+        >
+          <small>{date.split(' ')[0]}</small>
+          <strong>{date.split(' ')[1]}</strong>
+        </button>
+      ))}
+    </div>
+    <div className="cm-duration">
+      <span>Match Duration</span>
+      <button>1 hr</button>
+      <button className="selected">1.5 hrs</button>
+      <button>2 hrs</button>
+    </div>
+    <div className="cm-availability-legend">
+      <span><i/>Available</span>
+      <span><i/>Filling Fast</span>
+      <span><i/>Booked</span>
+    </div>
+    <SlotGroup title="Morning (Early Bird)" note="Special Rate Available" slotItems={morning} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/>
+    <SlotGroup title="Evening & Floodlit (Prime)" note="Peak Hours" slotItems={evening} selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}/>
+  </section>;
+}
 
-function SlotGroup({ title, note, slotItems, selectedSlot, setSelectedSlot }) { return <div className="cm-slot-group"><div><h3>{title}</h3><span>{note}</span></div><div className="cm-slot-grid">{slotItems.map((slot, index) => <button className={`${slot === selectedSlot ? 'selected' : ''} ${slot === '7:00 PM' ? 'busy' : ''}`} key={slot} disabled={slot === '7:00 PM'} onClick={() => setSelectedSlot(slot)}>{slot}{slot === selectedSlot && <Check size={15}/>} {index === 1 && slot !== '7:00 PM' && <small>Filling</small>}</button>)}</div></div>; }
+function SlotGroup({ title, note, slotItems, selectedSlot, setSelectedSlot }) {
+  return <div className="cm-slot-group">
+    <div><h3>{title}</h3><span>{note}</span></div>
+    <div className="cm-slot-grid">
+      {slotItems.map((slot, index) => {
+        const isSelected = slot === selectedSlot;
+        const isBusy = slot === '7:00 PM';
+        return (
+          <button
+            className={`${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : ''}`}
+            key={slot}
+            disabled={isBusy}
+            onClick={() => setSelectedSlot(slot)}
+            aria-pressed={isSelected}
+            aria-label={`${slot} slot${isBusy ? ' (Booked)' : ''}`}
+          >
+            {slot}
+            {isSelected && <Check size={15}/>}
+            {index === 1 && !isBusy && <small>Filling</small>}
+          </button>
+        );
+      })}
+    </div>
+  </div>;
+}
 
-function StepDetails({ bookingDetails, setBookingDetails }) { const update = (key) => (event) => setBookingDetails((current) => ({ ...current, [key]: event.target.value })); return <section className="cm-step"><div className="cm-step-heading"><p className="cm-overline">GUEST RESERVATION</p><h2>Guest Details</h2><p>We will use these details for venue access and booking updates.</p></div><div className="cm-guest-booking-summary"><img src="/images/box_cricket.jpg" alt=""/><div><strong>Selected Turf &amp; Taste Arena</strong><span><CalendarDays size={12}/> Selected booking date</span><span><Clock3 size={12}/> Selected slot · fixture preview</span></div></div><form className="cm-form cm-source-form" onSubmit={(e) => e.preventDefault()}><div className="cm-form-section-title"><strong>Lead Player Contact</strong><span>Required</span></div><label>Full Name<input value={bookingDetails.name} onChange={update('name')} placeholder="Enter your name" autoComplete="name" /></label><label>WhatsApp / Mobile Number<input value={bookingDetails.phone} onChange={update('phone')} inputMode="tel" placeholder="Enter your mobile number" autoComplete="tel" /></label><small className="cm-form-hint">The booking pass and updates use the contact details you provide.</small><label>Email Address <span>Optional</span><input value={bookingDetails.email} onChange={update('email')} inputMode="email" placeholder="name@example.com" autoComplete="email" /></label><div className="cm-form-section-title"><strong>Sport &amp; Match Preferences</strong></div><label>Team / group note <span>Optional</span><textarea value={bookingDetails.note} onChange={update('note')} placeholder="Add a note for the venue team" rows="3" /></label></form></section>; }
+function StepDetails({ selectedFacility, selectedSlotLabel, bookingDetails, setBookingDetails }) {
+  const update = (key) => (event) => setBookingDetails((current) => ({ ...current, [key]: event.target.value }));
+  return <section className="cm-step">
+    <div className="cm-step-heading">
+      <p className="cm-overline">GUEST RESERVATION</p>
+      <h2>Guest Details</h2>
+      <p>We will use these details for arena check-in and booking updates.</p>
+    </div>
+    <div className="cm-guest-booking-summary">
+      <img src={selectedFacility ? selectedFacility.image : '/images/box_cricket.jpg'} alt=""/>
+      <div>
+        <strong>{selectedFacility ? selectedFacility.venueName : 'Turf & Taste Arena'}</strong>
+        <span><CalendarDays size={12}/> Tuesday, 23 Sep 2025</span>
+        <span><Clock3 size={12}/> {selectedSlotLabel || 'Selected slot'} · 1.5 hrs</span>
+      </div>
+    </div>
+    <form className="cm-form cm-source-form" onSubmit={(e) => e.preventDefault()}>
+      <div className="cm-form-section-title">
+        <strong>Lead Player Contact</strong>
+        <span>Required</span>
+      </div>
+      <label>
+        Full Name
+        <input
+          value={bookingDetails.name}
+          onChange={update('name')}
+          placeholder="Enter lead player full name"
+          autoComplete="name"
+          required
+        />
+      </label>
+      <label>
+        WhatsApp / Mobile Number
+        <input
+          value={bookingDetails.phone}
+          onChange={update('phone')}
+          inputMode="tel"
+          placeholder="10-digit mobile number"
+          autoComplete="tel"
+          required
+        />
+      </label>
+      <small className="cm-form-hint">The entry pass QR and match updates are sent to this WhatsApp / mobile.</small>
+      <label>
+        Email Address <span>Optional</span>
+        <input
+          value={bookingDetails.email}
+          onChange={update('email')}
+          inputMode="email"
+          placeholder="name@example.com"
+          autoComplete="email"
+        />
+      </label>
+      <div className="cm-form-section-title">
+        <strong>Match Preferences</strong>
+      </div>
+      <label>
+        Team / group note <span>Optional</span>
+        <textarea
+          value={bookingDetails.note}
+          onChange={update('note')}
+          placeholder="Add equipment or pitch preferences for the venue team…"
+          rows="3"
+        />
+      </label>
+    </form>
+  </section>;
+}
 
-function StepReview({ selectedFacility, selectedSlotLabel }) { return <section className="cm-step"><div className="cm-step-heading"><p className="cm-overline">SECURE CHECKOUT</p><h2>Review &amp; Pay</h2><p>Confirm your arena, session and secure payment summary.</p></div><div className="cm-review-card"><img src={selectedFacility.image} alt=""/><div><span className="cm-status">Pitch hold guaranteed</span><strong>{selectedFacility.venueName}</strong><small><MapPin size={13}/> Bopal, Ahmedabad</small><span><CalendarDays size={15}/> Tuesday, 23 Sep 2025</span><span><Clock3 size={15}/> {selectedSlotLabel} · 1.5 hrs</span></div></div><div className="cm-price-breakdown"><div className="cm-breakdown-top"><strong>Itemized Price Breakdown</strong><span>Verified Rate</span></div><div><span>Turf Base Rate (1.5 hrs)</span><strong>₹762.71</strong></div><div><span>Clubhouse &amp; Facility Maintenance</span><strong>₹45.00</strong></div><div><span>Arena Floodlights &amp; Gear</span><strong>₹0.00</strong></div><div className="cm-payable"><span>GST (18% Applied)</span><strong>₹92.29</strong></div><div className="cm-payable"><span>Total Payable</span><strong>₹900.00</strong></div><p><ShieldCheck size={16}/> Final amount is confirmed securely before payment.</p></div><button className="cm-payment-row"><CreditCard /><span><strong>Razorpay</strong><small>Secure test payment</small></span><ChevronRight /></button></section>; }
+function StepReview({ selectedFacility, selectedSlotLabel }) {
+  return <section className="cm-step">
+    <div className="cm-step-heading">
+      <p className="cm-overline">SECURE CHECKOUT</p>
+      <h2>Review &amp; Pay</h2>
+      <p>Confirm your arena reservation and payment breakdown.</p>
+    </div>
+    <div className="cm-review-card">
+      <img src={selectedFacility.image} alt=""/>
+      <div>
+        <span className="cm-status">Pitch hold guaranteed</span>
+        <strong>{selectedFacility.venueName}</strong>
+        <small><MapPin size={13}/> {selectedFacility.location}</small>
+        <span><CalendarDays size={15}/> Tuesday, 23 Sep 2025</span>
+        <span><Clock3 size={15}/> {selectedSlotLabel} · 1.5 hrs</span>
+      </div>
+    </div>
+    <div className="cm-price-breakdown">
+      <div className="cm-breakdown-top">
+        <strong>Itemized Price Breakdown</strong>
+        <span>Verified Rate</span>
+      </div>
+      <div>
+        <span>Turf Base Rate (1.5 hrs)</span>
+        <strong>₹762.71</strong>
+      </div>
+      <div>
+        <span>Clubhouse &amp; Facility Maintenance</span>
+        <strong>₹45.00</strong>
+      </div>
+      <div>
+        <span>Arena Floodlights &amp; Gear</span>
+        <strong>₹0.00</strong>
+      </div>
+      <div className="cm-payable">
+        <span>GST (18% Applied)</span>
+        <strong>₹92.29</strong>
+      </div>
+      <div className="cm-payable">
+        <span>Total Payable</span>
+        <strong>₹900.00</strong>
+      </div>
+      <p><ShieldCheck size={16}/> Amount is locked and verified for this session.</p>
+    </div>
+    <button className="cm-payment-row">
+      <CreditCard />
+      <span>
+        <strong>Razorpay Secure Checkout</strong>
+        <small>UPI, Cards, Netbanking &amp; Wallets</small>
+      </span>
+      <ChevronRight />
+    </button>
+  </section>;
+}
 
-function ProcessingScreen({ back, failed, setFailed, selectedFacility, go }) { if (failed) return <div className="cm-page cm-payment-failed"><header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Review &amp; Pay</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header><div className="cm-payment-transaction"><span>TRANSACTION ON HOLD</span><b>07:13</b></div><div className="cm-payment-error-icon"><CircleAlert/></div><h1>Payment Could Not Be Processed</h1><p>Your bank or UPI app declined the transaction, or the session timed out. Don’t worry, your slot is held for the next <strong>07:13 minutes.</strong></p><div className="cm-held-booking"><div><span>RESERVED BOOKING</span><b>[Booking Reference]</b><i>15m Hold Active</i></div><img src={selectedFacility.image} alt=""/><strong>{selectedFacility.venueName}</strong><small>CURATED FIXTURE PREVIEW</small><p><CalendarDays size={13}/> Schedule　Selected date　·　Selected time (1.5 hrs)</p><div><span>Total Payable</span><b>₹900.00</b></div></div><p className="cm-payment-alert">PAYMENT STATUS NOTE<br/><strong>No money has been deducted from your account.</strong></p><Button onClick={() => { setFailed(false); go('processing'); }} icon={ArrowRight}>Retry Payment</Button><button className="cm-text-button" onClick={() => go('booking')}>Review or change payment</button></div>; return <div className="cm-page cm-payment-processing"><header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Review &amp; Pay</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header><div className="cm-processing-backdrop"><p>{selectedFacility.venueName}</p><small>Curated customer-app fixture preview</small><div className="cm-processing-card"><div className="cm-processing-orbit"><div><LockKeyhole/><span>R</span></div></div><p className="cm-overline">RAZORPAY SECURE CHECKOUT</p><h2>Securing your payment</h2><p>Opening Razorpay in prototype mode. No live payment or customer charge is created.</p><Button onClick={() => go('success')} icon={Check}>Payment successful</Button><button onClick={() => setFailed(true)}>Payment failed or cancelled</button></div></div></div>; }
+function ProcessingScreen({ back, failed, setFailed, selectedFacility, go }) {
+  if (failed) return <div className="cm-page cm-payment-failed">
+    <header className="cm-source-state-header">
+      <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
+      <h1>Review &amp; Pay</h1>
+      <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
+    </header>
+    <div className="cm-payment-transaction">
+      <span>TRANSACTION ON HOLD</span>
+      <b>07:13</b>
+    </div>
+    <div className="cm-payment-error-icon"><CircleAlert/></div>
+    <h1>Payment Could Not Be Processed</h1>
+    <p>Your bank or UPI app declined the transaction, or the session timed out. Don’t worry, your slot is held for the next <strong>07:13 minutes.</strong></p>
+    <div className="cm-held-booking">
+      <div><span>RESERVED BOOKING</span><b>TTB-2026-9482</b><i>15m Hold Active</i></div>
+      <img src={selectedFacility.image} alt=""/>
+      <strong>{selectedFacility.venueName}</strong>
+      <small>HELD SESSION PREVIEW</small>
+      <p><CalendarDays size={13}/> Tuesday, 23 Sep 2025 · 6:00 PM – 7:30 PM (1.5 hrs)</p>
+      <div><span>Total Payable</span><b>₹900.00</b></div>
+    </div>
+    <p className="cm-payment-alert">PAYMENT STATUS NOTE<br/><strong>No money has been deducted from your account.</strong></p>
+    <Button onClick={() => { setFailed(false); go('processing'); }} icon={ArrowRight}>Retry Payment</Button>
+    <button className="cm-text-button" onClick={() => go('booking')}>Review or change payment</button>
+  </div>;
 
-function SuccessScreen({ go }) { return <div className="cm-page cm-centered cm-success"><div className="cm-success-mark"><Check /></div><p className="cm-overline">CURATED FIXTURE · BOOKING CONFIRMED</p><h1>Reservation secured.</h1><p>This preview shows the confirmed state only. No live payment, customer account, or booking has been created.</p><div className="cm-confirmation-ref"><small>BOOKING REFERENCE</small><strong>[Booking Reference]</strong><span>[Selected facility] · [Selected date and time]</span></div><Button onClick={() => go('pass')} icon={TicketCheck}>View Entry Pass</Button><button className="cm-text-button" onClick={() => go('bookings')}>View My Reservations</button></div>; }
+  return <div className="cm-page cm-payment-processing">
+    <header className="cm-source-state-header">
+      <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
+      <h1>Review &amp; Pay</h1>
+      <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
+    </header>
+    <div className="cm-processing-backdrop">
+      <p>{selectedFacility.venueName}</p>
+      <small>Secure Payment Gateway Simulation</small>
+      <div className="cm-processing-card">
+        <div className="cm-processing-orbit"><div><LockKeyhole/><span>R</span></div></div>
+        <p className="cm-overline">RAZORPAY SECURE CHECKOUT</p>
+        <h2>Securing your payment</h2>
+        <p>Opening Razorpay checkout mode. Trigger a test scenario below:</p>
+        <Button onClick={() => go('success')} icon={Check}>Payment successful</Button>
+        <button onClick={() => setFailed(true)}>Payment failed or cancelled</button>
+      </div>
+    </div>
+  </div>;
+}
 
-function PassScreen({ go, back }) { return <div className="cm-page cm-pass cm-curated-pass"><header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Venue Detail</h1><div><button className="cm-icon-button" aria-label="Save pass"><Bookmark/></button><button className="cm-icon-button" aria-label="Share pass"><Share2/></button></div></header><div className="cm-pass-access"><span><Check size={13}/> FIXTURE PASS PREVIEW</span><b>NO LIVE ACCESS</b></div><div className="cm-pass-booking-name"><span>TTB / TURF &amp; TASTE</span><strong>[Facility Name]</strong></div><div className="cm-pass-ticket"><span className="cm-pass-label">CONFIRMED EXAMPLE</span><p>CURATED CUSTOMER APP PREVIEW</p><h1>[Selected Service]</h1><div className="cm-pass-meta"><span><CalendarDays/> DATE<br/><b>[Selected Date]</b></span><span><Clock3/> SLOT TIME<br/><b>[Selected Time]<br/>[Duration]</b></span></div><div className="cm-qr" aria-label="Illustrative fixture QR"><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><small>This illustrative pass is not valid for venue entry. A verified booking creates the actual entry pass.</small></div><Button onClick={() => go('bookings')} icon={NotebookTabs}>View My Reservations</Button></div>; }
+function SuccessScreen({ go }) {
+  return <div className="cm-page cm-centered cm-success">
+    <div className="cm-success-mark"><Check size={38} /></div>
+    <p className="cm-overline">BOOKING CONFIRMED</p>
+    <h1>Reservation secured!</h1>
+    <p>Your slot has been successfully reserved. Access pass and booking details are ready.</p>
+    <div className="cm-confirmation-ref">
+      <small>BOOKING REFERENCE</small>
+      <strong>TTB-2026-9482</strong>
+      <span>Skyline Box Cricket · Tuesday, 23 Sep · 6:00 PM</span>
+    </div>
+    <Button onClick={() => go('pass')} icon={TicketCheck}>View Entry Pass</Button>
+    <button className="cm-text-button" onClick={() => go('bookings')}>View My Reservations</button>
+  </div>;
+}
 
-function BookingsScreen({ go }) { return <div className="cm-page cm-curated-bookings"><header className="cm-curated-top"><h1>Profile</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></div></header><div className="cm-reservation-heading"><div><p className="cm-overline">My Reservations</p><h1>My Reservations</h1></div><span><i/>LOCAL FIXTURE</span></div><div className="cm-tabs"><button className="active">Upcoming <i>1</i></button><button>History <i>0</i></button></div><button className="cm-booking-row cm-source-booking-row" onClick={() => go('pass')}><div className="cm-booking-confirmed">● CONFIRMED EXAMPLE</div><img src="/images/box_cricket.jpg" alt=""/><div><h3>[Selected Facility]</h3><p>Curated booking-history preview</p><small><CalendarDays/> SCHEDULE　[Selected Date]<br/><Clock3/> [Selected Time]<br/><MapPin/> [Venue location]</small></div><span className="cm-booking-paid">PAYMENT EXAMPLE <b>[Amount]</b></span><strong>View Entry Pass &amp; QR <ArrowRight size={14}/></strong></button><div className="cm-clubhouse-guarantee"><ShieldCheck/><div><strong>Clubhouse Guarantee</strong><span>Secure, flexible and always on your side.</span></div></div></div>; }
+function PassScreen({ go, back }) {
+  return <div className="cm-page cm-pass cm-curated-pass">
+    <header className="cm-source-state-header">
+      <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
+      <h1>Entry Pass</h1>
+      <div>
+        <button className="cm-icon-button" aria-label="Save pass"><Bookmark/></button>
+        <button className="cm-icon-button" aria-label="Share pass"><Share2/></button>
+      </div>
+    </header>
+    <div className="cm-pass-access">
+      <span><Check size={13}/> ACTIVE MATCH PASS</span>
+      <b>CONFIRMED ENTRY</b>
+    </div>
+    <div className="cm-pass-booking-name">
+      <span>TURF &amp; TASTE CLUBHOUSE</span>
+      <strong>Skyline Box Cricket &amp; Training Arena</strong>
+    </div>
+    <div className="cm-pass-ticket">
+      <span className="cm-pass-label">VALID MATCH PASS</span>
+      <p>REF: TTB-2026-9482</p>
+      <h1>Box Cricket Match</h1>
+      <div className="cm-pass-meta">
+        <span><CalendarDays/> DATE<br/><b>Tue, 23 Sep 2025</b></span>
+        <span><Clock3/> SLOT TIME<br/><b>6:00 PM – 7:30 PM<br/>1.5 Hours Match</b></span>
+      </div>
+      <div className="cm-qr" aria-label="Digital entry QR code">
+        <i/><i/><i/><i/><i/><i/><i/><i/><i/>
+      </div>
+      <small>Scan this digital QR at the turnstile gate 10 minutes before your match start.</small>
+    </div>
+    <Button onClick={() => go('bookings')} icon={NotebookTabs}>View My Reservations</Button>
+  </div>;
+}
 
-function AuthScreen({ back, authScreen, setAuthScreen, go }) { const isForgot = authScreen === 'forgot', isReset = authScreen === 'reset', isExpired = authScreen === 'expired', isCreate = authScreen === 'create'; const title = isForgot ? 'Forgot Password' : isReset ? 'Create New Password' : isExpired ? 'Authentication Required' : isCreate ? 'Join Turf & Taste' : 'Welcome Back'; const action = isForgot ? 'Send Verification Code' : isReset ? 'Update Password' : isExpired ? 'Sign In' : isCreate ? 'Create Account' : 'Sign In'; return <div className={`cm-page cm-auth cm-source-auth ${isExpired ? 'cm-session-expired' : ''}`}><header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>{isCreate ? 'Create Account' : isForgot ? 'Forgot Password' : isReset ? 'Reset Password' : isExpired ? 'Session Expired' : 'Sign In'}</h1><span/></header>{!isExpired && <img className="cm-auth-cover" src={isCreate ? '/images/hero_arena.jpg' : isForgot ? '/images/cricket_nets.jpg' : '/images/box_cricket.jpg'} alt=""/>}<div className="cm-auth-mark">t<span>&</span>t</div><p className="cm-overline">{isExpired ? 'SESSION INACTIVE' : isForgot ? 'TURF & TASTE CONCIERGE' : isReset ? 'IDENTITY CONFIRMED' : isCreate ? 'CLUBHOUSE MEMBERSHIP' : 'MEMBER SOCIAL & SPORT'}</p><h1>{title}</h1><p>{isExpired ? 'For your account security, your session has timed out after a period of inactivity. Please sign in again to continue and access your clubhouse bookings.' : isForgot ? 'Enter your registered mobile number or email address. We’ll send you a secure verification code to safely reset your clubhouse credentials.' : isReset ? 'Your verification code was confirmed. Set a strong password for your account.' : isCreate ? 'Create your account to book pitches, practice nets, and attend club events.' : 'Sign in to manage your court reservations, session schedules, and club activities.'}</p>{!isExpired && <form className="cm-form cm-source-form" onSubmit={(e) => e.preventDefault()}>{isCreate && <><label>Full Name<input defaultValue="Devansh Jadav" /></label><label>WhatsApp / Mobile Number<input inputMode="tel" defaultValue="+91 98765 43210" /></label></>}<label>{isForgot ? 'Registered Mobile' : 'Mobile / WhatsApp Number'}<input inputMode="tel" defaultValue={isForgot ? '+91 98765 43210' : '+91 98765 43210'} /></label>{!isForgot && <label>Password<input type="password" placeholder={isReset ? 'Clubhouse@2025!' : 'Enter your club password'} /></label>}{isReset && <label>Confirm New Password<input type="password" placeholder="Clubhouse@2025!" /></label>}{isCreate && <label>Email Address<input type="email" defaultValue="devansh@example.com" /></label>}</form>}<Button onClick={() => { if (isForgot) setAuthScreen('reset'); else if (isReset || isExpired || authScreen === 'signin') go('profile'); else setAuthScreen('signin'); }} icon={isExpired ? LockKeyhole : ArrowRight}>{action}</Button>{authScreen === 'signin' && <><button className="cm-text-button" onClick={() => setAuthScreen('forgot')}>Forgot Password?</button><p className="cm-auth-switch">New to Turf &amp; Taste? <button onClick={() => setAuthScreen('create')}>Create Account</button></p></>}{isCreate && <p className="cm-auth-switch">Already have an account? <button onClick={() => setAuthScreen('signin')}>Sign In</button></p>}{isExpired && <button className="cm-text-button" onClick={() => go('home')}>Continue as guest</button>}</div>; }
+function BookingsScreen({ go }) {
+  return <div className="cm-page cm-curated-bookings">
+    <header className="cm-curated-top">
+      <h1>My Reservations</h1>
+      <div>
+        <button className="cm-icon-button" aria-label="Notifications"><Bell/></button>
+        <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
+      </div>
+    </header>
+    <div className="cm-reservation-heading">
+      <div>
+        <p className="cm-overline">CLUBHOUSE PASSES</p>
+        <h1>Upcoming Games</h1>
+      </div>
+      <span><i/>1 ACTIVE</span>
+    </div>
+    <div className="cm-tabs">
+      <button className="active">Upcoming <i>1</i></button>
+      <button>History <i>0</i></button>
+    </div>
+    <button className="cm-booking-row cm-source-booking-row" onClick={() => go('pass')}>
+      <div className="cm-booking-confirmed">● CONFIRMED RESERVATION</div>
+      <img src="/images/box_cricket.jpg" alt=""/>
+      <div>
+        <h3>Skyline Box Cricket Arena</h3>
+        <p>1.5 Hours Floodlit Match Session</p>
+        <small>
+          <CalendarDays/> Tue, 23 Sep 2025<br/>
+          <Clock3/> 6:00 PM – 7:30 PM<br/>
+          <MapPin/> Bopal, Ahmedabad
+        </small>
+      </div>
+      <span className="cm-booking-paid">PAID IN FULL <b>₹900.00</b></span>
+      <strong>View Entry Pass &amp; QR <ArrowRight size={14}/></strong>
+    </button>
+    <div className="cm-clubhouse-guarantee">
+      <ShieldCheck/>
+      <div>
+        <strong>Clubhouse Guarantee</strong>
+        <span>Instant turnstile entry with digital QR pass verification.</span>
+      </div>
+    </div>
+  </div>;
+}
 
 function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
-  const [form, setForm] = useState({ name: '', phone: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', phone: '', password: '', confirm: '', email: '' });
+  const [submitted, setSubmitted] = useState(false);
   const isForgot = authScreen === 'forgot';
   const isReset = authScreen === 'reset';
   const isExpired = authScreen === 'expired';
   const isCreate = authScreen === 'create';
+
   const title = isForgot ? 'Forgot Password' : isReset ? 'Create New Password' : isExpired ? 'Authentication Required' : isCreate ? 'Join Turf & Taste' : 'Welcome Back';
   const action = isForgot ? 'Send Verification Code' : isReset ? 'Update Password' : isExpired ? 'Sign In' : isCreate ? 'Create Account' : 'Sign In';
-  const phoneReady = form.phone.replace(/\D/g, '').length >= 10;
-  const ready = isExpired || (isForgot ? phoneReady : isReset ? form.password.length >= 10 && form.password === form.confirm : isCreate ? form.name.trim().length >= 2 && phoneReady && form.password.length >= 10 : phoneReady && form.password.length >= 10);
+
+  const nameValid = form.name.trim().length >= 2;
+  const phoneDigits = form.phone.replace(/\D/g, '');
+  const phoneValid = phoneDigits.length >= 10;
+  const passwordValid = form.password.length >= 6;
+  const confirmValid = form.password === form.confirm;
+
+  const ready = isExpired
+    ? true
+    : isForgot
+      ? phoneValid
+      : isReset
+        ? passwordValid && confirmValid
+        : isCreate
+          ? nameValid && phoneValid && passwordValid
+          : phoneValid && passwordValid;
+
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+
   const submit = () => {
+    setSubmitted(true);
     if (!ready) return;
-    if (isForgot) setAuthScreen('reset');
-    else if (isReset || isExpired || authScreen === 'signin') go('profile');
-    else setAuthScreen('signin');
+    if (isForgot) {
+      setAuthScreen('reset');
+    } else if (isReset || isExpired || authScreen === 'signin' || isCreate) {
+      go('profile');
+    } else {
+      setAuthScreen('signin');
+    }
   };
+
   return <div className={`cm-page cm-auth cm-source-auth ${isExpired ? 'cm-session-expired' : ''}`}>
-    <header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>{isCreate ? 'Create Account' : isForgot ? 'Forgot Password' : isReset ? 'Reset Password' : isExpired ? 'Session Expired' : 'Sign In'}</h1><span/></header>
+    <header className="cm-source-state-header">
+      <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
+      <h1>{isCreate ? 'Create Account' : isForgot ? 'Forgot Password' : isReset ? 'Reset Password' : isExpired ? 'Session Expired' : 'Sign In'}</h1>
+      <span/>
+    </header>
     {!isExpired && <img className="cm-auth-cover" src={isCreate ? '/images/hero_arena.jpg' : isForgot ? '/images/cricket_nets.jpg' : '/images/box_cricket.jpg'} alt=""/>}
     <div className="cm-auth-mark">t<span>&amp;</span>t</div>
     <p className="cm-overline">{isExpired ? 'SESSION INACTIVE' : isForgot ? 'TURF & TASTE CONCIERGE' : isReset ? 'IDENTITY CONFIRMED' : isCreate ? 'CLUBHOUSE MEMBERSHIP' : 'MEMBER SOCIAL & SPORT'}</p>
     <h1>{title}</h1>
-    <p>{isExpired ? 'For your account security, your session has timed out after a period of inactivity. Please sign in again to continue.' : isForgot ? 'Enter a mobile number to prepare the reset-state preview.' : isReset ? 'Set a password for this local prototype preview.' : isCreate ? 'This fixture demonstrates account creation layout only; it does not create a production account.' : 'Enter demo details to explore the local customer-flow preview. No production account is used.'}</p>
+    <p>
+      {isExpired
+        ? 'For your account security, your session has timed out after a period of inactivity. Please sign in again to continue.'
+        : isForgot
+          ? 'Enter your registered mobile number to receive a secure verification code.'
+          : isReset
+            ? 'Set a secure new password for your clubhouse account.'
+            : isCreate
+              ? 'Create your account to book pitches, practice nets, and attend club events. (Local demo preview · no live charge)'
+              : 'Sign in to manage your court reservations, session schedules, and club passes.'}
+    </p>
+
     {!isExpired && <form className="cm-form cm-source-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-      {isCreate && <label>Full Name<input value={form.name} onChange={update('name')} placeholder="Enter your name" autoComplete="name" /></label>}
-      <label>{isForgot ? 'Registered Mobile' : 'Mobile / WhatsApp Number'}<input value={form.phone} onChange={update('phone')} inputMode="tel" placeholder="Enter your mobile number" autoComplete="tel" /></label>
-      {!isForgot && <label>Password<input value={form.password} onChange={update('password')} type="password" placeholder={isReset ? 'Create a password' : 'Enter a password'} autoComplete={isReset ? 'new-password' : 'current-password'} /></label>}
-      {isReset && <label>Confirm New Password<input value={form.confirm} onChange={update('confirm')} type="password" placeholder="Confirm your password" autoComplete="new-password" /></label>}
+      {isCreate && (
+        <label>
+          Full Name
+          <input
+            value={form.name}
+            onChange={update('name')}
+            placeholder="Enter your full name"
+            autoComplete="name"
+            required
+          />
+          {submitted && !nameValid && <span className="cm-field-error">Please enter at least 2 characters.</span>}
+        </label>
+      )}
+
+      <label>
+        {isForgot ? 'Registered Mobile Number' : 'Mobile / WhatsApp Number'}
+        <input
+          value={form.phone}
+          onChange={update('phone')}
+          inputMode="tel"
+          placeholder="10-digit mobile number"
+          autoComplete="tel"
+          required
+        />
+        {submitted && !phoneValid && <span className="cm-field-error">Please enter a valid 10-digit mobile number.</span>}
+      </label>
+
+      {!isForgot && (
+        <label>
+          Password
+          <input
+            value={form.password}
+            onChange={update('password')}
+            type="password"
+            placeholder={isReset ? 'New password (min 6 chars)' : 'Enter password (min 6 chars)'}
+            autoComplete={isReset ? 'new-password' : 'current-password'}
+            required
+          />
+          {submitted && !passwordValid && <span className="cm-field-error">Password must be at least 6 characters.</span>}
+        </label>
+      )}
+
+      {isReset && (
+        <label>
+          Confirm New Password
+          <input
+            value={form.confirm}
+            onChange={update('confirm')}
+            type="password"
+            placeholder="Confirm new password"
+            autoComplete="new-password"
+            required
+          />
+          {submitted && !confirmValid && <span className="cm-field-error">Passwords do not match.</span>}
+        </label>
+      )}
+
+      {isCreate && (
+        <label>
+          Email Address <span>Optional</span>
+          <input
+            value={form.email}
+            onChange={update('email')}
+            type="email"
+            placeholder="name@example.com"
+            autoComplete="email"
+          />
+        </label>
+      )}
     </form>}
+
     <Button disabled={!ready} onClick={submit} icon={isExpired ? LockKeyhole : ArrowRight}>{action}</Button>
-    {authScreen === 'signin' && <><button className="cm-text-button" onClick={() => setAuthScreen('forgot')}>Forgot Password?</button><p className="cm-auth-switch">New to Turf &amp; Taste? <button onClick={() => setAuthScreen('create')}>Create Account</button></p></>}
-    {isCreate && <p className="cm-auth-switch">Already have an account? <button onClick={() => setAuthScreen('signin')}>Sign In</button></p>}
-    {isExpired && <button className="cm-text-button" onClick={() => go('home')}>Continue as guest</button>}
+
+    {authScreen === 'signin' && (
+      <>
+        <button className="cm-text-button" onClick={() => setAuthScreen('forgot')}>Forgot Password?</button>
+        <p className="cm-auth-switch">New to Turf &amp; Taste? <button onClick={() => setAuthScreen('create')}>Create Account</button></p>
+      </>
+    )}
+    {isCreate && (
+      <p className="cm-auth-switch">Already have an account? <button onClick={() => setAuthScreen('signin')}>Sign In</button></p>
+    )}
+    {isExpired && (
+      <button className="cm-text-button" onClick={() => go('home')}>Continue as guest</button>
+    )}
   </div>;
 }
 
