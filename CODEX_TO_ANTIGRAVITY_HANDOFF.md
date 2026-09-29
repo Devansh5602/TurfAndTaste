@@ -39,6 +39,11 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - The rendered auth copy explicitly identifies this as a local preview and does not claim to create or use a production customer account.
 - Direct `/sign-in` browser QA confirms no phone number or other customer identity is prefilled and the Sign In action is disabled initially.
 
+## Completed checkpoint — Alternate-state route correction
+
+- `/create-account`, `/events/loading`, `/events/empty`, `/dining/loading`, and `/dining/unavailable` now normalize to their intended owning screen and render their specified state.
+- Browser accessibility checks verified the account form has one mobile-number field, no prefilled customer identity, and the expected disabled action; the Events and Dining recovery states expose meaningful retry/home/outlet actions.
+
 ## Exact next task
 
 1. Finish the SVG comparison and interactive browser QA for Booking Steps 1–4, Processing, Success, Failure, Pass, and My Bookings at the 390px composition.

@@ -56,7 +56,11 @@ function BookingBar({ label, onClick, disabled, detail }) {
 export default function CustomerMobilePrototype({ initialScreen = "home" } = {}) {
   const { navigate } = useRouter();
   const initialBookingStep = initialScreen === 'booking-step-2' ? 2 : initialScreen === 'booking-step-3' ? 3 : initialScreen === 'booking-step-4' ? 4 : 1;
-  const normalizedInitialScreen = initialScreen.startsWith('booking-step-') ? 'booking' : initialScreen;
+  const normalizedInitialScreen = initialScreen.startsWith('booking-step-') ? 'booking'
+    : initialScreen.startsWith('auth-') ? 'auth'
+      : initialScreen.startsWith('events-') ? 'events'
+        : initialScreen.startsWith('dining-') ? 'dining'
+          : initialScreen;
   const [screen, setScreen] = useState(normalizedInitialScreen);
   const [history, setHistory] = useState([]);
   const [theme, setTheme] = useState('ivory');
@@ -236,8 +240,8 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
     <h1>{title}</h1>
     <p>{isExpired ? 'For your account security, your session has timed out after a period of inactivity. Please sign in again to continue.' : isForgot ? 'Enter a mobile number to prepare the reset-state preview.' : isReset ? 'Set a password for this local prototype preview.' : isCreate ? 'This fixture demonstrates account creation layout only; it does not create a production account.' : 'Enter demo details to explore the local customer-flow preview. No production account is used.'}</p>
     {!isExpired && <form className="cm-form cm-source-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-      {isCreate && <><label>Full Name<input value={form.name} onChange={update('name')} placeholder="Enter your name" autoComplete="name" /></label><label>WhatsApp / Mobile Number<input value={form.phone} onChange={update('phone')} inputMode="tel" placeholder="Enter your mobile number" autoComplete="tel" /></label></>}
-      <label>{isForgot ? 'Registered Mobile' : isCreate ? 'Confirm Mobile Number' : 'Mobile / WhatsApp Number'}<input value={form.phone} onChange={update('phone')} inputMode="tel" placeholder="Enter your mobile number" autoComplete="tel" /></label>
+      {isCreate && <label>Full Name<input value={form.name} onChange={update('name')} placeholder="Enter your name" autoComplete="name" /></label>}
+      <label>{isForgot ? 'Registered Mobile' : 'Mobile / WhatsApp Number'}<input value={form.phone} onChange={update('phone')} inputMode="tel" placeholder="Enter your mobile number" autoComplete="tel" /></label>
       {!isForgot && <label>Password<input value={form.password} onChange={update('password')} type="password" placeholder={isReset ? 'Create a password' : 'Enter a password'} autoComplete={isReset ? 'new-password' : 'current-password'} /></label>}
       {isReset && <label>Confirm New Password<input value={form.confirm} onChange={update('confirm')} type="password" placeholder="Confirm your password" autoComplete="new-password" /></label>}
     </form>}
