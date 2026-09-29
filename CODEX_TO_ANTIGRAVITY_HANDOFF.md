@@ -68,11 +68,16 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - Dining remains browse-only. Its loading/unavailable recovery copy and discovery label make the fixture status clear; no ordering, cart, delivery, pickup, or food-payment behavior has been added.
 - Midnight Ivory now overrides the event, payment, pass, and recovery surfaces that previously retained light-only hardcoded values, while preserving the same route and component composition.
 
+## Completed checkpoint — Appearance and resilience route coverage
+
+- Appearance is available as its own controlled customer-mobile route (`/appearance`) as well as from Settings; it toggles only the local Clubhouse Ivory/Midnight Ivory preview state.
+- A distinct customer-app system recovery route (`/system-error`) now provides Go Home and Go Back actions without changing local fixture data.
+
 ## Exact next task
 
-1. Finish source-driven fidelity QA for the remaining Events, Dining, Support/Information, Resilience, and Midnight Ivory surfaces at the 390px composition.
-2. Preserve explicit local-fixture disclosures while correcting only verified visual divergences and route/navigation defects.
-3. Keep the approved discovery baselines unchanged and avoid using demo values as live customer, booking, payment, or account data.
+1. Complete the source-driven QA pass for direct support/information routes and the remaining alternate loading/empty/unavailable recovery states at the 390px composition.
+2. Verify the complete customer navigation graph (booking guards, authentication, profile/settings/appearance, events, dining, support, resilience, and Midnight route entry) without introducing production claims.
+3. Keep the approved discovery baselines unchanged and avoid using demo values as live customer, booking, payment, event, account, or outlet data.
 
 ## Known constraints
 

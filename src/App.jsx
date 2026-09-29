@@ -105,6 +105,7 @@ function RouteRenderer() {
     '/profile': 'profile',
     '/profile/edit': 'edit-profile',
     '/settings': 'settings',
+    '/appearance': 'appearance',
     '/reviews': 'reviews',
     '/events': 'events',
     '/events/loading': 'events-loading',
@@ -122,6 +123,7 @@ function RouteRenderer() {
     '/terms': 'terms',
     '/privacy': 'privacy',
     '/offline': 'offline',
+    '/system-error': 'system-error',
   };
   if (customerMobileRoutes[path]) {
     return <CustomerMobilePrototype key={path} initialScreen={customerMobileRoutes[path]} />;
@@ -151,8 +153,8 @@ function AppLayout() {
   const isCustomerMobile = [
     '/booking', '/payment', '/my-bookings', '/sign-in', '/create-account',
     '/forgot-password', '/reset-password', '/session-expired', '/profile',
-    '/settings', '/reviews', '/events', '/dining', '/updates', '/contact-support',
-    '/ground-rules', '/about-clubhouse', '/terms', '/privacy', '/offline',
+    '/settings', '/appearance', '/reviews', '/events', '/dining', '/updates', '/contact-support',
+    '/ground-rules', '/about-clubhouse', '/terms', '/privacy', '/offline', '/system-error',
   ].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
   const isCuratedOrPrototype = path === '' || path === '/' || path === '/facilities' || path === '/venues' || path.startsWith('/facilities/') || path.startsWith('/prototype') || isCustomerMobile;
 
