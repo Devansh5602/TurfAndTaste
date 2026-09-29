@@ -44,6 +44,12 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - `/create-account`, `/events/loading`, `/events/empty`, `/dining/loading`, and `/dining/unavailable` now normalize to their intended owning screen and render their specified state.
 - Browser accessibility checks verified the account form has one mobile-number field, no prefilled customer identity, and the expected disabled action; the Events and Dining recovery states expose meaningful retry/home/outlet actions.
 
+## Completed checkpoint — Guest-safe Profile & Settings
+
+- The exposed Profile, Edit Profile, and Settings routes now render guest/local-preview information instead of hardcoded personal data, saved payment methods, membership status, or a supposedly authenticated customer.
+- Profile keeps its curated hierarchy and navigation to bookings, local edit details, reviews, appearance, notices, and support; no profile form writes production data.
+- Browser QA of `/profile` confirms an explicit local preview label and no customer phone/email values.
+
 ## Exact next task
 
 1. Finish the SVG comparison and interactive browser QA for Booking Steps 1–4, Processing, Success, Failure, Pass, and My Bookings at the 390px composition.

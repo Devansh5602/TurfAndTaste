@@ -112,9 +112,9 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
     if (screen === 'pass') return <PassScreen go={go} back={back} />;
     if (screen === 'bookings') return <BookingsScreen go={go} />;
     if (screen === 'auth') return <SafeAuthScreen back={back} authScreen={authScreen} setAuthScreen={setAuthScreen} go={go} />;
-    if (screen === 'profile') return <ProfileScreen go={go} theme={theme} setTheme={setTheme} />;
-    if (screen === 'edit-profile') return <EditProfileScreen back={back} go={go} />;
-    if (screen === 'settings') return <SettingsScreen back={back} go={go} theme={theme} setTheme={setTheme} />;
+    if (screen === 'profile') return <SafeProfileScreen go={go} theme={theme} />;
+    if (screen === 'edit-profile') return <SafeEditProfileScreen back={back} go={go} />;
+    if (screen === 'settings') return <SafeSettingsScreen back={back} go={go} theme={theme} setTheme={setTheme} />;
     if (screen === 'reviews') return <ReviewsScreen back={back} />;
     if (screen === 'events') return <EventsScreen go={go} mode={bookingMode} setMode={setBookingMode} />;
     if (screen === 'event') return <EventScreen back={back} event={event} />;
@@ -273,4 +273,37 @@ function MenuScreen({ back, outlet }) { return <div className="cm-page"><Header 
 function InfoScreen({ back, info }) { const item = infoPages[info]; return <div className="cm-page cm-info-page cm-source-info"><header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>{item.title}</h1><span/></header><div className="cm-info-art"><Info /></div><p className="cm-overline">TURF &amp; TASTE CLUBHOUSE</p><h1>{item.title}</h1><p>{item.body}</p><div className="cm-info-block"><h3>{info === 'contact' ? 'Contact the clubhouse' : 'Good to know'}</h3><p>{info === 'contact' ? 'For a venue visit, booking reference, or team inquiry, connect with the clubhouse desk during operating hours.' : 'Use the customer navigation to return to venues, events, dining, or your reservations.'}</p></div><Button onClick={back} icon={ArrowLeft}>Go Back</Button></div>; }
 
 function OfflineScreen({ go }) { return <StatePage icon={<WifiOff/>} title="You’re offline" body="Saved booking and clubhouse information may still be available. Reconnect to refresh live availability and updates." action="Try again" onClick={() => go('home')} secondary="View bookings" onSecondary={() => go('bookings')} />; }
+
+function SafeProfileScreen({ go, theme }) {
+  return <div className="cm-page cm-source-profile">
+    <header className="cm-curated-top"><h1>Profile</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></div></header>
+    <div className="cm-profile-hero"><div className="cm-avatar"><UserRound size={25}/></div><div><span>LOCAL PREVIEW</span><h2>Guest profile</h2><p>No customer account is connected.</p></div></div>
+    <Button onClick={() => go('auth')} icon={LockKeyhole}>Sign in to save details</Button>
+    <SectionTitle title="Preview navigation"/>
+    <div className="cm-list-card"><button onClick={() => go('bookings')}><NotebookTabs/><span><strong>My Bookings</strong><small>View the curated pass and booking-history layouts</small></span><ChevronRight/></button><button onClick={() => go('edit-profile')}><UserRound/><span><strong>Personal &amp; Contact Details</strong><small>Local preview form — no customer record is saved</small></span><ChevronRight/></button><button onClick={() => go('reviews')}><Star/><span><strong>Verified Ratings &amp; Reviews</strong><small>Completed-booking feedback layout</small></span><ChevronRight/></button></div>
+    <SectionTitle title="Preferences"/>
+    <div className="cm-list-card"><button onClick={() => go('settings')}><Settings/><span><strong>Appearance / Theme</strong><small>{theme === 'dark' ? 'Midnight Ivory' : 'Clubhouse Ivory'}</small></span><ChevronRight/></button><button onClick={() => go('info', { info: 'notices' })}><Bell/><span><strong>Updates &amp; Notices</strong><small>Clubhouse and venue announcements</small></span><ChevronRight/></button></div>
+  </div>;
+}
+
+function SafeEditProfileScreen({ back, go }) {
+  return <div className="cm-page cm-source-settings">
+    <header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Edit Profile</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header>
+    <p className="cm-overline">LOCAL PREVIEW</p><h2>Personal Profile</h2>
+    <div className="cm-edit-avatar"><div className="cm-avatar"><UserRound size={25}/></div><span>Profile data is not stored in this preview.</span></div>
+    <form className="cm-form cm-source-form" onSubmit={(event) => event.preventDefault()}><div className="cm-form-section-title"><strong>Core Information</strong></div><div className="cm-source-name-grid"><label>First Name<input placeholder="First name" autoComplete="given-name" /></label><label>Last Name<input placeholder="Last name" autoComplete="family-name" /></label></div><label>WhatsApp / Phone Number<input placeholder="Enter your mobile number" inputMode="tel" autoComplete="tel" /></label><label>Email Address<input placeholder="name@example.com" inputMode="email" autoComplete="email" /></label><label>City / Preferred Location<select defaultValue="bopal"><option value="bopal">Ahmedabad (Bopal / SG Highway)</option></select></label></form>
+    <BookingBar label="Save Profile" detail="Local preview only" onClick={() => go('profile')} />
+  </div>;
+}
+
+function SafeSettingsScreen({ back, go, theme, setTheme }) {
+  const infoLinks = [['notices', Bell, 'Updates & Notices', 'Latest clubhouse advisories'], ['contact', HelpCircle, 'Contact & Inquiry', 'Talk to the clubhouse desk'], ['rules', ShieldCheck, 'Ground Rules & Guidelines', 'Venue policies and access'], ['about', Info, 'About Turf & Taste', 'Clubhouse and community'], ['terms', FileText, 'Terms', 'Customer app terms'], ['privacy', LockKeyhole, 'Privacy', 'How customer data is handled']];
+  return <div className="cm-page cm-source-settings">
+    <header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Settings</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header>
+    <div className="cm-settings-privilege"><span><UserRound/> CURATED APP PREVIEW</span><b>Local<br/>Only</b></div>
+    <SectionTitle title="GENERAL SETTINGS"/><div className="cm-list-card"><button onClick={() => setTheme(theme === 'dark' ? 'ivory' : 'dark')}><Sun/><span><strong>Appearance / Theme</strong><small>{theme === 'dark' ? 'Midnight Ivory / Dark' : 'Clubhouse Ivory / Light'}</small></span><ChevronRight/></button><button><Bell/><span><strong>Notifications &amp; Alerts</strong><small>Preview control</small></span><ChevronRight/></button><button><MapPin/><span><strong>Location &amp; Region</strong><small>Ahmedabad, Asia/Kolkata IST</small></span><ChevronRight/></button></div>
+    <SectionTitle title="SUPPORT &amp; DESK"/><div className="cm-list-card"><button onClick={() => go('offline')}><WifiOff/><span><strong>Connection status</strong><small>View resilience and recovery state</small></span><ChevronRight/></button>{infoLinks.map(([key, Icon, title, description]) => <button key={key} onClick={() => go('info', { info: key })}><Icon/><span><strong>{title}</strong><small>{description}</small></span><ChevronRight/></button>)}</div>
+    <SectionTitle title="MIDNIGHT IVORY · PARITY"/><div className="cm-list-card cm-appearance-panel"><button onClick={() => setTheme('ivory')} className={theme === 'ivory' ? 'selected' : ''}><Sun/><span><strong>Clubhouse Ivory</strong><small>Primary customer flow</small></span>{theme === 'ivory' && <Check/>}</button><button onClick={() => setTheme('dark')} className={theme === 'dark' ? 'selected' : ''}><Moon/><span><strong>Midnight Ivory</strong><small>Curated dark parity preview</small></span>{theme === 'dark' && <Check/>}</button></div>
+  </div>;
+}
 function StatePage({ icon, title, body, action, onClick, secondary, onSecondary }) { return <div className="cm-page cm-centered"><Header actions={false}/><div className="cm-state-illustration">{icon}</div><p className="cm-overline">TURF & TASTE</p><h1>{title}</h1><p>{body}</p><Button onClick={onClick} icon={ArrowRight}>{action}</Button>{secondary && <button className="cm-text-button" onClick={onSecondary}>{secondary}</button>}</div>; }
