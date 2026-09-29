@@ -16,14 +16,6 @@ export const prototypeEvents = [
   { id: 'pickle-social', title: 'Pickle Ball Social', date: 'SUN · 20 JUL', time: '7:00 AM onwards', image: '/images/pickleball.jpg', tag: 'Community', description: 'A relaxed social play session for people new to the game and regulars alike.' },
 ];
 
-export const prototypeBooking = {
-  reference: 'TT-DEMO-2407',
-  date: 'Saturday, 12 July',
-  slot: '6:00 PM – 7:00 PM',
-  total: '₹800',
-  paid: '₹800',
-};
-
 export const infoPages = {
   notices: { title: 'Updates & Notices', body: 'Check the latest facility advisories, special-hours notices and on-ground updates here.' },
   contact: { title: 'Contact & Inquiry', body: 'For venue questions, team bookings or help with a visit, reach the Turf & Taste team during operating hours.' },

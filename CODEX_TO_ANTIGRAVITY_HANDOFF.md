@@ -50,14 +50,26 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - Profile keeps its curated hierarchy and navigation to bookings, local edit details, reviews, appearance, notices, and support; no profile form writes production data.
 - Browser QA of `/profile` confirms an explicit local preview label and no customer phone/email values.
 
+## Completed checkpoint — Midnight Ivory parity entry
+
+- Customer-mobile routes accept `?theme=midnight` to initialize the existing semantic Midnight Ivory token set without duplicating light-theme screens.
+- The controlled parity check route is `/booking?theme=midnight`; it preserves the same fixture safeguards and only changes the visual token layer.
+
+## Completed checkpoint — Safe booking-pass and review fixtures
+
+- The exposed confirmation, entry-pass, reservation-history, and verified-review screens keep their curated compositions and routes while clearly identifying local fixture data.
+- Fabricated reservation references, venue dates, payment claims, live-sync language, customer review history, and supposedly active venue access were replaced by contextual placeholders or preview labels.
+- The entry-pass QR remains illustrative and is explicitly not valid for venue entry. No prototype route writes a review, creates a booking, or opens a real payment flow.
+
 ## Exact next task
 
-1. Finish the SVG comparison and interactive browser QA for Booking Steps 1–4, Processing, Success, Failure, Pass, and My Bookings at the 390px composition.
-2. Preserve the new prerequisite guards while correcting only verified visual divergences.
-3. Then refine the Authentication and Profile & Settings groups against the curated SVG, keeping guest/fixture state explicit and non-authoritative.
+1. Finish source-driven fidelity QA for the remaining Events, Dining, Support/Information, Resilience, and Midnight Ivory surfaces at the 390px composition.
+2. Preserve explicit local-fixture disclosures while correcting only verified visual divergences and route/navigation defects.
+3. Keep the approved discovery baselines unchanged and avoid using demo values as live customer, booking, payment, or account data.
 
 ## Known constraints
 
 - Figma MCP rate limiting is not a blocker; use the local SVG.
 - The main project’s historical backend roadmap documentation is separate from this curated customer-mobile visual fixture work.
 - No live authentication, backend booking, or payment transaction is required for this curated prototype. Never expose credentials or secrets.
+- The current local branch is ahead of `origin/feature/customer-mobile-curated` by the recent verified checkpoints. An attempted push was rejected by this environment’s branch-risk policy despite the branch documented in the continuation brief; do not force-push or use a workaround.
