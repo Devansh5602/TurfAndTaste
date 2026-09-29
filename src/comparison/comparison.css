@@ -99,23 +99,13 @@ body {
   letter-spacing: -0.55px;
 }
 .comparison-header {
-  height: 80px;
+  min-height: 56px;
+  height: auto;
+  padding-top: env(safe-area-inset-top, 0px);
   background: rgba(250, 249, 246, 0.95);
-}
-.status-bar {
-  height: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #202522;
-}
-.status-bar > span:last-child {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 .header-row {
   height: 56px;

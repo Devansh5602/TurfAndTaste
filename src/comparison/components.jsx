@@ -11,12 +11,9 @@ import {
   MapPin,
   Navigation,
   Share2,
-  Signal,
   Trophy,
   UserRound,
   Utensils,
-  Wifi,
-  BatteryFull,
   CircleDot,
   WandSparkles,
   Footprints,
@@ -50,16 +47,6 @@ export function IconButton({
 export function Header({ detail = false, venues = false, onNotice }) {
   return (
     <header className={`comparison-header ${detail ? "detail-header" : ""}`}>
-      {!detail && (
-        <div className="status-bar" aria-hidden="true">
-          <span>9:41</span>
-          <span>
-            <Signal size={13} fill="currentColor" />
-            <Wifi size={15} />
-            <BatteryFull size={15} />
-          </span>
-        </div>
-      )}
       <div className="header-row">
         {(detail || venues) && (
           <Link
