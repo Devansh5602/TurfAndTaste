@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 
 const RouterContext = createContext({
   currentPath: '/',
@@ -22,6 +24,33 @@ export function RouterProvider({ children }) {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
+
+    let backListener = null;
+    const setupListener = async () => {
+      try {
+        backListener = await CapApp.addListener('backButton', () => {
+          const path = window.location.pathname || '/';
+          if (path !== '/' && path !== '') {
+            window.history.back();
+          } else {
+            CapApp.exitApp();
+          }
+        });
+      } catch (err) {
+        console.warn('[Capacitor] Could not register backButton listener:', err);
+      }
+    };
+    setupListener();
+
+    return () => {
+      if (backListener && typeof backListener.remove === 'function') {
+        backListener.remove();
+      }
+    };
   }, []);
 
   const navigate = (to) => {
