@@ -104,9 +104,9 @@ export function BottomNavigation({ active, onNotice }) {
       {[
         ["Home", Home, "/"],
         ["Venues", Trophy, "/facilities"],
-        ["Dining", Utensils],
-        ["Events", CalendarDays],
-        ["Profile", UserRound],
+        ["Dining", Utensils, "/dining"],
+        ["Events", CalendarDays, "/events"],
+        ["Profile", UserRound, "/profile"],
       ].map(([label, Icon, to]) =>
         to ? (
           <Link

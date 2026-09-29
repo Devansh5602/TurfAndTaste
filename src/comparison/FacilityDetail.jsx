@@ -14,6 +14,7 @@ import {
   Handshake,
 } from "lucide-react";
 import { asset, Header, SectionHeading } from "./components";
+import { Link } from "../context/RouterContext";
 
 const specifications = [
   [Timer, "Slot Duration", "60m / 90m Blocks"],
@@ -195,10 +196,10 @@ export default function FacilityDetail({ onNotice }) {
           <span>Starting from</span>
           <strong>[Configured Tariff]</strong>
         </div>
-        <button className="primary-button" onClick={onNotice}>
+        <Link className="primary-button" to="/booking">
           Select Date &amp;
           <br /> Time <ArrowRight size={21} />
-        </button>
+        </Link>
       </footer>
     </>
   );

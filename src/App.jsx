@@ -81,7 +81,53 @@ function RouteRenderer() {
     return <CuratedMobileShell />;
   }
 
-  // Broader customer mobile prototype routes
+  // Curated customer-mobile screens beyond the approved discovery baseline.
+  // The visual fixture layer is deliberately isolated from the production web
+  // routes while the curated mobile experience is completed screen by screen.
+  const customerMobileRoutes = {
+    '/booking': 'booking-step-1',
+    '/booking/step-1': 'booking-step-1',
+    // Deep links without the prerequisite local reservation context restart
+    // safely at step one instead of exposing an invalid later step.
+    '/booking/step-2': 'booking-step-1',
+    '/booking/step-3': 'booking-step-1',
+    '/booking/review': 'booking-step-1',
+    '/payment/processing': 'processing',
+    '/payment/failure': 'payment-failure',
+    '/booking/success': 'success',
+    '/booking/pass': 'pass',
+    '/my-bookings': 'bookings',
+    '/sign-in': 'auth',
+    '/create-account': 'auth-create',
+    '/forgot-password': 'auth-forgot',
+    '/reset-password': 'auth-reset',
+    '/session-expired': 'auth-expired',
+    '/profile': 'profile',
+    '/profile/edit': 'edit-profile',
+    '/settings': 'settings',
+    '/reviews': 'reviews',
+    '/events': 'events',
+    '/events/loading': 'events-loading',
+    '/events/empty': 'events-empty',
+    '/events/detail': 'event',
+    '/dining': 'dining',
+    '/dining/loading': 'dining-loading',
+    '/dining/unavailable': 'dining-unavailable',
+    '/dining/outlet': 'outlet',
+    '/dining/menu': 'menu',
+    '/updates': 'notices',
+    '/contact-support': 'contact',
+    '/ground-rules': 'rules',
+    '/about-clubhouse': 'about',
+    '/terms': 'terms',
+    '/privacy': 'privacy',
+    '/offline': 'offline',
+  };
+  if (customerMobileRoutes[path]) {
+    return <CustomerMobilePrototype key={path} initialScreen={customerMobileRoutes[path]} />;
+  }
+
+  // Legacy prototype deep links remain available for existing saved previews.
   if (path === '/prototype' || path.startsWith('/prototype/')) {
     const screenParam = path.replace('/prototype/', '').replace('/prototype', '') || 'home';
     return <CustomerMobilePrototype initialScreen={screenParam} />;
@@ -102,7 +148,13 @@ function RouteRenderer() {
 function AppLayout() {
   const { currentPath } = useRouter();
   const path = currentPath.toLowerCase().replace(/\/$/, '') || '/';
-  const isCuratedOrPrototype = path === '' || path === '/' || path === '/facilities' || path === '/venues' || path.startsWith('/facilities/') || path.startsWith('/prototype');
+  const isCustomerMobile = [
+    '/booking', '/payment', '/my-bookings', '/sign-in', '/create-account',
+    '/forgot-password', '/reset-password', '/session-expired', '/profile',
+    '/settings', '/reviews', '/events', '/dining', '/updates', '/contact-support',
+    '/ground-rules', '/about-clubhouse', '/terms', '/privacy', '/offline',
+  ].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  const isCuratedOrPrototype = path === '' || path === '/' || path === '/facilities' || path === '/venues' || path.startsWith('/facilities/') || path.startsWith('/prototype') || isCustomerMobile;
 
   if (isCuratedOrPrototype) {
     return (
