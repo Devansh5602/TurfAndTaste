@@ -61,6 +61,13 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - Fabricated reservation references, venue dates, payment claims, live-sync language, customer review history, and supposedly active venue access were replaced by contextual placeholders or preview labels.
 - The entry-pass QR remains illustrative and is explicitly not valid for venue entry. No prototype route writes a review, creates a booking, or opens a real payment flow.
 
+## Completed checkpoint — Events, Dining, and Midnight fixture consistency
+
+- Event discovery/detail now preserves the curated card/detail treatment while using the selected fixture record consistently instead of mixing it with unrelated hardcoded event content.
+- Event capacity, registration, ticketing, and venue data are not presented as live; no event purchase or registration route exists.
+- Dining remains browse-only. Its loading/unavailable recovery copy and discovery label make the fixture status clear; no ordering, cart, delivery, pickup, or food-payment behavior has been added.
+- Midnight Ivory now overrides the event, payment, pass, and recovery surfaces that previously retained light-only hardcoded values, while preserving the same route and component composition.
+
 ## Exact next task
 
 1. Finish source-driven fidelity QA for the remaining Events, Dining, Support/Information, Resilience, and Midnight Ivory surfaces at the 390px composition.
