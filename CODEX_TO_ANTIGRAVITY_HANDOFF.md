@@ -3,7 +3,7 @@
 ## Current checkpoint
 
 - **Branch:** `feature/customer-mobile-curated`
-- **Latest commit:** `fdc285f test(mobile): add automated regression suite for customer mobile rules and states`
+- **Latest commit:** `fa75984 fix(integration): harden quote token validation and sanitize serverless error response`
 - **Remote upstream:** `origin/feature/customer-mobile-curated` (synced & up-to-date)
 - **Design source:** `/home/pc/www/POC/design-reference/customer-app-mobile.svg` (read-only)
 - **Figma reference:** `yUBIZk5ptihZqROIobT6S4`, curated Customer App node `97:1417`
@@ -50,23 +50,33 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 9. **Resilience & Recovery:**
    - `/offline` and `/system-error` provide structured recovery ("Go Home", "Go Back", "Try Again").
 10. **Automated Regression Suite (`npm test`):**
-    - Built-in Node test runner suite verifying authorized sports compliance, booking input validation guards, dining constraints, and support page integrity.
+    - Expanded test runner covering authorized sports compliance, booking input validation guards, dining constraints, support page integrity, venue time calculations, and cryptographic quote token verification.
+11. **Security & Integration Hardening:**
+    - Fixed serverless crash handler in `api/index.js` to eliminate stack and environment leakage.
+    - Hardened `verifyQuoteToken` in `server/utils/quoteToken.js` with length checks before `crypto.timingSafeEqual`.
 
 ## QA & Verification Status
 
-- `npm test` passed 7/7 suites in 90ms.
-- `npm run build` passed in 3.40s (0 errors).
+- `npm test` passed 9/9 tests across 5 suites in ~145ms.
+- `npm run build` passed in 3.54s (0 errors, 1879 modules transformed).
 - `git diff --check` passed (0 whitespace errors).
 - All 29 routes return HTTP 200 and render correctly at 390px mobile viewport.
 - Authorized sports rule strictly verified (5 disciplines only).
 - Working tree is clean and synced with remote.
 
-## Pre-production / Staging Readiness
+## Pre-production / Staging Readiness Assessment
 
-- Vercel preview branch deployment ready.
-- Express API serverless handlers and database connection guarded.
-- Razorpay test keys safely scoped in environment variables.
-- Capacitor mobile network configuration aligned.
+- **Database Architecture:** Cloud Supabase PostgreSQL (20 tables verified, active connection pool).
+- **Vercel Preview:** Configured and ready for branch preview deployment.
+- **Express Backend API:** All routes operational; CORS policy allows Vercel preview wildcards and Capacitor origins.
+- **Razorpay Test Mode:** Scoped to test credentials; server-authoritative order creation and signature verification.
+- **Android / Native Mobile:** Strict HTTPS configuration in `AndroidManifest.xml` and `capacitor.config.json`. Note: Android SDK available, but Capacitor CLI sync requires Node >= 22 (host has Node 20.20.2) and Gradle requires JAVA_HOME.
+
+## Integration Risk Classification
+
+- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization.
+- **NEEDS CONFIGURATION:** `VITE_API_URL` environment variable for physical Android devices; Node 22+ runtime for native Capacitor CLI builds.
+- **BLOCKED:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
 
 ## Continuity status
 
