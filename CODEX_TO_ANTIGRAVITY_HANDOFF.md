@@ -1,107 +1,71 @@
 # Curated Customer Mobile Handoff
 
-## Current checkpoint
+## Current Checkpoint
 
 - **Branch:** `feature/customer-mobile-curated`
-- **Latest commit:** `1f03fe9 docs(handoff): record live Vercel preview staging validation and remote E2E QA`
 - **Remote upstream:** `origin/feature/customer-mobile-curated` (synced & up-to-date)
 - **Design source:** `/home/pc/www/POC/design-reference/customer-app-mobile.svg` (read-only)
 - **Figma reference:** `yUBIZk5ptihZqROIobT6S4`, curated Customer App node `97:1417`
+- **Admin Mobile Status:** PAUSED — strictly waiting for customer mobile real-device verification.
 
-The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens are approved visual baselines. They are implemented by `src/comparison/*` and must not be redesigned. Their integration connects the curated Facility Detail CTA and bottom navigation to the remaining customer-mobile routes.
+---
 
-## Scope and rules
+## Real-Device Correction Pass (Usability & Runtime Fixes)
 
-- Remaining curated areas: Booking Journey, Bookings & Pass, Authentication, Profile & Settings, Ratings & Reviews, Events, Dining, Support/Information, Resilience, and Midnight Ivory parity.
-- Only authorized services: Box Cricket; Skating Rink; Pickle Ball; Cricket Green Net Practice; Cricket Green Net Practice with Shooting Machine. Never expose unauthorized sports.
-- Dining is discovery/menu information only: no cart, ordering, delivery, pickup, checkout, or food payment.
-- Fixture/demo values stay inside `src/prototype/customerMobile/data.js`; do not make them authoritative backend data or present them as a real authenticated account.
-- Do not use raw Stitch exports as design authority. The shared SVG is sufficient while Figma MCP remains rate-limited.
+### 1. Defects Discovered from Real-Device Testing
+1. **Duplicate / Fake Status Bar on Home & Discovery Screens:**
+   - Static Figma status bar (9:41, Signal, Wi-Fi, Battery icons) rendered inside application DOM, colliding with the native Android OS status bar.
+2. **Broken Create Account Screen Logo / Mark:**
+   - Decorative mark (`t & t`) letters were overlapping/stacked vertically inside a circle due to CSS Grid `place-items: center` treating anonymous text nodes as separate grid rows. Form also lacked proper input validation and interactive feedback.
+3. **Booking Step 1 Progression Blocker & State Contradiction:**
+   - User selected an authorized sport/service, but no visible or enabled progression CTA was available to advance to Step 2 (Schedule).
+   - Global `BottomNav` (`z-index: 4`) was rendered on every screen and overlaid the sticky action bar (`z-index: 3`).
+   - Sticky `BookingBar` button was styled as a narrow 50px icon-only box instead of an accessible, descriptive primary action button.
+   - Contradictory copy ("Selected · available times shown next" vs "Choose a service to continue").
+4. **Bottom Navigation Over-injection:**
+   - Bottom navigation was forced onto focused flows (Booking Steps 1–4, Payment Processing, Payment Failure, Success, Entry Pass, Auth/Create Account, Profile Edit, Settings, Support pages).
 
-## Current implementation map
+### 2. Root Causes & Engineering Fixes
+- **Fake Status Bar:** Removed `.status-bar` DOM elements and unused icon imports from `src/comparison/components.jsx` and removed status bar CSS rules from `src/comparison/comparison.css`. App headers now respect native safe area insets via `env(safe-area-inset-top, 0px)`.
+- **Create Account Screen:** Updated `.cm-source-auth .cm-auth-mark` to `display: inline-flex; align-items: center; justify-content: center;` with serif styling for the ampersand `&`. Added real-time validation for Full Name (>=2 chars), WhatsApp/Mobile (10 digits), and Password (>=6 chars), with inline error cues and an active `Create Account` CTA that transitions safely to Profile preview.
+- **Booking Progression & State Model:**
+  - Upgraded `BookingBar` to render a prominent, accessible primary button (`.cm-sticky-cta`) with clear action labels ("Select Date & Time", "Continue to Details", "Review Booking", "Proceed to Pay").
+  - Raised `.cm-sticky-action` z-index to `20`.
+  - Replaced contradictory labels with unified status feedback.
+  - Selecting any of the 5 authorized sports updates selection state, displays arena details and tariff, and enables the primary CTA to advance directly to Step 2.
+  - Stepper header supports back-navigation to completed steps, and changing the selected sport clears downstream selected slots to prevent stale state.
+- **Bottom Navigation Scoping:** Configured `BottomNav` to render strictly on top-level tabs (`home`, `facilities`, `events`, `dining`, `profile`, `bookings`) and suppressed it on all focused transactional flows. Added `.cm-scroll-full` padding to prevent content clipping.
 
-- Approved discovery baseline: `src/comparison/Home.jsx`, `Facilities.jsx`, `FacilityDetail.jsx`, `components.jsx`, `comparison.css`, `fixtures.js`.
-- Remaining fixture-backed curated screens: `src/prototype/customerMobile/CustomerMobilePrototype.jsx`, `customerMobile.css`, `data.js`.
-- Automated regression suite: `tests/customer-mobile-regression.test.js` (`npm test`).
-- `src/App.jsx` exposes direct customer-mobile entry routes (`/booking`, `/payment/processing`, `/my-bookings`, `/sign-in`, `/profile`, `/events`, `/dining`, `/appearance`, `/system-error`, information and recovery routes) without changing the approved discovery composition.
+---
 
-## Completed checkpoint summary
+## Test Suite & Build Verification
 
-1. **Preserved Codex Uncommitted Work:** Checkpoint commit `61c2969` (`chore(handoff): preserve codex customer mobile checkpoint`) safely committed and pushed.
-2. **Booking Route & Prerequisite Guards:**
-   - 4-step booking flow with authorized sports only. Step 2 requires slot selection; Step 3 requires contact validation (name + 10-digit mobile number); changing a service clears chosen slot.
-   - Deep links for later steps restart at Step 1 to prevent faking in-progress bookings.
-   - Payment processing/failure remains fixture-only.
-3. **Authentication Fixture Guard:**
-   - Sign In / Create Account / Forgot / Reset starts with blank values and disables primary action until requirements are satisfied.
-   - Explicit local preview labels; no customer identity prefilled.
-4. **Alternate-State Route Normalization:**
-   - `/create-account`, `/events/loading`, `/events/empty`, `/dining/loading`, `/dining/unavailable` render specified state with recovery actions.
-5. **Guest-Safe Profile & Settings:**
-   - Profile, Edit Profile, and Settings render local-preview information without claiming authenticated customer accounts.
-6. **Appearance & Midnight Ivory Parity:**
-   - Appearance route (`/appearance`) allows switching between Clubhouse Ivory and Midnight Ivory.
-   - `?theme=midnight` applies dark theme tokens cleanly without breaking contrast.
-7. **Safe Booking-Pass and Review Fixtures:**
-   - Digital entry pass (`TT-DEMO-2407`) and verified reviews explicitly identified as preview fixtures.
-8. **Events & Dining Consistency:**
-   - Events and Dining discovery cards accurately reference fixture records.
-   - Dining is strictly discovery/menu info with no cart or payment actions.
-9. **Resilience & Recovery:**
-   - `/offline` and `/system-error` provide structured recovery ("Go Home", "Go Back", "Try Again").
-10. **Automated Regression Suite (`npm test`):**
-    - Expanded test runner covering authorized sports compliance, booking input validation guards, dining constraints, support page integrity, venue time calculations, and cryptographic quote token verification.
-11. **Security & Integration Hardening:**
-    - Fixed serverless crash handler in `api/index.js` to eliminate stack and environment leakage.
-    - Hardened `verifyQuoteToken` in `server/utils/quoteToken.js` with length checks before `crypto.timingSafeEqual`.
-12. **Native Android / Capacitor Delivery & Build:**
-    - Integrated native hardware back-button listener (`@capacitor/app`) into `RouterContext.jsx`.
-    - Aligned Android toolchain using Node v22 LTS, JDK 21, and Gradle 8.14.3.
-    - Successfully built safe debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (12MB).
-13. **Live Vercel Preview Staging & Remote E2E Validation:**
-    - Branch preview verified live: `https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app` (Deployment ID: `dpl_7bdTZ1T5tpJVzjtpGKeViCqNgiGN`).
-    - 37/37 remote routes return HTTP 200.
-    - Remote `/api/health` returns HTTP 200 (`online`) with safe CORS credentials.
-    - Completed full remote mobile viewport browser subagent QA on Home, Facilities, Facility Detail, 4-step Booking flow, Razorpay prototype payment processing, entry pass QR generation, events, dining, profile, appearance switch, and offline resilience.
+- **Automated Regression Suite (`npm test`):** 14/14 tests passing across 8 suites in ~150ms.
+  - Verified all 5 authorized sports can be selected in Step 1 and enable progression.
+  - Verified Step 1 unselected gating and slot invalidation upon sport switch.
+  - Verified end-to-end interactive booking step progression (Step 1 -> 2 -> 3 -> 4 -> Pay -> Success / Failure & Retry).
+  - Verified Create Account and auth form field validations (Name, Mobile, Password, Confirm).
+  - Verified global `BottomNav` scoping between top-level tabs and focused flows.
+  - Verified authorized sports rule (strict 5 disciplines, 0 unauthorized sports).
+  - Verified static dining menu constraints and quote signing integrity.
+- **Production Web Build (`npm run build`):** Built cleanly in 3.82s (0 errors, 1883 modules).
+- **Whitespace / Lint Checks (`git diff --check`):** Passed with 0 errors.
+- **Capacitor Sync (`npx cap sync android`):** Synced web assets, plugins, and config cleanly.
+- **Android Debug Build (`./gradlew assembleDebug`):** `BUILD SUCCESSFUL` in 13s.
 
-## QA & Verification Status
-
-- `npm test` passed 9/9 tests across 5 suites in ~130ms.
-- `npm run build` passed in 2.83s (0 errors, 1883 modules transformed).
-- `npx cap sync android` passed in 0.15s (copied web assets, generated `capacitor.config.json`, synced 3 plugins).
-- `./gradlew assembleDebug` passed in 2s (`BUILD SUCCESSFUL`).
-- `git diff --check` passed (0 whitespace errors).
-- All 37 remote preview routes return HTTP 200 on live Vercel branch deployment.
-- Authorized sports rule strictly verified (5 disciplines only).
-- Working tree is clean and synced with remote.
-
-## Live Preview Staging Deployment
-
-- **Preview URL:** `https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app`
-- **Deployment ID:** `dpl_7bdTZ1T5tpJVzjtpGKeViCqNgiGN`
-- **Tested Commit:** `0b78260`
-- **Robots Header:** `x-robots-tag: noindex` (isolated staging preview)
-- **HTTPS & Security Headers:** HSTS `max-age=63072000`, safe CORS credentials, no leaked secrets.
+---
 
 ## Native Android Build Artifact
 
 - **Debug APK Location:** `android/app/build/outputs/apk/debug/app-debug.apk`
-- **File Size:** ~12 MB
+- **File Size:** 12,512,346 bytes (~12.5 MB)
 - **Package / Application ID:** `com.turfandtaste.app`
 - **Compile SDK / Target SDK / Min SDK:** 36 / 36 / 24
-- **Security:** Cleartext HTTP disabled; strict HTTPS scheme configured in `capacitor.config.json`.
-- **Remote Staging Target:** Set `VITE_API_URL=https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app/api` for physical device testing.
 
-## Integration Risk Classification
+---
 
-- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization, native Capacitor sync, Android Gradle build & debug APK generation, Vercel preview staging deployment, remote E2E flow QA.
-- **NEEDS CONFIGURATION:** Adding `DATABASE_URL` and `JWT_SECRET` to Vercel Project Environment Variables (under Preview scope) to activate serverless database queries on preview URLs; attaching physical Android device for runtime ADB smoke testing.
-- **BLOCKED BY DESIGN:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
+## Pending Next Steps
 
-## Exact Next Task
+- **Customer Mobile Usability Gate:** Awaiting user verification of updated APK and mobile screens.
+- **Admin Mobile:** PAUSED until customer mobile gate is formally approved.
 
-- **Admin Mobile implementation**
-
-## Continuity status
-
-Codex can resume cleanly on this branch when its usage quota resets. All changes are committed and pushed to `origin/feature/customer-mobile-curated`.

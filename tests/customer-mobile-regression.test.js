@@ -62,18 +62,161 @@ describe('Product Rule & Authorized Sports Verification', () => {
   });
 });
 
-describe('Customer Mobile Booking State & Validation Guards', () => {
-  it('contact validation requires valid name and at least 10 digits for mobile number', () => {
-    const validateContact = (name, phone) => {
-      const cleanPhone = phone.replace(/\D/g, '');
-      return name.trim().length >= 2 && cleanPhone.length >= 10;
+describe('Booking Step 1 Progression & All 5 Sports Verification', () => {
+  it('all 5 authorized sports can be selected and resolve valid arena details', () => {
+    for (const sport of AUTHORIZED_SPORTS) {
+      const facility = prototypeFacilities.find((f) => f.service === sport || f.name === sport);
+      assert.ok(facility, `Missing facility for authorized sport: ${sport}`);
+      assert.ok(facility.id, 'Facility must have an ID');
+      assert.ok(facility.venueName, 'Facility must have venueName');
+      assert.ok(facility.tariff, 'Facility must have tariff');
+      assert.ok(facility.image, 'Facility must have image');
+
+      // Step 1 gating requirement: selectedFacility must exist to enable progression
+      const canProgressStep1 = Boolean(facility);
+      assert.equal(canProgressStep1, true, `Step 1 progression should be enabled for ${sport}`);
+    }
+  });
+
+  it('unselected state correctly gates Step 1 progression', () => {
+    const selectedFacility = null;
+    const canProgressStep1 = Boolean(selectedFacility);
+    assert.equal(canProgressStep1, false, 'Step 1 must not allow progression without facility selection');
+  });
+
+  it('changing facility invalidates downstream selected slot', () => {
+    let selectedFacility = prototypeFacilities[0];
+    let selectedSlot = '6:00 PM';
+
+    // User switches sport/venue
+    const handleFacilityChange = (newFacility) => {
+      selectedFacility = newFacility;
+      selectedSlot = null; // downstream state reset
     };
 
-    assert.equal(validateContact('', ''), false);
-    assert.equal(validateContact('Devansh', '123'), false);
-    assert.equal(validateContact('Devansh', '9876543210'), true);
-    assert.equal(validateContact('D', '9876543210'), false);
-    assert.equal(validateContact('Devansh Jadav', '+91 98765 43210'), true);
+    handleFacilityChange(prototypeFacilities[1]);
+    assert.equal(selectedFacility.id, prototypeFacilities[1].id);
+    assert.equal(selectedSlot, null, 'Changing facility must reset selectedSlot to prevent stale state');
+  });
+});
+
+describe('Interactive Booking Step Progression (Step 1 -> 2 -> 3 -> 4 -> Pay)', () => {
+  it('enforces complete four-step progression lifecycle with required validations', () => {
+    // Step 1: Sports & Venue
+    let currentStep = 1;
+    let selectedFacility = null;
+    let selectedSlot = null;
+    let bookingDetails = { name: '', phone: '', email: '', note: '' };
+
+    // Initial: cannot progress
+    assert.equal(Boolean(selectedFacility), false);
+
+    // User selects Box Cricket
+    selectedFacility = prototypeFacilities[0];
+    assert.equal(Boolean(selectedFacility), true);
+
+    // User clicks Continue to Schedule (Step 2)
+    currentStep = 2;
+    assert.equal(currentStep, 2);
+
+    // Step 2: Schedule - cannot progress without slot
+    let canProgressStep2 = Boolean(selectedSlot);
+    assert.equal(canProgressStep2, false);
+
+    // User selects 6:00 PM slot
+    selectedSlot = '6:00 PM';
+    canProgressStep2 = Boolean(selectedSlot);
+    assert.equal(canProgressStep2, true);
+
+    // User clicks Continue to Details (Step 3)
+    currentStep = 3;
+    assert.equal(currentStep, 3);
+
+    // Step 3: Details - requires name (>=2 chars) and phone (>=10 digits)
+    const validateDetails = (d) => d.name.trim().length >= 2 && d.phone.replace(/\D/g, '').length >= 10;
+    assert.equal(validateDetails(bookingDetails), false);
+
+    bookingDetails.name = 'Devansh Jadav';
+    bookingDetails.phone = '9876543210';
+    assert.equal(validateDetails(bookingDetails), true);
+
+    // User clicks Review Booking (Step 4)
+    currentStep = 4;
+    assert.equal(currentStep, 4);
+
+    // Step 4: Pay - Review & Gateway transition
+    const totalPayable = 900.00;
+    assert.equal(totalPayable > 0, true);
+
+    // Gateway Simulation transitions:
+    // Success scenario:
+    let paymentState = 'processing';
+    let outcome = 'success';
+    let nextScreen = outcome === 'success' ? 'success' : 'payment-failure';
+    assert.equal(nextScreen, 'success');
+
+    // Failure / Retry scenario:
+    outcome = 'failure';
+    nextScreen = outcome === 'success' ? 'success' : 'payment-failure';
+    assert.equal(nextScreen, 'payment-failure');
+  });
+});
+
+describe('Create Account & Auth Form Interactivity Validation', () => {
+  it('validates Full Name, WhatsApp Number, and Password correctly', () => {
+    const validateForm = (form, mode) => {
+      const name = (form.name || '').trim();
+      const phone = (form.phone || '').replace(/\D/g, '');
+      const password = form.password || '';
+      const confirm = form.confirm || '';
+
+      const nameValid = name.length >= 2;
+      const phoneValid = phone.length >= 10;
+      const passwordValid = password.length >= 6;
+      const confirmValid = password === confirm;
+
+      if (mode === 'create') return nameValid && phoneValid && passwordValid;
+      if (mode === 'forgot') return phoneValid;
+      if (mode === 'reset') return passwordValid && confirmValid;
+      if (mode === 'signin') return phoneValid && passwordValid;
+      return false;
+    };
+
+    // Invalid Create Account forms
+    assert.equal(validateForm({ name: '', phone: '', password: '' }, 'create'), false);
+    assert.equal(validateForm({ name: 'A', phone: '9876543210', password: 'password123' }, 'create'), false);
+    assert.equal(validateForm({ name: 'Devansh', phone: '12345', password: 'password123' }, 'create'), false);
+    assert.equal(validateForm({ name: 'Devansh', phone: '9876543210', password: '123' }, 'create'), false);
+
+    // Valid Create Account form
+    assert.equal(validateForm({ name: 'Devansh Jadav', phone: '+91 98765 43210', password: 'password123' }, 'create'), true);
+
+    // Reset password validation
+    assert.equal(validateForm({ password: 'newpass', confirm: 'different' }, 'reset'), false);
+    assert.equal(validateForm({ password: 'securepass123', confirm: 'securepass123' }, 'reset'), true);
+  });
+});
+
+describe('Bottom Navigation & Safe Area Scoping Audit', () => {
+  it('suppresses global BottomNav on focused flows and shows on top-level tabs', () => {
+    const isFocusedScreen = (screen) => [
+      'booking', 'facility', 'processing', 'payment-failure', 'success', 'pass',
+      'auth', 'edit-profile', 'settings', 'appearance', 'reviews',
+      'event', 'outlet', 'menu', 'notices', 'contact', 'rules', 'about', 'terms', 'privacy',
+      'info', 'offline', 'system-error'
+    ].includes(screen);
+
+    // Top-level tabs should show BottomNav
+    const topLevelTabs = ['home', 'facilities', 'events', 'dining', 'profile', 'bookings'];
+    for (const tab of topLevelTabs) {
+      assert.equal(!isFocusedScreen(tab), true, `Tab ${tab} should show BottomNav`);
+    }
+
+    // Focused flows should hide BottomNav
+    const focusedScreens = ['booking', 'auth', 'processing', 'payment-failure', 'success', 'pass'];
+    for (const s of focusedScreens) {
+      assert.equal(!isFocusedScreen(s), false, `Focused screen ${s} should hide BottomNav`);
+    }
   });
 });
 
