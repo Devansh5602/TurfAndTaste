@@ -1,0 +1,77 @@
+// Visual comparison fixtures transcribed from the curated SVG, not live inventory.
+export const services = [
+  "Box Cricket",
+  "Skating Rink",
+  "Pickle Ball",
+  "Cricket Green Net Practice",
+  "Cricket Green Net Practice with Shooting Machine",
+];
+export const homeVenues = [
+  {
+    image: "home-cricket",
+    name: "Skyline Sports Arena",
+    location: "Bopal, Ahmedabad • 1.2 km away",
+    rating: "4.9",
+    reviews: "184",
+    price: "700",
+    tags: ["Box Cricket", "Cricket Green Nets"],
+    services: [services[0], services[3]],
+    time: "18:30",
+    slots: "4",
+  },
+  {
+    image: "home-courts",
+    name: "The Green Velvet Rink & Courts",
+    location: "Sindhu Bhavan, Ahmedabad • 3.8 km away",
+    rating: "4.8",
+    reviews: "92",
+    price: "600",
+    tags: ["Skating Rink", "Pickle Ball"],
+    services: [services[1], services[2]],
+    time: "19:00",
+    slots: "2",
+  },
+];
+export const venues = [
+  {
+    image: "venue-cricket",
+    name: "Skyline Box Cricket & Training Arena",
+    location: "Near Sky City Hub, South Bopal Crossroad",
+    district: "BOPAL, AHMEDABAD",
+    distance: "1.2",
+    rating: "4.9",
+    reviews: "240",
+    status: "Slots Open",
+    price: "700",
+    tags: ["Box Cricket", "Cricket Green Nets", "Floodlit LED"],
+    services: [services[0], services[3]],
+  },
+  {
+    image: "venue-courts",
+    name: "The Oval Skating Rink & Courts",
+    location: "Club Road, Near Sunflower School, South Bopal",
+    district: "SOUTH BOPAL",
+    distance: "2.5",
+    rating: "4.8",
+    reviews: "115",
+    status: "Dual Arena",
+    price: "600",
+    tags: ["Skating Rink", "Pickle Ball", "Smooth Synthetic Surface"],
+    services: [services[1], services[2]],
+  },
+  {
+    image: "venue-machine",
+    name: "Masterstroke Pro Nets (Shooting Machine)",
+    location: "Ambli-Bopal Avenue, Opp. Green Acres",
+    district: "AMBLI-BOPAL ROAD",
+    distance: "3.1",
+    rating: "4.9",
+    reviews: "88",
+    status: "Pro Edition",
+    price: "900",
+    tags: [services[4], "Video Analysis"],
+    services: [services[3], services[4]],
+  },
+];
+export const matchesService = (venue, service) =>
+  service === "All" || venue.services.includes(service);
