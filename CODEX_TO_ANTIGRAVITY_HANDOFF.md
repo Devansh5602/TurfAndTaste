@@ -58,6 +58,11 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
     - Integrated native hardware back-button listener (`@capacitor/app`) into `RouterContext.jsx`.
     - Aligned Android toolchain using Node v22 LTS, JDK 21, and Gradle 8.14.3.
     - Successfully built safe debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (12MB).
+13. **Live Vercel Preview Staging & Remote E2E Validation:**
+    - Branch preview verified live: `https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app` (Deployment ID: `dpl_7bdTZ1T5tpJVzjtpGKeViCqNgiGN`).
+    - 37/37 remote routes return HTTP 200.
+    - Remote `/api/health` returns HTTP 200 (`online`) with safe CORS credentials.
+    - Completed full remote mobile viewport browser subagent QA on Home, Facilities, Facility Detail, 4-step Booking flow, Razorpay prototype payment processing, entry pass QR generation, events, dining, profile, appearance switch, and offline resilience.
 
 ## QA & Verification Status
 
@@ -66,9 +71,17 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - `npx cap sync android` passed in 0.15s (copied web assets, generated `capacitor.config.json`, synced 3 plugins).
 - `./gradlew assembleDebug` passed in 2s (`BUILD SUCCESSFUL`).
 - `git diff --check` passed (0 whitespace errors).
-- All 29 routes return HTTP 200 and render correctly at 390px mobile viewport.
+- All 37 remote preview routes return HTTP 200 on live Vercel branch deployment.
 - Authorized sports rule strictly verified (5 disciplines only).
 - Working tree is clean and synced with remote.
+
+## Live Preview Staging Deployment
+
+- **Preview URL:** `https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app`
+- **Deployment ID:** `dpl_7bdTZ1T5tpJVzjtpGKeViCqNgiGN`
+- **Tested Commit:** `0b78260`
+- **Robots Header:** `x-robots-tag: noindex` (isolated staging preview)
+- **HTTPS & Security Headers:** HSTS `max-age=63072000`, safe CORS credentials, no leaked secrets.
 
 ## Native Android Build Artifact
 
@@ -77,11 +90,12 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - **Package / Application ID:** `com.turfandtaste.app`
 - **Compile SDK / Target SDK / Min SDK:** 36 / 36 / 24
 - **Security:** Cleartext HTTP disabled; strict HTTPS scheme configured in `capacitor.config.json`.
+- **Remote Staging Target:** Set `VITE_API_URL=https://turf-and-taste-git-feature-customer-mobile-curated-devansh5602.vercel.app/api` for physical device testing.
 
 ## Integration Risk Classification
 
-- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization, native Capacitor sync, Android Gradle build & debug APK generation.
-- **NEEDS CONFIGURATION:** Physical Android device connectivity for runtime ADB smoke testing; `VITE_API_URL` override when testing against remote staging API.
+- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization, native Capacitor sync, Android Gradle build & debug APK generation, Vercel preview staging deployment, remote E2E flow QA.
+- **NEEDS CONFIGURATION:** Adding `DATABASE_URL` and `JWT_SECRET` to Vercel Project Environment Variables (under Preview scope) to activate serverless database queries on preview URLs; attaching physical Android device for runtime ADB smoke testing.
 - **BLOCKED BY DESIGN:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
 
 ## Continuity status
