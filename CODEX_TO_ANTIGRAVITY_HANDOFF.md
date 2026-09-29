@@ -3,7 +3,7 @@
 ## Current checkpoint
 
 - **Branch:** `feature/customer-mobile-curated`
-- **Latest commit:** `61c2969 chore(handoff): preserve codex customer mobile checkpoint`
+- **Latest commit:** `fdc285f test(mobile): add automated regression suite for customer mobile rules and states`
 - **Remote upstream:** `origin/feature/customer-mobile-curated` (synced & up-to-date)
 - **Design source:** `/home/pc/www/POC/design-reference/customer-app-mobile.svg` (read-only)
 - **Figma reference:** `yUBIZk5ptihZqROIobT6S4`, curated Customer App node `97:1417`
@@ -22,6 +22,7 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 
 - Approved discovery baseline: `src/comparison/Home.jsx`, `Facilities.jsx`, `FacilityDetail.jsx`, `components.jsx`, `comparison.css`, `fixtures.js`.
 - Remaining fixture-backed curated screens: `src/prototype/customerMobile/CustomerMobilePrototype.jsx`, `customerMobile.css`, `data.js`.
+- Automated regression suite: `tests/customer-mobile-regression.test.js` (`npm test`).
 - `src/App.jsx` exposes direct customer-mobile entry routes (`/booking`, `/payment/processing`, `/my-bookings`, `/sign-in`, `/profile`, `/events`, `/dining`, `/appearance`, `/system-error`, information and recovery routes) without changing the approved discovery composition.
 
 ## Completed checkpoint summary
@@ -48,16 +49,25 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
    - Dining is strictly discovery/menu info with no cart or payment actions.
 9. **Resilience & Recovery:**
    - `/offline` and `/system-error` provide structured recovery ("Go Home", "Go Back", "Try Again").
+10. **Automated Regression Suite (`npm test`):**
+    - Built-in Node test runner suite verifying authorized sports compliance, booking input validation guards, dining constraints, and support page integrity.
 
 ## QA & Verification Status
 
-- `npm run build` passed in 3.73s (0 errors).
+- `npm test` passed 7/7 suites in 90ms.
+- `npm run build` passed in 3.40s (0 errors).
 - `git diff --check` passed (0 whitespace errors).
 - All 29 routes return HTTP 200 and render correctly at 390px mobile viewport.
 - Authorized sports rule strictly verified (5 disciplines only).
 - Working tree is clean and synced with remote.
 
-## Recommended next task for Codex
+## Pre-production / Staging Readiness
 
-1. Run automated component integration tests if configured for the customer mobile suite.
-2. Proceed with pre-production release staging when ready.
+- Vercel preview branch deployment ready.
+- Express API serverless handlers and database connection guarded.
+- Razorpay test keys safely scoped in environment variables.
+- Capacitor mobile network configuration aligned.
+
+## Continuity status
+
+Codex can resume cleanly on this branch when its usage quota resets. All changes are committed and pushed to `origin/feature/customer-mobile-curated`.
