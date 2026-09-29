@@ -33,6 +33,12 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 - Payment processing/failure remains a fixture-only state with no live order, secret, or charge. The obsolete unsupported Paddle reference was removed from the processing surface.
 - `npm run build` and `git diff --check` passed after this slice.
 
+## Completed checkpoint — Authentication fixture guard
+
+- The exposed Sign In/Create Account/Forgot/Reset fixture now starts with blank values and disables its primary action until the appropriate local input requirements are satisfied.
+- The rendered auth copy explicitly identifies this as a local preview and does not claim to create or use a production customer account.
+- Direct `/sign-in` browser QA confirms no phone number or other customer identity is prefilled and the Sign In action is disabled initially.
+
 ## Exact next task
 
 1. Finish the SVG comparison and interactive browser QA for Booking Steps 1–4, Processing, Success, Failure, Pass, and My Bookings at the 390px composition.
