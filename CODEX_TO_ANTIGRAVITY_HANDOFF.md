@@ -3,7 +3,7 @@
 ## Current checkpoint
 
 - **Branch:** `feature/customer-mobile-curated`
-- **Latest commit:** `fa75984 fix(integration): harden quote token validation and sanitize serverless error response`
+- **Latest commit:** `29b381b feat(android): add hardware back-button listener and align native build toolchain`
 - **Remote upstream:** `origin/feature/customer-mobile-curated` (synced & up-to-date)
 - **Design source:** `/home/pc/www/POC/design-reference/customer-app-mobile.svg` (read-only)
 - **Figma reference:** `yUBIZk5ptihZqROIobT6S4`, curated Customer App node `97:1417`
@@ -54,29 +54,35 @@ The Clubhouse Ivory **Home**, **Facilities**, and **Facility Detail** screens ar
 11. **Security & Integration Hardening:**
     - Fixed serverless crash handler in `api/index.js` to eliminate stack and environment leakage.
     - Hardened `verifyQuoteToken` in `server/utils/quoteToken.js` with length checks before `crypto.timingSafeEqual`.
+12. **Native Android / Capacitor Delivery & Build:**
+    - Integrated native hardware back-button listener (`@capacitor/app`) into `RouterContext.jsx`.
+    - Aligned Android toolchain using Node v22 LTS, JDK 21, and Gradle 8.14.3.
+    - Successfully built safe debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (12MB).
 
 ## QA & Verification Status
 
-- `npm test` passed 9/9 tests across 5 suites in ~145ms.
-- `npm run build` passed in 3.54s (0 errors, 1879 modules transformed).
+- `npm test` passed 9/9 tests across 5 suites in ~130ms.
+- `npm run build` passed in 2.83s (0 errors, 1883 modules transformed).
+- `npx cap sync android` passed in 0.15s (copied web assets, generated `capacitor.config.json`, synced 3 plugins).
+- `./gradlew assembleDebug` passed in 2s (`BUILD SUCCESSFUL`).
 - `git diff --check` passed (0 whitespace errors).
 - All 29 routes return HTTP 200 and render correctly at 390px mobile viewport.
 - Authorized sports rule strictly verified (5 disciplines only).
 - Working tree is clean and synced with remote.
 
-## Pre-production / Staging Readiness Assessment
+## Native Android Build Artifact
 
-- **Database Architecture:** Cloud Supabase PostgreSQL (20 tables verified, active connection pool).
-- **Vercel Preview:** Configured and ready for branch preview deployment.
-- **Express Backend API:** All routes operational; CORS policy allows Vercel preview wildcards and Capacitor origins.
-- **Razorpay Test Mode:** Scoped to test credentials; server-authoritative order creation and signature verification.
-- **Android / Native Mobile:** Strict HTTPS configuration in `AndroidManifest.xml` and `capacitor.config.json`. Note: Android SDK available, but Capacitor CLI sync requires Node >= 22 (host has Node 20.20.2) and Gradle requires JAVA_HOME.
+- **Debug APK Location:** `android/app/build/outputs/apk/debug/app-debug.apk`
+- **File Size:** ~12 MB
+- **Package / Application ID:** `com.turfandtaste.app`
+- **Compile SDK / Target SDK / Min SDK:** 36 / 36 / 24
+- **Security:** Cleartext HTTP disabled; strict HTTPS scheme configured in `capacitor.config.json`.
 
 ## Integration Risk Classification
 
-- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization.
-- **NEEDS CONFIGURATION:** `VITE_API_URL` environment variable for physical Android devices; Node 22+ runtime for native Capacitor CLI builds.
-- **BLOCKED:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
+- **READY:** Frontend routing, UI design baseline, product constraints, Supabase schema queries, CORS configuration, quote signing & verification, serverless handler sanitization, native Capacitor sync, Android Gradle build & debug APK generation.
+- **NEEDS CONFIGURATION:** Physical Android device connectivity for runtime ADB smoke testing; `VITE_API_URL` override when testing against remote staging API.
+- **BLOCKED BY DESIGN:** Live production payments and real customer auth accounts (deliberately isolated from preview flows).
 
 ## Continuity status
 
