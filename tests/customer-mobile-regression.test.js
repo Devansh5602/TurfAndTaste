@@ -294,3 +294,158 @@ describe('Quote Signing and Integrity', () => {
     assert.ok(badVerification.error);
   });
 });
+
+describe('Dynamic Real-Time Date & Slot Scheduler (bookingScheduler.js)', async () => {
+  const {
+    getVenueNow,
+    generateBookingDays,
+    parseSlotStartMinutes,
+    formatSlotEnd,
+    formatSlotLabel,
+    getSlotState,
+    calculateBookingPricing,
+    CANONICAL_BOTTOM_NAV
+  } = await import('../src/prototype/customerMobile/bookingScheduler.js');
+
+  it('getVenueNow returns accurate IST date string and minutes', () => {
+    const now = getVenueNow();
+    assert.ok(now.dateString.match(/^\d{4}-\d{2}-\d{2}$/), 'Date string must be YYYY-MM-DD');
+    assert.ok(now.minutes >= 0 && now.minutes < 1440, 'Minutes must be within 0-1439');
+    assert.ok(now.dayName.length >= 3, 'Day name must be valid');
+    assert.ok(now.monthName.length >= 3, 'Month name must be valid');
+  });
+
+  it('generateBookingDays creates dynamic bookable days starting with Today without hardcoding', () => {
+    const days = generateBookingDays(5);
+    assert.equal(days.length, 5);
+    assert.equal(days[0].isToday, true, 'First day must be Today');
+    assert.equal(days[0].short, 'Today');
+    assert.equal(days[1].short, 'Tmrw');
+
+    // Ensure all days are monotonically increasing calendar dates
+    for (let i = 0; i < days.length; i++) {
+      assert.ok(days[i].dateString, 'Each day must have dateString');
+      assert.ok(days[i].day, 'Each day must have day label');
+      assert.ok(days[i].num, 'Each day must have day number');
+      assert.ok(days[i].displayFull, 'Each day must have displayFull');
+      if (i > 0) {
+        assert.ok(days[i].dateString > days[i - 1].dateString, 'Dates must be strictly increasing');
+      }
+    }
+  });
+
+  it('parseSlotStartMinutes accurately converts 12h slot strings to civil minutes from midnight', () => {
+    assert.equal(parseSlotStartMinutes('6:00 AM'), 360);
+    assert.equal(parseSlotStartMinutes('12:00 PM'), 720);
+    assert.equal(parseSlotStartMinutes('6:00 PM'), 1080);
+    assert.equal(parseSlotStartMinutes('10:00 PM'), 1320);
+  });
+
+  it('formatSlotEnd and formatSlotLabel accurately project duration end times', () => {
+    assert.equal(formatSlotEnd('6:00 PM', 1), '7:00 PM');
+    assert.equal(formatSlotEnd('6:00 PM', 1.5), '7:30 PM');
+    assert.equal(formatSlotEnd('6:00 PM', 2), '8:00 PM');
+
+    assert.equal(formatSlotLabel('6:00 PM', 1), '6:00 PM – 7:00 PM (1 hr)');
+    assert.equal(formatSlotLabel('6:00 PM', 1.5), '6:00 PM – 7:30 PM (1.5 hrs)');
+    assert.equal(formatSlotLabel('6:00 PM', 2), '6:00 PM – 8:00 PM (2 hrs)');
+  });
+
+  it('evaluates slot state with operating hours boundaries and duration overrun', () => {
+    // Facility closes at 11:00 PM (1380m)
+    // 10:00 PM slot (1320m):
+    // 1 hr ends at 11:00 PM (1380m) <= 1380m -> valid
+    // 1.5 hrs ends at 11:30 PM (1410m) > 1380m -> unavailable (Closes 11 PM)
+    // 2 hrs ends at 12:00 AM (1440m) > 1380m -> unavailable (Closes 11 PM)
+    const futureDate = '2099-01-01';
+
+    const state1h = getSlotState('10:00 PM', futureDate, 1);
+    assert.equal(state1h.state, 'available');
+    assert.equal(state1h.selectable, true);
+
+    const state1_5h = getSlotState('10:00 PM', futureDate, 1.5);
+    assert.equal(state1_5h.state, 'unavailable');
+    assert.equal(state1_5h.selectable, false);
+    assert.equal(state1_5h.label, 'Closes 11 PM');
+
+    const state2h = getSlotState('10:00 PM', futureDate, 2);
+    assert.equal(state2h.state, 'unavailable');
+    assert.equal(state2h.selectable, false);
+    assert.equal(state2h.label, 'Closes 11 PM');
+  });
+
+  it('blocks past slots for Today', () => {
+    const now = getVenueNow();
+    const todayStr = now.dateString;
+
+    // Early morning 6:00 AM (360m). If current IST is past 6:00 AM, slot must be past & unselectable
+    if (now.minutes > 360) {
+      const earlySlotState = getSlotState('6:00 AM', todayStr, 1);
+      assert.equal(earlySlotState.state, 'past');
+      assert.equal(earlySlotState.selectable, false);
+      assert.equal(earlySlotState.label, 'Past');
+    }
+
+    // A past date (e.g. 2020-01-01) must have all slots marked as past
+    const pastSlotState = getSlotState('6:00 PM', '2020-01-01', 1);
+    assert.equal(pastSlotState.state, 'past');
+    assert.equal(pastSlotState.selectable, false);
+  });
+
+  it('calculates itemized pricing accurately based on facility tariff and selected duration', () => {
+    const facility = prototypeFacilities[0]; // Box Cricket, tariff: "₹700"
+
+    // 1 hour
+    const p1 = calculateBookingPricing(facility, 1);
+    assert.equal(p1.baseRate, 700);
+    assert.equal(p1.courtTotal, 700);
+    assert.equal(p1.deposit, 233);
+    assert.equal(p1.totalPayable, 826); // 700 + 126 GST
+
+    // 1.5 hours
+    const p15 = calculateBookingPricing(facility, 1.5);
+    assert.equal(p15.baseRate, 700);
+    assert.equal(p15.courtTotal, 1050);
+    assert.equal(p15.deposit, 350);
+    assert.equal(p15.totalPayable, 1239); // 1050 + 189 GST
+
+    // 2 hours
+    const p2 = calculateBookingPricing(facility, 2);
+    assert.equal(p2.baseRate, 700);
+    assert.equal(p2.courtTotal, 1400);
+    assert.equal(p2.deposit, 467);
+    assert.equal(p2.totalPayable, 1652); // 1400 + 252 GST
+  });
+
+  it('canonical bottom navigation retains invariant order across all routes', () => {
+    assert.equal(CANONICAL_BOTTOM_NAV.length, 5);
+    const expectedOrder = ['Home', 'Venues', 'Dining', 'Events', 'Profile'];
+    for (let i = 0; i < CANONICAL_BOTTOM_NAV.length; i++) {
+      assert.equal(CANONICAL_BOTTOM_NAV[i].label, expectedOrder[i], `Position ${i} must be ${expectedOrder[i]}`);
+    }
+
+    // Changing active route should never reorder or mutate canonical list
+    const simulateNavRender = (activeTab) => {
+      return CANONICAL_BOTTOM_NAV.map((item) => ({
+        ...item,
+        isActive: item.label === activeTab || item.id === activeTab
+      }));
+    };
+
+    const navHome = simulateNavRender('home');
+    const navDining = simulateNavRender('dining');
+    const navEvents = simulateNavRender('events');
+    const navProfile = simulateNavRender('profile');
+
+    for (let i = 0; i < 5; i++) {
+      assert.equal(navHome[i].label, expectedOrder[i]);
+      assert.equal(navDining[i].label, expectedOrder[i]);
+      assert.equal(navEvents[i].label, expectedOrder[i]);
+      assert.equal(navProfile[i].label, expectedOrder[i]);
+    }
+
+    assert.equal(navDining[2].isActive, true);
+    assert.equal(navDining[0].isActive, false);
+    assert.equal(navEvents[3].isActive, true);
+  });
+});
