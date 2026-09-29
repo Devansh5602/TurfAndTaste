@@ -12,7 +12,8 @@
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "cap:build:apk": "npm run cap:sync && cd android && .\\gradlew.bat assembleDebug",
-    "cap:build:bundle": "npm run cap:sync && cd android && .\\gradlew.bat bundleRelease"
+    "cap:build:bundle": "npm run cap:sync && cd android && .\\gradlew.bat bundleRelease",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
