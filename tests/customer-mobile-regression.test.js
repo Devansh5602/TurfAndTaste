@@ -96,3 +96,58 @@ describe('Information, Support and Resilience Pages', () => {
     }
   });
 });
+
+describe('Venue Time and Slot Calculation Rules', () => {
+  it('correctly identifies day of week and past slots', async () => {
+    const { dayOfWeekForVenueDate, slotHasStarted, normalizeScheduleClose } = await import('../server/utils/venueTime.js');
+
+    // Day of week check: 2026-09-29 is a Tuesday (day 2: Sun=0, Mon=1, Tue=2)
+    assert.equal(dayOfWeekForVenueDate('2026-09-29'), 2);
+
+    // Normalization of schedule across midnight
+    assert.equal(normalizeScheduleClose(360, 1440), 1440);
+    assert.equal(normalizeScheduleClose(360, 60), 1500); // 1:00 AM next day
+
+    // Past slot evaluation
+    const pastDate = '2020-01-01';
+    assert.equal(slotHasStarted(pastDate, 600), true);
+
+    const farFutureDate = '2099-12-31';
+    assert.equal(slotHasStarted(farFutureDate, 600), false);
+  });
+});
+
+describe('Quote Signing and Integrity', () => {
+  it('creates and validates signed quote tokens', async () => {
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_key_for_testing';
+    const { createQuoteToken, verifyQuoteToken } = await import('../server/utils/quoteToken.js');
+
+    const sampleQuote = {
+      facilityId: 'fac_box_cricket',
+      facilityName: 'Box Cricket Arena',
+      date: '2026-10-01',
+      timeSlot: '06:00 PM – 07:00 PM',
+      durationHours: 1,
+      ratePeriod: 'peak',
+      hourlyRate: 1200,
+      weekendSurgePercent: 0,
+      total: 1200,
+      deposit: 300,
+      currency: 'INR'
+    };
+
+    const token = createQuoteToken(sampleQuote);
+    assert.ok(typeof token === 'string' && token.includes('.'));
+
+    const verification = verifyQuoteToken(token);
+    assert.equal(verification.error, undefined);
+    assert.equal(verification.quote.facilityId, 'fac_box_cricket');
+    assert.equal(verification.quote.total, 1200);
+
+    // Tampered token test
+    const [body] = token.split('.');
+    const badToken = `${body}.invalidsignature123`;
+    const badVerification = verifyQuoteToken(badToken);
+    assert.ok(badVerification.error);
+  });
+});

@@ -13,7 +13,13 @@ export const createQuoteToken = (quote) => {
 export const verifyQuoteToken = (token) => {
   if (!signingSecret() || typeof token !== 'string') return { error: 'A current booking quote is required.' };
   const [body, signature] = token.split('.');
-  if (!body || !signature || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(sign(body)))) return { error: 'Booking quote is invalid.' };
+  if (!body || !signature) return { error: 'Booking quote is invalid.' };
+  const expectedSignature = sign(body);
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return { error: 'Booking quote is invalid.' };
+  }
   try {
     const quote = JSON.parse(Buffer.from(body, 'base64url').toString());
     return quote?.quoteId && quote.exp >= Math.floor(Date.now() / 1000) ? { quote } : { error: 'Booking quote has expired. Please refresh your slot.' };
