@@ -7,6 +7,14 @@ import { canAccessBookingHistory, resolveBookingHistoryLookup } from '../domain/
 import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
 import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 import { validateLeadTime } from '../domain/booking/bookingRules.js';
+import { requirePermission } from '../domain/rbac/rbacEngine.js';
+import {
+  createCanonicalBooking,
+  createCanonicalPaymentHold,
+  getCanonicalResourceAvailability,
+  checkCanonicalConflicts,
+  resolveCanonicalFacility
+} from '../domain/booking/canonicalBookingCommand.js';
 
 const router = express.Router();
 
@@ -33,9 +41,10 @@ const slotsOverlap = (first, second) => first.start < second.end && second.start
 
 /**
  * GET /api/bookings
- * Get all bookings with filtering options
+ * Get all bookings with filtering options (Requires booking.read)
  */
-router.get('/', authenticateAdminToken, async (req, res) => {
+router.get('/', authenticateAdminToken, requirePermission('booking.read'), async (req, res) => {
+
   try {
     const { facilityId, status, date, search } = req.query;
 
@@ -249,20 +258,46 @@ router.get('/slots', async (req, res) => {
 });
 
 /**
+ * POST /api/bookings/hold
+ * Create temporary payment hold on physical facility
+ */
+router.post('/hold', async (req, res) => {
+  try {
+    const result = await createCanonicalPaymentHold(dbAsync, req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(409).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * POST /api/bookings
- * Create new booking reservation
+ * Create new booking reservation via canonical booking engine
  */
 router.post('/', attachOptionalAdmin, async (req, res) => {
   try {
     const payload = req.body;
+    const isAdminReservation = Boolean(req.admin);
+
+    // If staff walk-in, check permission
+    if (isAdminReservation) {
+      let permissions = req.admin.permissions;
+      if (!Array.isArray(permissions) || permissions.length === 0) {
+        const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+        permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
+      }
+      const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
+      if (!hasPermission(permissions, 'booking.create_walkin') && req.admin.role !== 'super_admin') {
+        return res.status(403).json({ success: false, error: 'Forbidden: Missing required permission "booking.create_walkin".' });
+      }
+    }
 
     const customerName = (payload.customer?.name || payload.customerName || '').trim();
     const customerPhone = (payload.customer?.phone || payload.customerPhone || '').trim();
     const customerEmail = (payload.customer?.email || payload.customerEmail || '').trim();
     const date = (payload.date || '').trim();
     const timeSlot = (payload.slot?.time || payload.time || '').trim();
-    const facilityId = (payload.facilityId || '').trim();
-    const facilityName = (payload.facilityName || '').trim() || facilityId;
+    const facilityId = (payload.facilityId || payload.physicalFacilityId || '').trim();
 
     // Strict Validation
     if (!customerName || customerName.length < 2) {
@@ -279,7 +314,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Valid booking date (YYYY-MM-DD) is required.' });
     }
 
-    if (!timeSlot) {
+    if (!timeSlot && !payload.startAt) {
       return res.status(400).json({ success: false, error: 'Booking time slot is required.' });
     }
 
@@ -287,66 +322,15 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Facility selection is required.' });
     }
 
-    // Canonical Interval & Lead Time Validation
-    let normInterval;
-    try {
-      normInterval = normalizeBookingInterval({ date, timeSlot });
-    } catch (e) {
-      return res.status(400).json({ success: false, error: `Invalid booking time interval: ${e.message}` });
+    const submittedPaymentId = String(payload.paymentId || '').trim();
+    if (!isAdminReservation && submittedPaymentId.length < 8) {
+      return res.status(400).json({ success: false, error: 'Enter a valid UPI transaction reference so staff can review the reservation.' });
     }
 
-    const leadCheck = validateLeadTime(normInterval.startAt, {
-      isStaffWalkIn: Boolean(req.admin),
-      now: new Date()
-    });
-    if (!leadCheck.valid) {
-      return res.status(409).json({ success: false, error: leadCheck.error });
-    }
-
-    // Double-Booking Prevention: Check if slot is already reserved
-    const requestedRange = parseSlotRange(timeSlot);
-    const existingBookings = await dbAsync.all(
-      "SELECT id, customer_name, time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled'",
-      [facilityId, date]
-    );
-    const existingBooking = existingBookings.find(booking => {
-      const bookingRange = parseSlotRange(booking.time_slot);
-      return requestedRange && bookingRange ? slotsOverlap(requestedRange, bookingRange) : booking.time_slot === timeSlot;
-    });
-
-    if (existingBooking) {
-      return res.status(409).json({
-        success: false,
-        error: `The time slot "${timeSlot}" on ${date} is already reserved. Please select an available slot.`
-      });
-    }
-
-    // Check if slot is blocked by Admin
-    const blockedSlots = await dbAsync.all(
-      "SELECT id, reason, time_slot FROM blocked_slots WHERE facility_id = ? AND date = ?",
-      [facilityId, date]
-    );
-    const blockedSlot = blockedSlots.find(blocked => {
-      const blockedRange = parseSlotRange(blocked.time_slot);
-      return requestedRange && blockedRange ? slotsOverlap(requestedRange, blockedRange) : blocked.time_slot === timeSlot;
-    });
-
-    if (blockedSlot) {
-      return res.status(409).json({
-        success: false,
-        error: `This time slot is temporarily blocked for facility maintenance${blockedSlot.reason ? ` (${blockedSlot.reason})` : ''}. Please choose another slot.`
-      });
-    }
-
-    const id = payload.id || `TT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const teamName = payload.customer?.teamName || payload.teamName || '';
     const duration = payload.duration || 1;
     const paymentType = payload.paymentType || 'deposit';
-    const isAdminReservation = Boolean(req.admin);
-    const submittedPaymentId = String(payload.paymentId || '').trim();
-    const deliveryPreference = payload.deliveryPreference || 'WHATSAPP';
-    const bookingType = payload.bookingType || (normInterval.durationMinutes % 60 === 0 && (normInterval.durationHours === 1 || normInterval.durationHours === 2) ? 'STANDARD_QUICK' : 'CUSTOM');
     let verifiedQuote = null;
+
     if (!isAdminReservation) {
       const verification = verifyQuoteToken(payload.quote?.quoteToken || payload.quoteToken);
       if (verification.error) return res.status(400).json({ success: false, error: verification.error });
@@ -355,73 +339,81 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
         return res.status(409).json({ success: false, error: 'Booking details changed. Please refresh your quote.' });
       }
     }
+
+    // Execute Canonical Booking Command
+    let result;
+    try {
+      result = await createCanonicalBooking(dbAsync, {
+        id: payload.id,
+        actor: isAdminReservation ? { type: 'STAFF', username: req.admin.username } : { type: 'CUSTOMER', username: 'guest' },
+        source: isAdminReservation ? 'STAFF_WALKIN' : 'CUSTOMER_APP',
+        customer: {
+          name: customerName,
+          phone: cleanPhone,
+          email: customerEmail,
+          teamName: payload.customer?.teamName || payload.teamName || ''
+        },
+        physicalFacilityId: facilityId,
+        facilityId,
+        serviceId: payload.serviceId || null,
+        addOnIds: payload.addOnIds || [],
+        startAt: payload.startAt,
+        endAt: payload.endAt,
+        date,
+        timeSlot,
+        durationHours: Number(duration) || 1,
+        bookingMode: payload.bookingType || 'STANDARD_QUICK',
+        deliveryPreference: payload.deliveryPreference || 'WHATSAPP',
+        status: payload.status,
+        payment: {
+          type: paymentType,
+          totalAmountPaise: verifiedQuote ? verifiedQuote.total * 100 : (payload.amount ? Math.round(parseFloat(String(payload.amount).replace(/[^0-9.]/g, '')) * 100) : 0),
+          depositAmountPaise: verifiedQuote ? verifiedQuote.deposit * 100 : 0,
+          paymentStatus: isAdminReservation ? (payload.paymentStatus || 'Paid') : 'Pending verification',
+          paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
+        },
+        holdToken: payload.holdToken || null
+      });
+    } catch (cmdErr) {
+      const errMsg = cmdErr.message || 'Booking creation failed.';
+      const isConflict = /prevented|conflict|already reserved|lead time|threshold/i.test(errMsg);
+      return res.status(isConflict ? 409 : 400).json({ success: false, error: errMsg });
+    }
+
+    if (verifiedQuote) {
+      try {
+        await dbAsync.run(
+          'INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)',
+          [verifiedQuote.quoteId, result.bookingId, new Date(verifiedQuote.exp * 1000).toISOString()]
+        );
+      } catch (e) {
+        // Redundancy check
+      }
+    }
+
     const amountPaid = verifiedQuote
       ? `₹${paymentType === 'full' ? verifiedQuote.total : verifiedQuote.deposit} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`
       : (payload.amount || (paymentType === 'full' ? 'Full payment recorded' : 'Token deposit recorded'));
 
-    // A public POST is exclusively the direct-UPI review flow. Paid/confirmed
-    // state is owned by the cryptographically verified gateway endpoint, never
-    // by fields supplied from a browser. Counter staff can create checked-in
-    // walk-ins through their authenticated session.
-    if (!isAdminReservation && submittedPaymentId.length < 8) {
-      return res.status(400).json({ success: false, error: 'Enter a valid UPI transaction reference so staff can review the reservation.' });
-    }
-
-    const allowedAdminStatuses = new Set(['Confirmed', 'Checked-in', 'Completed', 'Cancelled', 'Payment Review']);
-    const paymentStatus = isAdminReservation
-      ? (payload.paymentStatus || 'Paid')
-      : 'Pending verification';
-    const paymentId = submittedPaymentId || (isAdminReservation ? 'counter-payment' : null);
-    const bookingStatus = isAdminReservation && allowedAdminStatuses.has(payload.status)
-      ? payload.status
-      : 'Payment Review';
-
-    const bookingInsert = {
-      sql: `INSERT INTO bookings (
-        id, facility_id, facility_name, date, time_slot, customer_name,
-        customer_phone, customer_email, team_name, duration, payment_type,
-        amount_paid, payment_status, booking_status, payment_id,
-        scheduled_start_at, scheduled_end_at, booking_type, delivery_preference
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      params: [
-        id, facilityId, facilityName, date, timeSlot, customerName,
-        customerPhone, customerEmail, teamName, duration, paymentType,
-        amountPaid, paymentStatus, bookingStatus, paymentId,
-        normInterval.startAt.toISOString(), normInterval.endAt.toISOString(),
-        bookingType, deliveryPreference
-      ]
-    };
-    try {
-      if (verifiedQuote) {
-        await dbAsync.transaction([
-          { sql: 'INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)', params: [verifiedQuote.quoteId, id, new Date(verifiedQuote.exp * 1000).toISOString()] },
-          bookingInsert,
-        ]);
-      } else await dbAsync.run(bookingInsert.sql, bookingInsert.params);
-    } catch (error) {
-      if (error?.code === '23505' || /UNIQUE constraint failed/.test(error?.message || '')) return res.status(409).json({ success: false, error: 'This booking quote has already been used. Please request a new quote.' });
-      throw error;
-    }
-
     res.status(201).json({
       success: true,
-      bookingReference: id,
+      bookingReference: result.bookingId,
       booking: {
-        id,
-        facilityId,
-        facilityName,
+        id: result.bookingId,
+        facilityId: result.physicalFacilityId,
+        facilityName: result.facilityName,
         date,
         time: timeSlot,
-        customerName,
-        customerPhone,
-        customerEmail,
-        teamName,
+        customerName: result.customer.name,
+        customerPhone: result.customer.phone,
+        customerEmail: result.customer.email,
+        teamName: payload.teamName || '',
         duration,
         paymentType,
         amount: amountPaid,
-        paymentStatus,
-        status: bookingStatus,
-        paymentId
+        paymentStatus: result.payment.paymentStatus,
+        status: result.bookingStatus,
+        paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
       },
       message: isAdminReservation
         ? 'Walk-in booking saved.'
@@ -453,6 +445,18 @@ router.put('/:id/status', authenticateAdminToken, async (req, res) => {
     }
 
     const isCancelling = check.toStatus === 'CANCELLED';
+    const requiredPerm = isCancelling ? 'booking.cancel' : 'booking.update';
+
+    let permissions = req.admin.permissions;
+    if (!Array.isArray(permissions) || permissions.length === 0) {
+      const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+      permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
+    }
+    const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
+    if (!hasPermission(permissions, requiredPerm) && req.admin.role !== 'super_admin') {
+      return res.status(403).json({ success: false, error: `Forbidden: Missing required permission "${requiredPerm}".` });
+    }
+
     const cancellationActor = isCancelling ? (req.admin?.username || 'admin') : null;
     const cancelledAt = isCancelling ? new Date().toISOString() : null;
 
@@ -483,6 +487,16 @@ router.put('/:id/status', authenticateAdminToken, async (req, res) => {
 router.delete('/:id', authenticateAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
+    let permissions = req.admin.permissions;
+    if (!Array.isArray(permissions) || permissions.length === 0) {
+      const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+      permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
+    }
+    const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
+    if (!hasPermission(permissions, 'booking.cancel') && req.admin.role !== 'super_admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Missing required permission "booking.cancel".' });
+    }
+
     const existing = await dbAsync.get('SELECT id, booking_status FROM bookings WHERE id = ?', [id]);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Booking not found.' });
@@ -511,7 +525,7 @@ router.delete('/:id', authenticateAdminToken, async (req, res) => {
  * GET /api/bookings/blocked-slots
  * Get list of currently blocked slots
  */
-router.get('/blocked-slots', authenticateAdminToken, async (req, res) => {
+router.get('/blocked-slots', authenticateAdminToken, requirePermission('booking.read'), async (req, res) => {
   try {
     const { facilityId, date } = req.query;
     let query = 'SELECT * FROM blocked_slots WHERE 1=1';
@@ -536,7 +550,7 @@ router.get('/blocked-slots', authenticateAdminToken, async (req, res) => {
  * POST /api/bookings/block-slot
  * Admin blocks a slot for maintenance or private tournament
  */
-router.post('/block-slot', authenticateAdminToken, async (req, res) => {
+router.post('/block-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
   try {
     const { facilityId, date, timeSlot, reason } = req.body;
     if (!facilityId || !date || !timeSlot) {
@@ -561,7 +575,8 @@ router.post('/block-slot', authenticateAdminToken, async (req, res) => {
  * DELETE /api/bookings/unblock-slot
  * Admin releases a blocked slot
  */
-router.delete('/unblock-slot', authenticateAdminToken, async (req, res) => {
+router.delete('/unblock-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
+
   try {
     const { facilityId, date, timeSlot } = req.body;
     if (!facilityId || !date || !timeSlot) {

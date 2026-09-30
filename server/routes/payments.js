@@ -4,8 +4,12 @@ import Razorpay from 'razorpay';
 import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
 import { verifyQuoteToken } from '../utils/quoteToken.js';
+import { requirePermission } from '../domain/rbac/rbacEngine.js';
+import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
+import { resolveCanonicalFacility } from '../domain/booking/canonicalBookingCommand.js';
 
 const router = express.Router();
+
 
 const keyId = process.env.RAZORPAY_KEY_ID;
 const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -84,11 +88,11 @@ router.post('/create-order', async (req, res) => {
  */
 router.post('/verify', async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
-      razorpay_signature, 
-      bookingId, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      bookingId,
       bookingPayload,
     } = req.body;
 
@@ -151,16 +155,26 @@ router.post('/verify', async (req, res) => {
       const duration = quote.durationHours;
       const bPaymentType = orderContext.payment_type;
       const amountPaid = `₹${orderContext.expected_amount} (${bPaymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`;
+
+      const normInterval = normalizeBookingInterval({ date, timeSlot });
+      const canonicalFacility = resolveCanonicalFacility(facilityId);
+      const physicalFacilityId = canonicalFacility ? canonicalFacility.id : facilityId;
+      const totalAmountPaise = Math.round(orderContext.expected_amount * 100);
+
       const bookingInsert = {
         sql: `INSERT INTO bookings (
             id, facility_id, facility_name, date, time_slot, customer_name,
             customer_phone, customer_email, team_name, duration, payment_type,
-            amount_paid, payment_status, booking_status, payment_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', 'Confirmed', ?)`,
+            amount_paid, payment_status, booking_status, payment_id,
+            physical_facility_id, scheduled_start_at, scheduled_end_at,
+            booking_type, total_amount_paise
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', 'Confirmed', ?, ?, ?, ?, 'STANDARD_QUICK', ?)`,
         params: [
-            bId, facilityId, facilityName, date, timeSlot, customerName,
+            bId, physicalFacilityId, facilityName, date, timeSlot, customerName,
             customerPhone, customerEmail, teamName, duration, bPaymentType,
-            amountPaid, finalPaymentId
+            amountPaid, finalPaymentId, physicalFacilityId,
+            normInterval.startAt.toISOString(), normInterval.endAt.toISOString(),
+            totalAmountPaise
         ],
       };
       await dbAsync.transaction([
@@ -168,11 +182,15 @@ router.post('/verify', async (req, res) => {
         { sql: `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, 'captured')`, params: [bId, razorpay_order_id, finalPaymentId, razorpay_signature, orderContext.expected_amount, bPaymentType] },
         { sql: "UPDATE payment_orders SET status = 'verified', payment_id = ?, verified_at = CURRENT_TIMESTAMP WHERE order_id = ? AND status = 'created'", params: [finalPaymentId, razorpay_order_id] },
         bookingInsert,
+        {
+          sql: `INSERT INTO facility_sessions (id, booking_id, facility_id, scheduled_start_at, scheduled_end_at, session_status) VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+          params: [`ses_${bId}`, bId, physicalFacilityId, normInterval.startAt.toISOString(), normInterval.endAt.toISOString()]
+        }
       ]);
 
       confirmedBooking = {
         id: bId,
-        facilityId,
+        facilityId: physicalFacilityId,
         facilityName,
         date,
         time: timeSlot,
@@ -203,9 +221,10 @@ router.post('/verify', async (req, res) => {
 
 /**
  * GET /api/payments/history
- * Get payment logs
+ * Get payment logs (Requires payment.read)
  */
-router.get('/history', authenticateAdminToken, async (req, res) => {
+router.get('/history', authenticateAdminToken, requirePermission('payment.read'), async (req, res) => {
+
   try {
     const payments = await dbAsync.all('SELECT * FROM payments ORDER BY created_at DESC');
     res.json({ success: true, count: payments.length, payments });
