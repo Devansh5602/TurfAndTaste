@@ -35,7 +35,16 @@ import {
 import { checkIntervalConflicts } from '../server/domain/booking/conflictEngine.js';
 import { computeSessionMetrics, validateSessionExtension } from '../server/domain/session/sessionOperations.js';
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission, STANDARD_PERMISSIONS, SYSTEM_ROLES } from '../server/domain/rbac/rbacEngine.js';
-import { canAccessBookingHistory, generateGuestHistoryToken, verifyGuestHistoryToken } from '../server/domain/guest/guestPrivacy.js';
+// The production module rejects missing signing configuration. Supply an
+// in-memory test secret before importing it; this never becomes a fallback in
+// runtime code.
+process.env.JWT_SECRET ??= 'stage0-test-only-guest-history-secret';
+const {
+  canAccessBookingHistory,
+  generateGuestHistoryToken,
+  resolveBookingHistoryLookup,
+  verifyGuestHistoryToken
+} = await import('../server/domain/guest/guestPrivacy.js');
 import {
   calculateDiningOrderTotals,
   canTransitionDiningOrder,
@@ -358,6 +367,13 @@ describe('Guest Identity Privacy Protection', () => {
     const check = canAccessBookingHistory(guestReq);
     assert.equal(check.allowed, true);
     assert.equal(check.contact, '9876543210');
+
+    const ownLookup = resolveBookingHistoryLookup(check, { phone: '9876543210' });
+    assert.equal(ownLookup.valid, true);
+    assert.equal(ownLookup.phone, '9876543210');
+
+    const crossCustomerLookup = resolveBookingHistoryLookup(check, { phone: '9123456789' });
+    assert.equal(crossCustomerLookup.valid, false, 'A guest token must not query another contact history.');
   });
 });
 

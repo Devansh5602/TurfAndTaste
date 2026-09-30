@@ -39,7 +39,11 @@ const runRawQuery = async (sql, params = []) => {
   }
 
   const statement = sqliteDb.prepare(sql);
-  if (sql.trim().toUpperCase().startsWith('SELECT')) {
+  // better-sqlite3 identifies every row-producing statement, including
+  // SQLite PRAGMA introspection used by the non-destructive preflight tool.
+  // Checking only for SELECT caused PRAGMA table_info(...) to be executed as
+  // a write and silently reported an empty column inventory.
+  if (statement.reader) {
     return { rows: statement.all(...params) };
   }
   const info = statement.run(...params);
@@ -95,8 +99,39 @@ const runVersionedMigrations = async () => {
     const applied = await migrationQuery('SELECT id FROM schema_migrations WHERE id = ?', [migration.id]);
     if (applied.rows.length > 0) continue;
 
-    await migration.up({ isPostgres, exec });
-    await migrationQuery('INSERT INTO schema_migrations (id) VALUES (?)', [migration.id]);
+    // The migration body and its schema_migrations record must succeed or
+    // fail together. Otherwise a partial additive migration can make retry
+    // and reconciliation unsafe.
+    if (isPostgres) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        await migration.up({
+          isPostgres,
+          exec: async (sql) => client.query(sql)
+        });
+        await client.query('INSERT INTO schema_migrations (id) VALUES ($1)', [migration.id]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } else {
+      sqliteDb.exec('BEGIN IMMEDIATE');
+      try {
+        await migration.up({
+          isPostgres,
+          exec: async (sql) => sqliteDb.exec(sql)
+        });
+        sqliteDb.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(migration.id);
+        sqliteDb.exec('COMMIT');
+      } catch (error) {
+        sqliteDb.exec('ROLLBACK');
+        throw error;
+      }
+    }
     console.log(`[Database] Applied migration ${migration.id}`);
   }
 };

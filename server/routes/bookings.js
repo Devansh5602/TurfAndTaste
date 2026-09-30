@@ -3,7 +3,7 @@ import dbAsync from '../db.js';
 import { attachOptionalAdmin, authenticateAdminToken } from '../middleware/auth.js';
 import { verifyQuoteToken } from '../utils/quoteToken.js';
 import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted, venueNow } from '../utils/venueTime.js';
-import { canAccessBookingHistory } from '../domain/guest/guestPrivacy.js';
+import { canAccessBookingHistory, resolveBookingHistoryLookup } from '../domain/guest/guestPrivacy.js';
 import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
 import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 import { validateLeadTime } from '../domain/booking/bookingRules.js';
@@ -99,18 +99,24 @@ router.get('/', authenticateAdminToken, async (req, res) => {
  */
 router.get('/history', attachOptionalAdmin, async (req, res) => {
   try {
+    const { phone, email } = req.query;
+
+    let cleanPhone = String(phone || '').replace(/\D/g, '');
+    let cleanEmail = String(email || '').trim().toLowerCase();
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Enter the full 10-digit mobile number or a valid email address used for the booking.' });
+    }
+
     const access = canAccessBookingHistory(req);
     if (!access.allowed) {
       return res.status(401).json({ success: false, error: access.error });
     }
-
-    const { phone, email } = req.query;
-
-    const cleanPhone = String(phone || '').replace(/\D/g, '');
-    const cleanEmail = String(email || '').trim().toLowerCase();
-    if (!/^[6-9]\d{9}$/.test(cleanPhone) && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      return res.status(400).json({ success: false, error: 'Enter the full 10-digit mobile number or a valid email address used for the booking.' });
+    const lookup = resolveBookingHistoryLookup(access, { phone: cleanPhone, email: cleanEmail });
+    if (!lookup.valid) {
+      return res.status(403).json({ success: false, error: lookup.error });
     }
+    cleanPhone = lookup.phone;
+    cleanEmail = lookup.email;
 
     let query = 'SELECT * FROM bookings WHERE 1=0';
     const params = [];
