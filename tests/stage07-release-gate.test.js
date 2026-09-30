@@ -68,8 +68,9 @@ describe('Stage 0.7: Release-Gate Validation Suite', () => {
     beforeEach(async () => {
       // Clean up previous test bookings/payment orders for this test slot
       try {
+        await dbAsync.run("DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE date IN (?, ?))", [testDate, netDate]);
+        await dbAsync.run("DELETE FROM payment_orders WHERE finalized_booking_id IN (SELECT id FROM bookings WHERE date IN (?, ?)) OR order_id LIKE 'test_ord_%'", [testDate, netDate]);
         await dbAsync.run("DELETE FROM bookings WHERE date IN (?, ?)", [testDate, netDate]);
-        await dbAsync.run("DELETE FROM payment_orders WHERE order_id LIKE 'test_ord_%'");
       } catch (_e) {}
     });
 
@@ -318,12 +319,12 @@ describe('Stage 0.7: Release-Gate Validation Suite', () => {
       assert.equal(audit.confidence, 'HIGH');
     });
 
-    it('detects and safely corrects double-shifted timestamp to matching legacy IST slot', () => {
-      // Suppose timestamp was shifted by +5:30 to 18:00:00Z when it should be 12:30:00Z
+    it('detects unannotated local timestamp and safely converts once to matching UTC instant', () => {
+      // Unannotated legacy local string with known IST semantics
       const booking = {
-        id: 'TT-test-shifted',
-        scheduled_start_at: '2026-09-19T18:00:00.000Z',
-        scheduled_end_at: '2026-09-19T19:00:00.000Z',
+        id: 'TT-test-unannotated',
+        scheduled_start_at: '2026-09-19 18:00:00',
+        scheduled_end_at: '2026-09-19 19:00:00',
         date: '2026-09-19',
         time_slot: '06:00 PM – 07:00 PM' // 18:00 IST = 12:30 UTC
       };
