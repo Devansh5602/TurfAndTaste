@@ -107,6 +107,39 @@
 - [x] Web build passes.
 - [x] Android debug build passes.
 - [x] New APK generated.
-- [x] Working tree clean.
 
-**Next Step:** Awaiting user verification of corrected APK. Admin Mobile remains strictly PAUSED.
+---
+
+## Phase 3: Authoritative Platform Foundation & Admin-Preparation
+
+### Status: Complete & Committed (Ready for Codex Audit)
+- **Objective Achieved:** Formalized the complete product truth, data model, business rules, booking engine, physical facility conflict model, dynamic pricing, ground session operations, cancellation model (0% refund), RBAC matrix, campus dining architecture, and 13-module CMS specifications in permanent documentation and agent guardrails.
+- **Strict Constraint Enforced:** Admin UI implementation has NOT been started. Awaiting Codex audit first.
+
+### Key Architectural Documents Created (`docs/domain/`)
+1. [`docs/domain/PROJECT_TRUTH.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/PROJECT_TRUTH.md) — Single Patan, Gujarat property truth; physical facility breakdown; anti-invention rules.
+2. [`docs/domain/FACILITY_DOMAIN.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/FACILITY_DOMAIN.md) — Section/Category vs Physical Facility vs Service vs Add-on hierarchy; auto-naming + custom display names; 24/7 sports availability.
+3. [`docs/domain/BOOKING_ENGINE.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/BOOKING_ENGINE.md) — 1h customer lead time; walk-in payment rules (full payment if <1h); standard (1h/2h on :00) vs custom (quarter-hour starts, whole-hour duration); terminal 0% refund cancellation; delivery preferences.
+4. [`docs/domain/PRICING_ENGINE.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/PRICING_ENGINE.md) — Multi-tier pricing rules (floodlights, weekend surge, package offers, token deposits, extension charges).
+5. [`docs/domain/SESSION_OPERATIONS.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/SESSION_OPERATIONS.md) — QR check-in; scheduled vs actual times; delay adjustments; next-booking protection.
+6. [`docs/domain/PAYMENTS_AND_CANCELLATION.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/PAYMENTS_AND_CANCELLATION.md) — Razorpay/UPI options; temporary reservation holds; 0% refund cancellation policy.
+7. [`docs/domain/RBAC.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/RBAC.md) — Permission-oriented matrix (Super Admin, Staff, Stall, Customer + dynamic custom roles).
+8. [`docs/domain/DINING_AND_ORDERS.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/DINING_AND_ORDERS.md) — Multi-stall campus dining; customer table-number ordering IN SCOPE.
+9. [`docs/domain/ADMIN_CMS.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/ADMIN_CMS.md) — 13 administrative modules specification.
+10. [`docs/domain/STATE_MACHINES.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/STATE_MACHINES.md) — State machines for Booking, Payment, Session, Dining Order, and Content.
+11. [`docs/domain/DATA_MODEL.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/DATA_MODEL.md) — Relational schema definitions for 25 core tables.
+12. [`docs/domain/SCHEMA_MIGRATION_PLAN.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/SCHEMA_MIGRATION_PLAN.md) — 4-stage non-destructive migration roadmap.
+13. [`docs/domain/CODE_IMPACT_MAP.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/CODE_IMPACT_MAP.md) — Codebase impact matrix & conflict audit.
+14. [`docs/domain/OPEN_DECISIONS.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/OPEN_DECISIONS.md) — 5 classified open decisions.
+
+### Agent Guardrails & Skills Created
+- [`AGENTS.md`](file:///home/pc/www/POC/TurfAndTaste/AGENTS.md) (Root mandatory instructions)
+- `.agents/skills/` and `docs/ai/skills/`:
+  - `turf-taste-domain`
+  - `turf-taste-booking-engine`
+  - `turf-taste-admin-cms`
+  - `turf-taste-functional-qa`
+  - `turf-taste-no-invention`
+
+### Immediate Next Step:
+Codex review and audit of the domain model and migration plan before initiating Admin UI development.
