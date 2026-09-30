@@ -85,14 +85,13 @@ erDiagram
 | `customer_name` | VARCHAR(255) | NOT NULL | Contact full name |
 | `customer_phone` | VARCHAR(50) | NOT NULL | Clean 10-digit mobile number |
 | `customer_email` | VARCHAR(255) | NULL | Contact email address |
-| `booking_date` | DATE | NOT NULL | Calendar date (Asia/Kolkata) |
-| `scheduled_start_time`| TIME | NOT NULL | e.g. `18:00:00` |
-| `scheduled_end_time` | TIME | NOT NULL | e.g. `19:00:00` |
-| `duration_hours` | NUMERIC(4,2) | NOT NULL | Duration in hours (e.g. 1.00, 2.00) |
+| `scheduled_start_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | Authoritative interval start, derived in `Asia/Kolkata` and stored as an instant |
+| `scheduled_end_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | Authoritative interval end; may cross midnight and must be after start |
+| `duration_minutes` | INTEGER | NOT NULL | Exact whole-hour customer duration in minutes; extensions are recorded separately in 15-minute increments |
 | `delivery_preference` | VARCHAR(50) | DEFAULT 'whatsapp' | `whatsapp` or `sms` |
 | `payment_type` | VARCHAR(50) | NOT NULL | `deposit` or `full` |
-| `total_amount` | INTEGER | NOT NULL | Total contracted price (INR) |
-| `amount_paid` | INTEGER | NOT NULL | Amount paid online / counter (INR) |
+| `total_amount_paise` | INTEGER | NOT NULL | Total contracted price in the smallest INR unit (paise) |
+| `amount_paid_paise` | INTEGER | NOT NULL | Amount paid online / counter in paise |
 | `payment_status` | VARCHAR(50) | DEFAULT 'Pending' | `Pending`, `Paid`, `Failed` |
 | `booking_status` | VARCHAR(50) | DEFAULT 'Confirmed' | `Pending`, `Confirmed`, `Checked In`, `In Progress`, `Completed`, `Cancelled` |
 | `source` | VARCHAR(50) | DEFAULT 'customer_self'| `customer_self`, `staff_walkin` |
@@ -121,7 +120,8 @@ erDiagram
 | `id` | VARCHAR(100) | PK | e.g., `stall_dugout_cafe` |
 | `name` | VARCHAR(255) | NOT NULL | Stall name |
 | `description` | TEXT | NULL | Stall overview |
-| `operating_hours` | VARCHAR(100) | NOT NULL | e.g., "11:00 AM – 11:30 PM" |
+| `section_id` | VARCHAR(100) | FK -> sections(id) | Dining section owning the stall |
+| `operating_hours_json` | TEXT / JSONB | NOT NULL | Structured per-day operating schedule; not a display-only string |
 | `is_active` | BOOLEAN | DEFAULT TRUE | Active status |
 
 #### `dining_orders`
@@ -133,5 +133,16 @@ erDiagram
 | `customer_name` | VARCHAR(255) | NULL | Customer name |
 | `order_status` | VARCHAR(50) | DEFAULT 'Received' | `Received`, `Preparing`, `Ready`, `Delivered`, `Completed`, `Cancelled` |
 | `source` | VARCHAR(50) | DEFAULT 'customer_app'| `customer_app`, `staff_pos` |
-| `total_amount` | INTEGER | NOT NULL | Total bill amount |
+| `total_amount_paise` | INTEGER | NOT NULL | Server-calculated bill amount in paise |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Order placement time |
+
+---
+
+## 3. Required Cross-Cutting Invariants
+
+1. **Canonical booked interval:** New-domain availability uses `scheduled_start_at` / `scheduled_end_at` and physical `facility_id`, never an independently parsed display string. Legacy `date`, `time_slot`, and `duration` fields are compatibility fields only during migration.
+2. **24/7 schedules:** A schedule must represent 24/7 explicitly (`is_24x7 = true`) or through a validated normalized interval ending on the next day. Equal open/close minute values must never be left ambiguous.
+3. **Money:** All newly introduced monetary columns, pricing snapshots, deposits, extensions, and dining line totals are non-negative integer paise. The booking and order record stores the accepted quote/pricing snapshot used at confirmation.
+4. **Physical-resource integrity:** `facility_services` and `facility_addons` must constrain valid service/add-on selections for a physical facility. The shooting-machine add-on attaches to `fac_cricket_net_1`; it never creates a second bookable physical facility.
+5. **Guest safety:** Guest contact data is not silently linked to a customer account. A later account-link requires verified possession of the same contact channel or a one-time signed booking-history link, plus an immutable link-audit record.
+6. **State integrity:** Application-level transition checks (and, where practical, database constraints) prevent a terminal `Cancelled` booking from becoming confirmed again. Pending-payment holds are separate from confirmed bookings.

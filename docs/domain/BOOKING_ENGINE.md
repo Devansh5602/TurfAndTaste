@@ -73,6 +73,6 @@ Extensions allow customers currently playing to request additional court time:
 ## 4. Cancellation & Refund Policy
 
 1. **Who Can Cancel:** Customers (via self-service or desk request) and Admin/Staff.
-2. **Cutoff Policy:** No strict cancellation window cutoff is applied (cancellations can occur at any time prior to session start).
+2. **Cutoff Policy:** No strict cancellation window cutoff is applied. A Customer or authorized Admin/Staff actor may cancel at any time. For a session that has already started, the cancellation must retain actual session history and release only the unoccupied future portion of the facility interval.
 3. **Refund Policy:** **0% / NONE** (Token deposits and full payments are non-refundable under current business rules).
-4. **Terminal State:** Once a booking is `Cancelled`, it is permanently terminal. It cannot be reverted to `Confirmed`. The physical facility interval is immediately released and becomes available for new bookings.
+4. **Terminal State:** Once a booking is `Cancelled`, it is permanently terminal. It cannot be reverted to `Confirmed`. Availability must exclude the cancelled booking while retaining its immutable audit/session history; if play has already begun, only the unoccupied future portion is newly available.

@@ -39,8 +39,8 @@ Turf & Taste supports multiple payment channels separated from core booking doma
 | Attribute | Specification |
 |---|---|
 | **Initiators** | Customer (self-service) or Admin / Staff |
-| **Cancellation Cutoff Window** | None (can be cancelled any time prior to session start) |
+| **Cancellation Cutoff Window** | None. Customer or authorized Admin/Staff cancellation is allowed at any time; a started session retains its historical actual-time record and only an unoccupied future interval can be released. |
 | **Current Refund Policy** | **0% / NONE** (All token deposits and full payments are non-refundable) |
 | **State Permanence** | Terminal. A cancelled booking CANNOT be un-cancelled or re-activated |
-| **Resource Release** | Immediate. The physical facility slot is released for new bookings |
+| **Resource Release** | Availability excludes the cancelled booking immediately; for an in-progress session, only the unoccupied future interval is released while actual-session history remains intact. |
 | **Future Extensibility** | Data model includes `cancellation_reason`, `cancelled_by`, `refund_status` (defaults to `none`), and `refund_amount` (defaults to `0`) so future refund tiers (e.g. 50% refund if >24h) can be introduced via CMS without schema rewrites. |

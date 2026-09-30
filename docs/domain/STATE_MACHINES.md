@@ -6,7 +6,7 @@
 stateDiagram-v2
     [*] --> PendingPayment: Quote Selected / Hold Active
     PendingPayment --> Confirmed: Payment Verified (Token or Full) / Walk-in Saved
-    PendingPayment --> Expired: Payment Timeout (15m TTL) / Discarded
+    PendingPayment --> Expired: User abort, payment decline, or hold timeout / Released
     Expired --> [*]
 
     Confirmed --> CheckedIn: Customer Arrives / Pass QR Scanned
@@ -14,14 +14,15 @@ stateDiagram-v2
     InProgress --> Completed: Facility Vacated (actual_end logged)
     Completed --> [*]
 
-    PendingPayment --> Cancelled: User Aborts / Payment Decline
     Confirmed --> Cancelled: Customer / Staff Cancels (0% Refund)
-    CheckedIn --> Cancelled: Prior-to-play cancellation by Staff
+    CheckedIn --> Cancelled: Customer / Staff Cancels (0% Refund)
+    InProgress --> Cancelled: Customer / Staff Cancels; retain actual-session history
     Cancelled --> [*]
 
     note right of Cancelled
-        CANCELLED is strictly terminal.
-        Cannot be reverted to Confirmed.
+        CANCELLED is strictly terminal and cannot be reverted.
+        Pending-payment expiration is not a cancelled booking:
+        no confirmed booking exists until payment is verified.
     end note
 ```
 
@@ -65,12 +66,12 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Received: Order Placed by Table # / Counter POS
     Received --> Preparing: Kitchen Acknowledges & Begins Cooking
-    Preparing --> ReadyForService: Food Plated
-    ReadyForService --> Delivered: Delivered to Table #
-    Delivered --> Settled: Payment Settled & Closed
-    Settled --> [*]
+    Preparing --> Ready: Food Plated
+    Ready --> Delivered: Delivered to Table #
+    Delivered --> Completed: Payment Settled & Closed
+    Completed --> [*]
 
-    Received --> Rejected: Item Unavailable / Cancelled
-    Preparing --> Rejected: Kitchen Exception
-    Rejected --> [*]
+    Received --> Cancelled: Item Unavailable / Customer Cancelled
+    Preparing --> Cancelled: Kitchen Exception
+    Cancelled --> [*]
 ```

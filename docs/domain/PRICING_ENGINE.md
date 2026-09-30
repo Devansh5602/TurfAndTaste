@@ -16,6 +16,8 @@ Pricing is calculated server-authoritatively using rule-based evaluation rather 
 7. **Special Occasions / Date Overrides:** Holiday or festival date-specific tariffs.
 8. **Consecutive Hour Packages & Offers:** Discounted multi-hour tier rules (e.g. 3-hour match package).
 
+All monetary inputs and outputs are integer **paise**. Display formatting to rupees is a client concern and must never be reparsed as an authoritative amount.
+
 ---
 
 ## 2. Rule Evaluation Precedence Order
@@ -35,6 +37,13 @@ When quoting or finalizing a booking, the Pricing Engine evaluates rules in stri
        ↓
 [6. Token Deposit Calculation (Configured Fixed Deposit or % Rule)]
 ```
+
+### Rule Composition Clarification
+
+- A special-date rule declares whether it is a **replacement base rate** or a **modifier**. It must not be silently combined with an unrelated base rate.
+- A package declares whether it replaces the computed service subtotal or applies a discount modifier. Only one replacing package may apply to a quote.
+- When a booking crosses a pricing boundary (for example day to floodlit time), the engine prices each intersecting interval segment before applying a package or allowed modifier; it must not price the entire booking from its start time alone.
+- The confirmed booking stores an immutable pricing snapshot: rule identifiers/versions, all applied components, total paise, deposit paise, and quote expiry. Later CMS edits never reprice an existing booking.
 
 ---
 

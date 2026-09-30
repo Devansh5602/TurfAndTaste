@@ -65,6 +65,8 @@ The schema and API do NOT restrict sections or sports to hardcoded enums. CMS ad
 
 Sports facilities operate **24 hours a day, 7 days a week** by default.
 
+The target schedule model must encode this unambiguously. A 24/7 row uses an explicit `is_24x7` flag (or a documented normalized end-on-next-day representation); an equal opening and closing minute value is not sufficient without that semantic contract. Dining schedules remain independently configured and are not inherited from sports defaults.
+
 ### Availability Calculation Factors:
 1. **Facility Active & Bookable Flags:** `is_active = true`, `is_bookable = true`.
 2. **Confirmed Bookings:** Overlapping intervals occupied by confirmed customer/walk-in bookings.
