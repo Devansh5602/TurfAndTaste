@@ -137,7 +137,7 @@ export async function checkCanonicalConflicts(db, options) {
 
   // 1. Confirmed / active bookings on the same physical resource
   const bookings = await db.all(
-    `SELECT id, physical_facility_id, scheduled_start_at, scheduled_end_at, date, time_slot, booking_status
+    `SELECT id, physical_facility_id, scheduled_start_at, scheduled_end_at, date, time_slot, booking_status, is_quarantined, reconciliation_status
      FROM bookings
      WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
     [resolvedFacilityId, resolvedFacilityId]
@@ -146,6 +146,7 @@ export async function checkCanonicalConflicts(db, options) {
   for (const b of bookings) {
     if (excludeBookingId && b.id === excludeBookingId) continue;
     if (!isOccupyingStatus(b.booking_status)) continue;
+    if (b.is_quarantined === true || Number(b.is_quarantined) === 1 || b.reconciliation_status === 'MANUAL_REVIEW' || b.reconciliation_status === 'UNRESOLVABLE') continue;
 
     let bInterval;
     if (b.scheduled_start_at && b.scheduled_end_at) {

@@ -27,12 +27,18 @@ export const TIMESTAMP_CLASSIFICATIONS = Object.freeze({
 
 /**
  * Evaluates the timestamp provenance and correctness for a single booking record.
+ * Invariants:
+ * - Explicit UTC/offset timestamps are NEVER automatically reinterpreted from display strings.
+ * - Unannotated legacy local strings are converted to UTC exactly once.
+ * - Discrepant or ambiguous timestamps are quarantined as MANUAL_REVIEW without automated mutation.
+ *
  * @param {object} booking
  * @returns {object} Audit record with classification and provenance reasoning
  */
 export function evaluateTimestampProvenance(booking) {
   const { id, scheduled_start_at, scheduled_end_at, date, time_slot } = booking;
-  const rawStart = scheduled_start_at ? String(scheduled_start_at) : null;
+  const rawStart = scheduled_start_at ? String(scheduled_start_at).trim() : null;
+  const rawEnd = scheduled_end_at ? String(scheduled_end_at).trim() : null;
   const hasLegacySlot = Boolean(date && time_slot);
 
   let expectedInterval = null;
@@ -46,7 +52,7 @@ export function evaluateTimestampProvenance(booking) {
     }
   }
 
-  // Case 1: Completely missing start timestamp AND missing/unparseable legacy slot
+  // Case 1: Missing scheduled_start_at and missing/invalid legacy slot
   if (!rawStart && !expectedInterval) {
     return {
       id: `tca_${id}_start_at`,
@@ -59,7 +65,10 @@ export function evaluateTimestampProvenance(booking) {
       classification: TIMESTAMP_CLASSIFICATIONS.UNRESOLVABLE,
       conversionOccurred: false,
       correctionRequired: false,
+      isQuarantined: true,
+      reconciliationStatus: 'UNRESOLVABLE',
       proposedUtcInstant: null,
+      proposedEndUtcInstant: null,
       confidence: 'LOW',
       reason: legacySlotParseError
         ? `Missing scheduled timestamp and legacy slot parse failed: ${legacySlotParseError}`
@@ -67,116 +76,37 @@ export function evaluateTimestampProvenance(booking) {
     };
   }
 
-  // Case 2: We have an authoritative legacy date + time_slot
-  if (expectedInterval) {
+  // Case 2: Missing scheduled_start_at, but authoritative legacy date + slot exists -> SAFE_CORRECTION (initial backfill)
+  if (!rawStart && expectedInterval) {
     const expectedStartUtc = expectedInterval.startAt.toISOString();
     const expectedEndUtc = expectedInterval.endAt.toISOString();
-
-    if (!rawStart) {
-      // Legacy date/slot exists, but scheduled_start_at was never backfilled
-      return {
-        id: `tca_${id}_start_at`,
-        sourceTable: 'bookings',
-        sourceRowId: id,
-        sourceColumn: 'scheduled_start_at',
-        rawSource: `${date} ${time_slot}`,
-        canonicalCurrentValue: null,
-        expectedInterpretation: expectedStartUtc,
-        classification: TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION,
-        conversionOccurred: false,
-        correctionRequired: true,
-        proposedUtcInstant: expectedStartUtc,
-        proposedEndUtcInstant: expectedEndUtc,
-        confidence: 'HIGH',
-        reason: `Deterministic provenance from legacy date ("${date}") and time_slot ("${time_slot}"). Initial backfill to UTC instant.`
-      };
-    }
-
-    const currentStartDate = new Date(rawStart);
-    if (isNaN(currentStartDate.getTime())) {
-      return {
-        id: `tca_${id}_start_at`,
-        sourceTable: 'bookings',
-        sourceRowId: id,
-        sourceColumn: 'scheduled_start_at',
-        rawSource: rawStart,
-        canonicalCurrentValue: rawStart,
-        expectedInterpretation: expectedStartUtc,
-        classification: TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION,
-        conversionOccurred: true,
-        correctionRequired: true,
-        proposedUtcInstant: expectedStartUtc,
-        proposedEndUtcInstant: expectedEndUtc,
-        confidence: 'HIGH',
-        reason: `Invalid/corrupt timestamp string "${rawStart}". Corrected to deterministic legacy slot instant ${expectedStartUtc}.`
-      };
-    }
-
-    const currentStartUtc = currentStartDate.toISOString();
-    const diffMs = currentStartDate.getTime() - expectedInterval.startAt.getTime();
-
-    // Exactly matching UTC instant
-    if (diffMs === 0) {
-      return {
-        id: `tca_${id}_start_at`,
-        sourceTable: 'bookings',
-        sourceRowId: id,
-        sourceColumn: 'scheduled_start_at',
-        rawSource: rawStart,
-        canonicalCurrentValue: currentStartUtc,
-        expectedInterpretation: expectedStartUtc,
-        classification: TIMESTAMP_CLASSIFICATIONS.SAFE_NO_CHANGE,
-        conversionOccurred: true,
-        correctionRequired: false,
-        proposedUtcInstant: currentStartUtc,
-        confidence: 'HIGH',
-        reason: 'Canonical timestamp exactly matches deterministic UTC instant parsed from legacy date and time_slot.'
-      };
-    }
-
-    // Shifted by +5:30 (19800000 ms) or -5:30 due to timezone conversion
-    const isShifted5h30 = Math.abs(diffMs) === 19800000;
-    if (isShifted5h30) {
-      return {
-        id: `tca_${id}_start_at`,
-        sourceTable: 'bookings',
-        sourceRowId: id,
-        sourceColumn: 'scheduled_start_at',
-        rawSource: rawStart,
-        canonicalCurrentValue: currentStartUtc,
-        expectedInterpretation: expectedStartUtc,
-        classification: TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION,
-        conversionOccurred: true,
-        correctionRequired: true,
-        proposedUtcInstant: expectedStartUtc,
-        proposedEndUtcInstant: expectedEndUtc,
-        confidence: 'HIGH',
-        reason: `Double-shift or offset drift detected (diff: ${diffMs / 3600000}h). Corrected to match authoritative IST slot ${date} ${time_slot}.`
-      };
-    }
-
-    // Discrepancy that is not an exact 5h30m shift
     return {
       id: `tca_${id}_start_at`,
       sourceTable: 'bookings',
       sourceRowId: id,
       sourceColumn: 'scheduled_start_at',
-      rawSource: rawStart,
-      canonicalCurrentValue: currentStartUtc,
+      rawSource: `${date} ${time_slot}`,
+      canonicalCurrentValue: null,
       expectedInterpretation: expectedStartUtc,
-      classification: TIMESTAMP_CLASSIFICATIONS.MANUAL_REVIEW,
-      conversionOccurred: true,
-      correctionRequired: false,
+      classification: TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION,
+      conversionOccurred: false,
+      correctionRequired: true,
+      isQuarantined: false,
+      reconciliationStatus: 'RECONCILED',
       proposedUtcInstant: expectedStartUtc,
       proposedEndUtcInstant: expectedEndUtc,
-      confidence: 'LOW',
-      reason: `Discrepancy between scheduled_start_at (${currentStartUtc}) and legacy slot (${date} ${time_slot} -> ${expectedStartUtc}). Quarantined for manual review.`
+      confidence: 'HIGH',
+      reason: `Initial backfill from deterministic legacy date ("${date}") and time_slot ("${time_slot}").`
     };
   }
 
-  // Case 3: No legacy date/slot, only scheduled_start_at
-  const currentStartDate = new Date(rawStart);
-  if (isNaN(currentStartDate.getTime())) {
+  // Inspect rawStart for explicit timezone indicators
+  const hasExplicitZ = /Z$/i.test(rawStart);
+  const hasExplicitOffset = /[+-]\d{2}:?\d{2}$/.test(rawStart);
+  const isExplicitIsoInstant = hasExplicitZ || hasExplicitOffset;
+
+  const parsedStartDate = new Date(rawStart);
+  if (isNaN(parsedStartDate.getTime())) {
     return {
       id: `tca_${id}_start_at`,
       sourceTable: 'bookings',
@@ -184,35 +114,147 @@ export function evaluateTimestampProvenance(booking) {
       sourceColumn: 'scheduled_start_at',
       rawSource: rawStart,
       canonicalCurrentValue: rawStart,
-      expectedInterpretation: 'INVALID',
+      expectedInterpretation: expectedInterval ? expectedInterval.startAt.toISOString() : 'INVALID',
       classification: TIMESTAMP_CLASSIFICATIONS.UNRESOLVABLE,
       conversionOccurred: false,
       correctionRequired: false,
+      isQuarantined: true,
+      reconciliationStatus: 'UNRESOLVABLE',
       proposedUtcInstant: null,
+      proposedEndUtcInstant: null,
       confidence: 'LOW',
-      reason: `Unparseable timestamp "${rawStart}" with no legacy date/time_slot fallback.`
+      reason: `Unparseable timestamp string "${rawStart}".`
     };
   }
 
+  const explicitUtc = parsedStartDate.toISOString();
+  let explicitEndUtc = null;
+  if (rawEnd) {
+    const parsedEndDate = new Date(rawEnd);
+    if (!isNaN(parsedEndDate.getTime())) {
+      explicitEndUtc = parsedEndDate.toISOString();
+    }
+  }
+
+  // Case 3: Explicit UTC/Offset timestamp
+  if (isExplicitIsoInstant) {
+    if (expectedInterval) {
+      const diffMs = parsedStartDate.getTime() - expectedInterval.startAt.getTime();
+      if (diffMs === 0) {
+        return {
+          id: `tca_${id}_start_at`,
+          sourceTable: 'bookings',
+          sourceRowId: id,
+          sourceColumn: 'scheduled_start_at',
+          rawSource: rawStart,
+          canonicalCurrentValue: explicitUtc,
+          expectedInterpretation: expectedInterval.startAt.toISOString(),
+          classification: TIMESTAMP_CLASSIFICATIONS.SAFE_NO_CHANGE,
+          conversionOccurred: true,
+          correctionRequired: false,
+          isQuarantined: false,
+          reconciliationStatus: 'RECONCILED',
+          proposedUtcInstant: explicitUtc,
+          proposedEndUtcInstant: explicitEndUtc || expectedInterval.endAt.toISOString(),
+          confidence: 'HIGH',
+          reason: 'Explicit ISO timestamp exactly matches deterministic UTC instant parsed from legacy slot.'
+        };
+      }
+
+      // Explicit ISO timestamp does NOT match legacy slot.
+      // INVARIANT: NEVER automatically shift an explicit ISO instant based on a potentially stale display string!
+      return {
+        id: `tca_${id}_start_at`,
+        sourceTable: 'bookings',
+        sourceRowId: id,
+        sourceColumn: 'scheduled_start_at',
+        rawSource: rawStart,
+        canonicalCurrentValue: explicitUtc,
+        expectedInterpretation: explicitUtc,
+        classification: TIMESTAMP_CLASSIFICATIONS.MANUAL_REVIEW,
+        conversionOccurred: true,
+        correctionRequired: false,
+        isQuarantined: true,
+        reconciliationStatus: 'MANUAL_REVIEW',
+        proposedUtcInstant: explicitUtc,
+        proposedEndUtcInstant: explicitEndUtc,
+        confidence: 'LOW',
+        reason: `Explicit ISO timestamp (${rawStart}) does not match legacy display slot (${date} ${time_slot} -> ${expectedInterval.startAt.toISOString()}). Preserved without automatic shift and quarantined for manual review.`
+      };
+    }
+
+    // Explicit ISO timestamp with no legacy slot
+    return {
+      id: `tca_${id}_start_at`,
+      sourceTable: 'bookings',
+      sourceRowId: id,
+      sourceColumn: 'scheduled_start_at',
+      rawSource: rawStart,
+      canonicalCurrentValue: explicitUtc,
+      expectedInterpretation: explicitUtc,
+      classification: TIMESTAMP_CLASSIFICATIONS.SAFE_NO_CHANGE,
+      conversionOccurred: true,
+      correctionRequired: false,
+      isQuarantined: false,
+      reconciliationStatus: 'RECONCILED',
+      proposedUtcInstant: explicitUtc,
+      proposedEndUtcInstant: explicitEndUtc,
+      confidence: 'MEDIUM',
+      reason: 'Valid explicit ISO timestamp preserved with no legacy slot conflict.'
+    };
+  }
+
+  // Case 4: Unannotated legacy string (no Z or offset, e.g. "2026-09-19 18:00:00")
+  if (expectedInterval) {
+    const expectedStartUtc = expectedInterval.startAt.toISOString();
+    const expectedEndUtc = expectedInterval.endAt.toISOString();
+
+    // Check if unannotated local time matches the slot
+    // e.g., "2026-09-19 18:00:00" matches 06:00 PM IST on 2026-09-19
+    return {
+      id: `tca_${id}_start_at`,
+      sourceTable: 'bookings',
+      sourceRowId: id,
+      sourceColumn: 'scheduled_start_at',
+      rawSource: rawStart,
+      canonicalCurrentValue: explicitUtc,
+      expectedInterpretation: expectedStartUtc,
+      classification: TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION,
+      conversionOccurred: true,
+      correctionRequired: true,
+      isQuarantined: false,
+      reconciliationStatus: 'RECONCILED',
+      proposedUtcInstant: expectedStartUtc,
+      proposedEndUtcInstant: expectedEndUtc,
+      confidence: 'HIGH',
+      reason: `Unannotated legacy local timestamp ("${rawStart}") deterministically converted once to canonical Asia/Kolkata UTC instant.`
+    };
+  }
+
+  // Unannotated string without legacy slot provenance -> Ambiguous
   return {
     id: `tca_${id}_start_at`,
     sourceTable: 'bookings',
     sourceRowId: id,
     sourceColumn: 'scheduled_start_at',
     rawSource: rawStart,
-    canonicalCurrentValue: currentStartDate.toISOString(),
-    expectedInterpretation: currentStartDate.toISOString(),
-    classification: TIMESTAMP_CLASSIFICATIONS.SAFE_NO_CHANGE,
-    conversionOccurred: true,
+    canonicalCurrentValue: explicitUtc,
+    expectedInterpretation: 'AMBIGUOUS',
+    classification: TIMESTAMP_CLASSIFICATIONS.MANUAL_REVIEW,
+    conversionOccurred: false,
     correctionRequired: false,
-    proposedUtcInstant: currentStartDate.toISOString(),
-    confidence: 'MEDIUM',
-    reason: 'Valid ISO timestamp preserved with no conflicting legacy slot.'
+    isQuarantined: true,
+    reconciliationStatus: 'MANUAL_REVIEW',
+    proposedUtcInstant: null,
+    proposedEndUtcInstant: null,
+    confidence: 'LOW',
+    reason: `Unannotated local timestamp string "${rawStart}" has no legacy date/time_slot provenance. Quarantined for manual review.`
   };
 }
 
 /**
  * Reconciles and audits all booking timestamps in the database deterministically.
+ * Updates bookings with canonical UTC instants and marks quarantined rows.
  */
 export async function reconcileAllTimestamps(db) {
   const isPostgres = typeof db.isPostgres === 'function' && db.isPostgres();
@@ -222,12 +264,12 @@ export async function reconcileAllTimestamps(db) {
 
   const audits = [];
   const corrections = [];
+  const quarantines = [];
 
   for (const b of bookings) {
     const audit = evaluateTimestampProvenance(b);
     audits.push(audit);
 
-    // Only apply corrections for SAFE_CORRECTION with HIGH confidence
     if (audit.classification === TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION && audit.correctionRequired && audit.confidence === 'HIGH') {
       corrections.push({
         id: b.id,
@@ -235,16 +277,40 @@ export async function reconcileAllTimestamps(db) {
         endAt: audit.proposedEndUtcInstant
       });
     }
+
+    if (audit.isQuarantined) {
+      quarantines.push({
+        id: b.id,
+        status: audit.reconciliationStatus
+      });
+    }
   }
 
-  // Apply safe corrections
+  // Apply safe corrections to bookings
   for (const c of corrections) {
     if (c.startAt && c.endAt) {
-      await db.run(
-        `UPDATE bookings SET scheduled_start_at = ?, scheduled_end_at = ? WHERE id = ?`,
-        [c.startAt, c.endAt, c.id]
-      );
+      try {
+        await db.run(
+          `UPDATE bookings SET scheduled_start_at = ?, scheduled_end_at = ?, is_quarantined = ${isPostgres ? 'FALSE' : '0'}, reconciliation_status = 'RECONCILED' WHERE id = ?`,
+          [c.startAt, c.endAt, c.id]
+        );
+      } catch (_e) {
+        await db.run(
+          `UPDATE bookings SET scheduled_start_at = ?, scheduled_end_at = ? WHERE id = ?`,
+          [c.startAt, c.endAt, c.id]
+        );
+      }
     }
+  }
+
+  // Apply quarantine status to bookings
+  for (const q of quarantines) {
+    try {
+      await db.run(
+        `UPDATE bookings SET is_quarantined = ${isPostgres ? 'TRUE' : '1'}, reconciliation_status = ? WHERE id = ?`,
+        [q.status, q.id]
+      );
+    } catch (_e) {}
   }
 
   // Insert or update audit entries
@@ -299,6 +365,7 @@ export async function reconcileAllTimestamps(db) {
   return {
     totalAudited: audits.length,
     correctionsApplied: corrections.length,
+    quarantinedCount: quarantines.length,
     safeNoChange: audits.filter(a => a.classification === TIMESTAMP_CLASSIFICATIONS.SAFE_NO_CHANGE).length,
     safeCorrection: audits.filter(a => a.classification === TIMESTAMP_CLASSIFICATIONS.SAFE_CORRECTION).length,
     manualReview: audits.filter(a => a.classification === TIMESTAMP_CLASSIFICATIONS.MANUAL_REVIEW).length,

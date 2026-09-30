@@ -224,7 +224,7 @@ async function _assertNoConflicts(tx, ctx) {
 
   // 1. Confirmed bookings on the physical facility
   const bookings = await tx.all(
-    `SELECT id, booking_status, scheduled_start_at, scheduled_end_at, date, time_slot
+    `SELECT id, booking_status, scheduled_start_at, scheduled_end_at, date, time_slot, is_quarantined, reconciliation_status
      FROM bookings
      WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
     [resolvedFacilityId, resolvedFacilityId]
@@ -232,6 +232,7 @@ async function _assertNoConflicts(tx, ctx) {
 
   for (const b of bookings) {
     if (!isOccupyingStatus(b.booking_status)) continue;
+    if (b.is_quarantined === true || Number(b.is_quarantined) === 1 || b.reconciliation_status === 'MANUAL_REVIEW' || b.reconciliation_status === 'UNRESOLVABLE') continue;
     let bi;
     if (b.scheduled_start_at && b.scheduled_end_at) {
       bi = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });

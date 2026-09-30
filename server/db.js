@@ -21,6 +21,7 @@ import { id as stage0FoundationMigrationId, up as applyStage0FoundationMigration
 import { id as stage05OperationalizationMigrationId, up as applyStage05OperationalizationMigration } from './migrations/015_stage05_operationalization.js';
 import { id as stage06HardeningMigrationId, up as applyStage06HardeningMigration } from './migrations/016_stage06_hardening.js';
 import { id as stage07RemediationMigrationId, up as applyStage07RemediationMigration } from './migrations/017_stage07_remediation.js';
+import { id as stage08ReconciliationMigrationId, up as applyStage08ReconciliationMigration } from './migrations/018_stage08_reconciliation_and_rbac.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,6 +100,7 @@ const runVersionedMigrations = async () => {
     { id: stage05OperationalizationMigrationId, up: applyStage05OperationalizationMigration },
     { id: stage06HardeningMigrationId, up: applyStage06HardeningMigration },
     { id: stage07RemediationMigrationId, up: applyStage07RemediationMigration },
+    { id: stage08ReconciliationMigrationId, up: applyStage08ReconciliationMigration },
   ];
 
   for (const migration of migrations) {

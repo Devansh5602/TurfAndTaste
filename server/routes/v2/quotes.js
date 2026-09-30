@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
     }
 
     const [bookings, blocks] = await Promise.all([
-      dbAsync.all("SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled'", [facilityId, date]),
+      dbAsync.all("SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled' AND (is_quarantined IS NULL OR is_quarantined = FALSE OR is_quarantined = 0) AND (reconciliation_status IS NULL OR reconciliation_status != 'MANUAL_REVIEW')", [facilityId, date]),
       dbAsync.all('SELECT time_slot, reason FROM blocked_slots WHERE facility_id = ? AND date = ?', [facilityId, date]),
     ]);
     if (bookings.some((booking) => { const range = parseRange(booking.time_slot); return range && overlaps(requested, range); })) {

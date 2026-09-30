@@ -80,7 +80,7 @@ export async function findResourceConflicts(db, options) {
   // 1. Check existing confirmed bookings on same physical facility
   // Postgres or SQLite: match physical_facility_id OR legacy facility_id
   const bookingsQuery = `
-    SELECT id, facility_id, scheduled_start_at, scheduled_end_at, booking_status, date, time_slot
+    SELECT id, facility_id, scheduled_start_at, scheduled_end_at, booking_status, date, time_slot, is_quarantined, reconciliation_status
     FROM bookings
     WHERE (physical_facility_id = ? OR facility_id = ?)
       AND booking_status NOT IN ('Cancelled', 'CANCELLED', 'EXPIRED')
@@ -88,6 +88,9 @@ export async function findResourceConflicts(db, options) {
 
   const existingBookings = await db.all(bookingsQuery, [facilityId, facilityId]);
   const activeBookings = existingBookings.map(b => {
+    if (b.is_quarantined === true || Number(b.is_quarantined) === 1 || b.reconciliation_status === 'MANUAL_REVIEW' || b.reconciliation_status === 'UNRESOLVABLE') {
+      return null;
+    }
     let bStart = b.scheduled_start_at;
     let bEnd = b.scheduled_end_at;
     if (!bStart || !bEnd) {
