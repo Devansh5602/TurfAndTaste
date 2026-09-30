@@ -22,33 +22,56 @@ export const getActiveAdmin = async (decoded) => {
       'SELECT id, username, role, stall_id, is_enabled, session_version FROM admins WHERE id = ?',
       [decoded.id]
     );
-    if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
-    // Tokens issued before this migration intentionally carry version zero,
-    // preserving active sessions until a security event explicitly revokes them.
+    if (!admin || !isEnabled(admin.is_enabled)) return null;
+
+    // Check if role is a standard admin role or a custom role defined in roles table
+    let isValidRole = activeAdminRoles.has(admin.role);
+    if (!isValidRole) {
+      const dbRole = await dbAsync.get(
+        'SELECT id FROM roles WHERE role_key = ? OR id = ?',
+        [admin.role, `role_${admin.role}`]
+      );
+      if (dbRole) isValidRole = true;
+    }
+    if (!isValidRole) return null;
+
+    // Tokens issued before this migration carry version zero
     if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
+
+    const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+    const permissions = await loadUserPermissions(dbAsync, 'admin', admin.id, admin.role);
 
     return {
       id: admin.id,
       username: admin.username,
       role: admin.role,
       stallId: admin.stall_id || null,
+      permissions: Array.isArray(permissions) ? permissions : [],
       sessionVersion: Number(admin.session_version ?? 0)
     };
   } catch (_e) {
-    // If stall_id column query failed on older schema
-    const admin = await dbAsync.get(
-      'SELECT id, username, role, is_enabled, session_version FROM admins WHERE id = ?',
-      [decoded.id]
-    );
-    if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
-    if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
-    return {
-      id: admin.id,
-      username: admin.username,
-      role: admin.role,
-      stallId: null,
-      sessionVersion: Number(admin.session_version ?? 0)
-    };
+    try {
+      const admin = await dbAsync.get(
+        'SELECT id, username, role, is_enabled, session_version FROM admins WHERE id = ?',
+        [decoded.id]
+      );
+      if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
+      if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
+
+      const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+      const permissions = await loadUserPermissions(dbAsync, 'admin', admin.id, admin.role);
+
+      return {
+        id: admin.id,
+        username: admin.username,
+        role: admin.role,
+        stallId: null,
+        permissions: Array.isArray(permissions) ? permissions : [],
+        sessionVersion: Number(admin.session_version ?? 0)
+      };
+    } catch {
+      return null;
+    }
   }
 };
 

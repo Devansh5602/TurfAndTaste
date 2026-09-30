@@ -220,7 +220,7 @@ router.get('/slots', async (req, res) => {
     let blockedSlots = [];
     if (facilityId) {
       const existing = await dbAsync.all(
-        "SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled'",
+        "SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled' AND (is_quarantined IS NULL OR is_quarantined = FALSE OR is_quarantined = 0) AND (reconciliation_status IS NULL OR reconciliation_status != 'MANUAL_REVIEW')",
         [facilityId, targetDate]
       );
       bookedSlots = existing;
@@ -287,7 +287,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
         permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
       }
       const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
-      if (!hasPermission(permissions, 'booking.create_walkin') && req.admin.role !== 'super_admin') {
+      if (!hasPermission(permissions, 'booking.create_walkin')) {
         return res.status(403).json({ success: false, error: 'Forbidden: Missing required permission "booking.create_walkin".' });
       }
     }
@@ -454,7 +454,7 @@ router.put('/:id/status', authenticateAdminToken, async (req, res) => {
       permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
     }
     const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
-    if (!hasPermission(permissions, requiredPerm) && req.admin.role !== 'super_admin') {
+    if (!hasPermission(permissions, requiredPerm)) {
       return res.status(403).json({ success: false, error: `Forbidden: Missing required permission "${requiredPerm}".` });
     }
 
@@ -494,7 +494,7 @@ router.delete('/:id', authenticateAdminToken, async (req, res) => {
       permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
     }
     const { hasPermission } = await import('../domain/rbac/rbacEngine.js');
-    if (!hasPermission(permissions, 'booking.cancel') && req.admin.role !== 'super_admin') {
+    if (!hasPermission(permissions, 'booking.cancel')) {
       return res.status(403).json({ success: false, error: 'Forbidden: Missing required permission "booking.cancel".' });
     }
 
