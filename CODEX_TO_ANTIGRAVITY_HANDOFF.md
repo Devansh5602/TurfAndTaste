@@ -143,3 +143,35 @@
 
 ### Immediate Next Step:
 Codex review and audit of the domain model and migration plan before initiating Admin UI development.
+
+---
+
+## Phase 4: Stage 0 Platform Foundation Implementation
+
+### Status: Complete & Verified (Ready for Final Codex Review Before Admin UI)
+- **Objective Achieved:** Implemented the complete technical foundation addressing all blockers from `docs/domain/CODEX_FOUNDATION_REVIEW.md`:
+  1. Additive non-destructive migration `014_stage0_foundation` applied to Supabase PostgreSQL (and verified on SQLite).
+  2. Canonical physical inventory (`prop_patan`, 2 sections, 6 physical facilities with stable UUIDs, services, and add-on mapping).
+  3. Reclassified `ball-machine` as an add-on mapped to `fac_green_net_1`.
+  4. Timezone-aware interval engine (`server/domain/time/bookingInterval.js`) with explicit `Asia/Kolkata` handling, half-open `[start, end)` semantics, and cross-midnight date rollover safety.
+  5. Authoritative booking rules engine (`server/domain/booking/bookingRules.js`):
+     - Quick 1h/2h on `:00` (1.5h rejected).
+     - Custom quarter-hour starts (`:00`, `:15`, `:30`, `:45`) with whole-hour durations.
+     - Customer 60-minute minimum lead-time enforced server-side.
+     - Admin/staff immediate walk-in policy supported.
+     - Next quick start rounding helper after partial-hour session ends.
+  6. Physical resource conflict engine (`server/domain/booking/conflictEngine.js`) validating overlap against physical facilities, blocks, and holds. Multi-turf concurrency supported.
+  7. Booking state machine (`server/domain/booking/bookingStateMachine.js`) enforcing that `CANCELLED` is strictly terminal. Soft-cancel preserves history; slot releases occupancy.
+  8. Ground session operations (`server/domain/session/sessionOperations.js`) distinguishing scheduled vs actual timestamps and validating 15-minute extensions against subsequent bookings.
+  9. Guest identity privacy (`server/domain/guest/guestPrivacy.js`): Hardened `GET /api/bookings/history` against unauthenticated harvesting.
+  10. Granular RBAC engine (`server/domain/rbac/rbacEngine.js`) with 24 permission keys and default-deny middleware.
+  11. Campus dining table-number ordering engine (`server/domain/dining/diningEngine.js`) with line-item calculations in paise and formal state machine.
+  12. Preflight inspection tool (`server/scripts/preflightCheck.js`) and comprehensive audit reports (`docs/domain/STAGE0_SCHEMA_PREFLIGHT.md`, `docs/domain/STAGE0_IMPLEMENTATION_REPORT.md`).
+
+### Test & Build Verification
+- **Test Suite (`npm test`):** 55 / 55 tests passing across 19 test suites in ~186ms.
+- **Production Web Build (`npm run build`):** Built cleanly in 3.69s (0 errors).
+- **Whitespace / Lint Checks (`git diff --check`):** Passed with 0 errors.
+
+### Next Step:
+Independent Codex audit of Stage 0 foundation before beginning Admin UI generation. Admin UI remains strictly paused.
