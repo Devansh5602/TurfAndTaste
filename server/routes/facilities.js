@@ -2,8 +2,10 @@ import express from 'express';
 import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
 import { isPlainObject, safeJsonParse, sendError, sendSuccess } from '../utils/api.js';
+import { requirePermission } from '../domain/rbac/rbacEngine.js';
 
 const router = express.Router();
+
 
 const parseJsonArray = (value) => {
   try {
@@ -98,7 +100,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/admin/all', authenticateAdminToken, async (_req, res) => {
+router.get('/admin/all', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
+
   try {
     const rows = await dbAsync.all('SELECT * FROM facility_profiles ORDER BY display_order ASC, name ASC');
     return sendSuccess(res, { facilities: await Promise.all(rows.map(async (facility) => ({
@@ -184,7 +187,7 @@ const saveFacility = async (req, res, isCreate) => {
   }
 };
 
-router.post('/', authenticateAdminToken, (req, res) => saveFacility(req, res, true));
-router.put('/:identifier', authenticateAdminToken, (req, res) => saveFacility(req, res, false));
+router.post('/', authenticateAdminToken, requirePermission('facility.create'), (req, res) => saveFacility(req, res, true));
+router.put('/:identifier', authenticateAdminToken, requirePermission('facility.update'), (req, res) => saveFacility(req, res, false));
 
 export default router;

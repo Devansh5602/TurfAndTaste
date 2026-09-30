@@ -101,15 +101,86 @@ export function hasPermission(userPermissions = [], requiredPermission) {
 }
 
 /**
+ * Loads effective permissions for a user from database persistence with role fallback.
+ */
+export async function loadUserPermissions(db, userType, userId, roleFallback = null) {
+  if (db) {
+    try {
+      // 1. Direct query via user_roles table
+      const rows = await db.all(
+        `SELECT p.permission_key
+         FROM user_roles ur
+         JOIN roles r ON ur.role_id = r.id
+         JOIN role_permissions rp ON r.id = rp.role_id
+         JOIN permissions p ON rp.permission_id = p.id
+         WHERE ur.user_type = ? AND ur.user_id = ?`,
+        [userType, String(userId)]
+      );
+
+      if (rows && rows.length > 0) {
+        return rows.map(r => r.permission_key);
+      }
+
+      // 2. Query permissions for roleFallback directly from role_permissions
+      if (roleFallback) {
+        const roleId = roleFallback.startsWith('role_') ? roleFallback : `role_${roleFallback}`;
+        const rpRows = await db.all(
+          `SELECT p.permission_key
+           FROM role_permissions rp
+           JOIN permissions p ON rp.permission_id = p.id
+           WHERE rp.role_id = ?`,
+          [roleId]
+        );
+        if (rpRows && rpRows.length > 0) {
+          return rpRows.map(r => r.permission_key);
+        }
+      }
+    } catch (e) {
+      // Fall through to in-memory defaults
+    }
+  }
+
+  // 3. Fall back to in-memory role defaults
+  if (roleFallback) {
+    const norm = roleFallback.replace(/^role_/, '');
+    if (DEFAULT_ROLE_PERMISSIONS[norm]) {
+      return DEFAULT_ROLE_PERMISSIONS[norm];
+    }
+    if (DEFAULT_ROLE_PERMISSIONS[roleFallback]) {
+      return DEFAULT_ROLE_PERMISSIONS[roleFallback];
+    }
+  }
+  return [];
+}
+
+
+/**
  * Express middleware helper for server-side permission gating.
  */
 export function requirePermission(permissionKey) {
-  return (req, res, next) => {
-    // If admin has role super_admin or legacy super_admin
-    const userRole = req.admin?.role;
-    const permissions = req.admin?.permissions || (userRole ? DEFAULT_ROLE_PERMISSIONS[userRole] || [] : []);
+  return async (req, res, next) => {
+    if (!req.admin) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
 
-    if (userRole === 'super_admin' || hasPermission(permissions, permissionKey)) {
+    const userRole = req.admin.role;
+    if (userRole === 'super_admin') {
+      return next();
+    }
+
+    let permissions = req.admin.permissions;
+    if (!Array.isArray(permissions) || permissions.length === 0) {
+      // Load dynamically from database if db is available on app or imported
+      try {
+        const { default: dbAsync } = await import('../../db.js');
+        permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, userRole);
+        req.admin.permissions = permissions;
+      } catch (e) {
+        permissions = userRole ? DEFAULT_ROLE_PERMISSIONS[userRole] || [] : [];
+      }
+    }
+
+    if (hasPermission(permissions, permissionKey)) {
       return next();
     }
 

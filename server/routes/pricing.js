@@ -1,8 +1,10 @@
 import express from 'express';
 import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
+import { requirePermission } from '../domain/rbac/rbacEngine.js';
 
 const router = express.Router();
+
 
 /**
  * GET /api/pricing
@@ -52,7 +54,8 @@ router.get('/', async (req, res) => {
  * PUT /api/pricing
  * Save all pricing tiers (Admin) - Supports UPSERT and full JSON state
  */
-router.put('/', authenticateAdminToken, async (req, res) => {
+router.put('/', authenticateAdminToken, requirePermission('pricing.manage'), async (req, res) => {
+
   try {
     const pricingList = req.body;
 
