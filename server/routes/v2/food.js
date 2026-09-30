@@ -1,8 +1,8 @@
 import express from 'express';
 import dbAsync from '../../db.js';
-import { authenticateAdminToken } from '../../middleware/auth.js';
+import { authenticateAdminToken, attachOptionalAdmin } from '../../middleware/auth.js';
 import { isPlainObject, safeJsonParse, sendError, sendSuccess } from '../../utils/api.js';
-import { requirePermission } from '../../domain/rbac/rbacEngine.js';
+import { requirePermission, hasPermission } from '../../domain/rbac/rbacEngine.js';
 import { createDiningOrder, updateDiningOrderStatus } from '../../domain/dining/diningOrderCommand.js';
 
 const router = express.Router();
@@ -120,42 +120,69 @@ router.post('/orders', async (req, res) => {
  * GET /api/v2/food/orders/:id
  * Get a specific dining order by ID.
  * Requires EITHER:
- * - An authenticated admin token (staff / super_admin)
- * - A matching access_token query param (customer-safe proof)
+ * - An authenticated admin token with dining.order.read permission (scoped to stall if stall_staff)
+ * - A matching unguessable access_token query param or header (customer-safe view)
  */
-router.get('/orders/:id', async (req, res) => {
+router.get('/orders/:id', attachOptionalAdmin, async (req, res) => {
   try {
-    const { accessToken } = req.query;
-
-    // Check for admin token first
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    let isAdmin = false;
-    if (token && process.env.JWT_SECRET) {
-      try {
-        const jwt = await import('jsonwebtoken');
-        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
-        if (decoded?.id) isAdmin = true;
-      } catch (_e) {}
-    }
+    const accessToken = req.query.accessToken || req.headers['x-order-access-token'];
 
     const order = await dbAsync.get('SELECT * FROM dining_orders WHERE id = ?', [req.params.id]);
     if (!order) return sendError(res, 404, 'Dining order not found.');
 
-    // Authorization: admin can always read; customer must present access token
-    if (!isAdmin) {
-      if (!accessToken) {
-        return sendError(res, 401, 'An access token is required to view this order.');
+    const items = await dbAsync.all('SELECT * FROM dining_order_items WHERE order_id = ?', [req.params.id]);
+
+    // Case 1: Authenticated Management User (via verified session middleware)
+    if (req.admin) {
+      const userRole = req.admin.role;
+      const perms = req.admin.permissions || [];
+      const canRead = userRole === 'super_admin' || hasPermission(perms, 'dining.order.read') || hasPermission(perms, 'dining.order.manage');
+      if (!canRead) {
+        return sendError(res, 403, 'Forbidden: Missing required permission "dining.order.read".');
       }
-      if (!order.access_token || order.access_token !== accessToken) {
-        return sendError(res, 403, 'Order access token does not match.');
+
+      // Stall-scoped check for stall staff
+      if (req.admin.role === 'stall_staff' && req.admin.stallId && order.stall_id && order.stall_id !== req.admin.stallId) {
+        return sendError(res, 403, 'Forbidden: You can only view orders for your assigned stall.');
       }
+
+      return sendSuccess(res, { order: { ...order, items } });
     }
 
-    const items = await dbAsync.all('SELECT * FROM dining_order_items WHERE order_id = ?', [req.params.id]);
-    // Omit sensitive customer phone from public response
-    const { customer_phone: _phone, ...safeOrder } = order;
-    return sendSuccess(res, { order: { ...safeOrder, items } });
+    // Case 2: Customer with secure unguessable access token
+    if (!accessToken) {
+      return sendError(res, 401, 'An access token is required to view this order.');
+    }
+    if (!order.access_token || order.access_token !== accessToken) {
+      return sendError(res, 403, 'Order access token does not match.');
+    }
+
+    // Customer-safe response: strip access_token, customer_phone, and internal fields
+    const safeCustomerOrder = {
+      id: order.id,
+      orderNumber: order.order_number,
+      stallId: order.stall_id,
+      tableNumber: order.table_number,
+      orderStatus: order.order_status,
+      paymentStatus: order.payment_status,
+      subtotalPaise: order.subtotal_paise,
+      taxPaise: order.tax_paise,
+      totalAmountPaise: order.total_amount_paise,
+      customerName: order.customer_name,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      items: items.map((it) => ({
+        id: it.id,
+        menuItemId: it.menu_item_id,
+        itemName: it.item_name,
+        quantity: it.quantity,
+        unitPricePaise: it.unit_price_paise,
+        totalPricePaise: it.total_price_paise,
+        notes: it.notes
+      }))
+    };
+
+    return sendSuccess(res, { order: safeCustomerOrder });
   } catch (error) {
     return sendError(res, 500, 'Unable to load dining order.');
   }
@@ -163,7 +190,13 @@ router.get('/orders/:id', async (req, res) => {
 
 router.get('/admin/orders', authenticateAdminToken, requirePermission('dining.order.read'), async (req, res) => {
   try {
-    const { stallId, status } = req.query;
+    let { stallId, status } = req.query;
+
+    // Stall-scoped enforcement for stall_staff
+    if (req.admin.role === 'stall_staff' && req.admin.stallId) {
+      stallId = req.admin.stallId;
+    }
+
     let sql = 'SELECT * FROM dining_orders WHERE 1=1';
     const params = [];
     if (stallId) {
