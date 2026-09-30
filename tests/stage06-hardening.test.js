@@ -328,15 +328,10 @@ describe('Stage 0.6: Transaction + Authorization Hardening', () => {
   });
 
   // ============================================================
-  // 5. PERMISSION VOCABULARY DB SYNC (PostgreSQL only)
+  // 5. PERMISSION VOCABULARY DB SYNC (PostgreSQL & SQLite Unified)
   // ============================================================
   describe('RBAC Permission Vocabulary DB Sync', () => {
     it('critical booking permissions exist in database', async () => {
-      if (!dbAsync.isPostgres()) {
-        console.log('  (SQLite — skipping DB permission sync test)');
-        return;
-      }
-
       const criticalKeys = [
         'booking.walkin', 'booking.create_walkin', 'booking.update',
         'dining.order.manage', 'dining.order.update', 'dining.stall.read'
@@ -352,11 +347,6 @@ describe('Stage 0.6: Transaction + Authorization Hardening', () => {
     });
 
     it('staff role has booking.walkin and booking.create_walkin in DB', async () => {
-      if (!dbAsync.isPostgres()) {
-        console.log('  (SQLite — skipping DB role sync test)');
-        return;
-      }
-
       const staffPerms = await dbAsync.all(
         `SELECT p.permission_key FROM role_permissions rp
          JOIN permissions p ON rp.permission_id = p.id
@@ -370,11 +360,6 @@ describe('Stage 0.6: Transaction + Authorization Hardening', () => {
     });
 
     it('stall_staff role has dining.order.manage and dining.order.update in DB', async () => {
-      if (!dbAsync.isPostgres()) {
-        console.log('  (SQLite — skipping DB stall_staff sync test)');
-        return;
-      }
-
       const perms = await dbAsync.all(
         `SELECT p.permission_key FROM role_permissions rp
          JOIN permissions p ON rp.permission_id = p.id

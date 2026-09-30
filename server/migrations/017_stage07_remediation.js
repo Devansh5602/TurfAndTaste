@@ -61,7 +61,7 @@ export async function up({ isPostgres, exec }) {
       await exec(`
         INSERT INTO permissions (id, permission_key, module, description)
         VALUES ('${pId}', '${key}', '${module}', '${desc.replace(/'/g, "''")}')
-        ON CONFLICT (id) DO UPDATE SET permission_key = EXCLUDED.permission_key, module = EXCLUDED.module, description = EXCLUDED.description;
+        ON CONFLICT (permission_key) DO UPDATE SET module = EXCLUDED.module, description = EXCLUDED.description;
       `);
     }
 
@@ -154,18 +154,15 @@ export async function up({ isPostgres, exec }) {
 
     for (const [pId, key, module, desc] of permissions) {
       await exec(`
-        INSERT INTO permissions (id, permission_key, module, description)
-        VALUES ('${pId}', '${key}', '${module}', '${desc.replace(/'/g, "''")}')
-        ON CONFLICT (id) DO UPDATE SET permission_key = excluded.permission_key, module = excluded.module, description = excluded.description;
+        INSERT OR IGNORE INTO permissions (id, permission_key, module, description)
+        VALUES ('${pId}', '${key}', '${module}', '${desc.replace(/'/g, "''")}');
       `);
     }
 
     // Role Permissions on SQLite
     await exec(`
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT 'role_super_admin', id FROM permissions
-      WHERE 1 = 1
-      ON CONFLICT DO NOTHING;
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+      SELECT 'role_super_admin', id FROM permissions;
     `);
 
     const staffKeys = [
@@ -176,10 +173,9 @@ export async function up({ isPostgres, exec }) {
       'dining.stall.read', 'dining.order.read', 'dining.order.manage', 'dining.order.update'
     ];
     await exec(`
-      INSERT INTO role_permissions (role_id, permission_id)
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
       SELECT 'role_staff', id FROM permissions
-      WHERE permission_key IN (${staffKeys.map(k => `'${k}'`).join(',')})
-      ON CONFLICT DO NOTHING;
+      WHERE permission_key IN (${staffKeys.map(k => `'${k}'`).join(',')});
     `);
 
     const stallKeys = [
@@ -187,18 +183,22 @@ export async function up({ isPostgres, exec }) {
       'dining.order.read', 'dining.order.manage', 'dining.order.update'
     ];
     await exec(`
-      INSERT INTO role_permissions (role_id, permission_id)
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
       SELECT 'role_stall_staff', id FROM permissions
-      WHERE permission_key IN (${stallKeys.map(k => `'${k}'`).join(',')})
-      ON CONFLICT DO NOTHING;
+      WHERE permission_key IN (${stallKeys.map(k => `'${k}'`).join(',')});
     `);
 
     const customerKeys = ['booking.read', 'booking.create', 'dining.order.read'];
     await exec(`
-      INSERT INTO role_permissions (role_id, permission_id)
+      INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
       SELECT 'role_customer', id FROM permissions
-      WHERE permission_key IN (${customerKeys.map(k => `'${k}'`).join(',')})
-      ON CONFLICT DO NOTHING;
+      WHERE permission_key IN (${customerKeys.map(k => `'${k}'`).join(',')});
+    `);
+
+    // Ensure facilities table has all physical_facilities for SQLite legacy FK parity
+    await exec(`
+      INSERT OR IGNORE INTO facilities (id, title, category, base_price_day, base_price_night, deposit_amount, status)
+      SELECT id, default_name, 'sport', 600, 800, 200, 'active' FROM physical_facilities;
     `);
   }
 }
