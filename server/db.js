@@ -20,6 +20,7 @@ import { id as eventsFoundationMigrationId, up as applyEventsFoundationMigration
 import { id as stage0FoundationMigrationId, up as applyStage0FoundationMigration } from './migrations/014_stage0_foundation.js';
 import { id as stage05OperationalizationMigrationId, up as applyStage05OperationalizationMigration } from './migrations/015_stage05_operationalization.js';
 import { id as stage06HardeningMigrationId, up as applyStage06HardeningMigration } from './migrations/016_stage06_hardening.js';
+import { id as stage07RemediationMigrationId, up as applyStage07RemediationMigration } from './migrations/017_stage07_remediation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,6 +98,7 @@ const runVersionedMigrations = async () => {
     { id: stage0FoundationMigrationId, up: applyStage0FoundationMigration },
     { id: stage05OperationalizationMigrationId, up: applyStage05OperationalizationMigration },
     { id: stage06HardeningMigrationId, up: applyStage06HardeningMigration },
+    { id: stage07RemediationMigrationId, up: applyStage07RemediationMigration },
   ];
 
   for (const migration of migrations) {

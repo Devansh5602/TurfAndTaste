@@ -215,6 +215,50 @@ export async function up({ isPostgres, exec }) {
         reviewed_at TEXT DEFAULT CURRENT_TIMESTAMP,
         notes TEXT
       );
+
+      -- 4a. booking.create_walkin
+      INSERT INTO permissions (id, permission_key, module, description)
+      VALUES ('perm_booking_create_walkin', 'booking.create_walkin', 'bookings', 'Alias: Create immediate staff walk-in bookings')
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT rp.role_id, 'perm_booking_create_walkin'
+      FROM role_permissions rp
+      WHERE rp.permission_id = 'perm_booking_walkin'
+        AND rp.role_id IN ('role_super_admin', 'role_staff')
+      ON CONFLICT DO NOTHING;
+
+      -- 4b. booking.update
+      INSERT INTO permissions (id, permission_key, module, description)
+      VALUES ('perm_booking_update', 'booking.update', 'bookings', 'Update booking status and operational fields')
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT DISTINCT rp.role_id, 'perm_booking_update'
+      FROM role_permissions rp
+      WHERE rp.permission_id = 'perm_booking_checkin'
+        AND rp.role_id IN ('role_super_admin', 'role_staff')
+      ON CONFLICT DO NOTHING;
+
+      -- 4c. dining.order.update
+      INSERT INTO permissions (id, permission_key, module, description)
+      VALUES ('perm_dining_order_update', 'dining.order.update', 'dining', 'Alias: Update dining order status')
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT DISTINCT rp.role_id, 'perm_dining_order_update'
+      FROM role_permissions rp
+      WHERE rp.permission_id = 'perm_dining_order_manage'
+      ON CONFLICT DO NOTHING;
+
+      -- 4d. dining.stall.read
+      INSERT INTO permissions (id, permission_key, module, description)
+      VALUES ('perm_dining_stall_read', 'dining.stall.read', 'dining', 'View dining stall configuration and order dashboards')
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id) VALUES ('role_super_admin', 'perm_dining_stall_read') ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id) VALUES ('role_staff', 'perm_dining_stall_read') ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id) VALUES ('role_stall_staff', 'perm_dining_stall_read') ON CONFLICT DO NOTHING;
     `);
   }
 }
