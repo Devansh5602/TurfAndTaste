@@ -2,6 +2,8 @@ import express from 'express';
 import dbAsync from '../../db.js';
 import { authenticateAdminToken } from '../../middleware/auth.js';
 import { isPlainObject, safeJsonParse, sendError, sendSuccess } from '../../utils/api.js';
+import { requirePermission } from '../../domain/rbac/rbacEngine.js';
+import { createDiningOrder, updateDiningOrderStatus } from '../../domain/dining/diningOrderCommand.js';
 
 const router = express.Router();
 const validId = (value) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || ''));
@@ -34,7 +36,7 @@ router.get('/', async (_req, res) => {
   try { const rows = await dbAsync.all("SELECT * FROM food_stalls WHERE status = 'active' ORDER BY display_order, name"); return sendSuccess(res, { stalls: rows.map(publicStall) }); }
   catch (error) { console.error('[Food public list]', error); return sendError(res, 500, 'Unable to load food stalls.'); }
 });
-router.get('/admin/all', authenticateAdminToken, async (_req, res) => {
+router.get('/admin/all', authenticateAdminToken, requirePermission('dining.stall.read'), async (_req, res) => {
   try { const stalls = await dbAsync.all('SELECT * FROM food_stalls ORDER BY display_order, name'); return sendSuccess(res, { stalls: await Promise.all(stalls.map(async (s) => ({ ...adminStall(s), categories: await dbAsync.all('SELECT * FROM food_menu_categories WHERE stall_id = ? ORDER BY display_order, name', [s.id]), menuItems: (await dbAsync.all('SELECT * FROM food_menu_items WHERE stall_id = ? ORDER BY display_order, name', [s.id])).map(adminItem) }))) }); }
   catch (error) { console.error('[Food admin list]', error); return sendError(res, 500, 'Unable to load food management data.'); }
 });
@@ -58,8 +60,8 @@ const saveStall = async (req, res, create) => {
   try { await dbAsync.run(`INSERT INTO food_stalls (id, slug, name, stall_type, status, short_description, description, logo_image_url, cover_image_url, operating_hours_json, contact_json, metadata_json, display_order, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET slug=EXCLUDED.slug,name=EXCLUDED.name,stall_type=EXCLUDED.stall_type,status=EXCLUDED.status,short_description=EXCLUDED.short_description,description=EXCLUDED.description,logo_image_url=EXCLUDED.logo_image_url,cover_image_url=EXCLUDED.cover_image_url,operating_hours_json=EXCLUDED.operating_hours_json,contact_json=EXCLUDED.contact_json,metadata_json=EXCLUDED.metadata_json,display_order=EXCLUDED.display_order,updated_at=CURRENT_TIMESTAMP`, [id,slug,name,type,status,req.body.shortDescription ?? old?.short_description ?? null,req.body.description ?? old?.description ?? null,req.body.logoImageUrl ?? old?.logo_image_url ?? null,req.body.coverImageUrl ?? old?.cover_image_url ?? null,JSON.stringify(req.body.operatingHours ?? safeJsonParse(old?.operating_hours_json, [])),JSON.stringify(req.body.contact ?? safeJsonParse(old?.contact_json)),JSON.stringify(req.body.metadata ?? safeJsonParse(old?.metadata_json)),order]); const saved = await findStall(id,true); return sendSuccess(res,{ stall: adminStall(saved)},create?201:200); }
   catch (error) { return sendError(res, /UNIQUE/.test(error.message) || error.code === '23505' ? 409 : 500, 'Unable to save food stall.'); }
 };
-router.post('/admin/stalls', authenticateAdminToken, (req,res) => saveStall(req,res,true));
-router.put('/admin/stalls/:identifier', authenticateAdminToken, (req,res) => saveStall(req,res,false));
+router.post('/admin/stalls', authenticateAdminToken, requirePermission('dining.stall.manage'), (req,res) => saveStall(req,res,true));
+router.put('/admin/stalls/:identifier', authenticateAdminToken, requirePermission('dining.stall.manage'), (req,res) => saveStall(req,res,false));
 
 const saveCategory = async (req,res,create) => {
   const old = create ? null : await dbAsync.get('SELECT * FROM food_menu_categories WHERE id = ?', [req.params.id]);
@@ -79,8 +81,8 @@ const saveCategory = async (req,res,create) => {
     return sendError(res, /UNIQUE/.test(e.message) || e.code === '23505' ? 409 : 500, 'Unable to save menu category.');
   }
 };
-router.post('/admin/categories', authenticateAdminToken, (q, s) => saveCategory(q, s, true));
-router.put('/admin/categories/:id', authenticateAdminToken, (q, s) => saveCategory(q, s, false));
+router.post('/admin/categories', authenticateAdminToken, requirePermission('dining.menu.manage'), (q, s) => saveCategory(q, s, true));
+router.put('/admin/categories/:id', authenticateAdminToken, requirePermission('dining.menu.manage'), (q, s) => saveCategory(q, s, false));
 
 const saveItem = async (req, res, create) => {
   const old = create ? null : await dbAsync.get('SELECT * FROM food_menu_items WHERE id=?', [req.params.id]);
@@ -101,9 +103,64 @@ const saveItem = async (req, res, create) => {
     return sendError(res, 500, 'Unable to save menu item.');
   }
 };
-router.post('/admin/items',authenticateAdminToken,(q,s)=>saveItem(q,s,true));router.put('/admin/items/:id',authenticateAdminToken,(q,s)=>saveItem(q,s,false));
+router.post('/admin/items', authenticateAdminToken, requirePermission('dining.menu.manage'), (q,s)=>saveItem(q,s,true));
+router.put('/admin/items/:id', authenticateAdminToken, requirePermission('dining.menu.manage'), (q,s)=>saveItem(q,s,false));
+
+// Dining Order Endpoints
+router.post('/orders', async (req, res) => {
+  try {
+    const order = await createDiningOrder(dbAsync, req.body);
+    return sendSuccess(res, { order }, 201);
+  } catch (error) {
+    return sendError(res, 400, error.message);
+  }
+});
+
+router.get('/orders/:id', async (req, res) => {
+  try {
+    const order = await dbAsync.get('SELECT * FROM dining_orders WHERE id = ?', [req.params.id]);
+    if (!order) return sendError(res, 404, 'Dining order not found.');
+    const items = await dbAsync.all('SELECT * FROM dining_order_items WHERE order_id = ?', [req.params.id]);
+    return sendSuccess(res, { order: { ...order, items } });
+  } catch (error) {
+    return sendError(res, 500, 'Unable to load dining order.');
+  }
+});
+
+router.get('/admin/orders', authenticateAdminToken, requirePermission('dining.order.read'), async (req, res) => {
+  try {
+    const { stallId, status } = req.query;
+    let sql = 'SELECT * FROM dining_orders WHERE 1=1';
+    const params = [];
+    if (stallId) {
+      sql += ' AND stall_id = ?';
+      params.push(stallId);
+    }
+    if (status) {
+      sql += ' AND status = ?';
+      params.push(status);
+    }
+    sql += ' ORDER BY created_at DESC LIMIT 100';
+    const orders = await dbAsync.all(sql, params);
+    return sendSuccess(res, { orders });
+  } catch (error) {
+    return sendError(res, 500, 'Unable to load dining orders.');
+  }
+});
+
+router.put('/admin/orders/:id/status', authenticateAdminToken, requirePermission('dining.order.update'), async (req, res) => {
+  try {
+    const { status } = req.body;
+    const result = await updateDiningOrderStatus(dbAsync, req.params.id, status, { actor: req.admin });
+    return sendSuccess(res, result);
+  } catch (error) {
+    return sendError(res, 400, error.message);
+  }
+});
+
 router.get('/:identifier', async (req, res) => {
   try { const stall = await findStall(req.params.identifier); if (!stall) return sendError(res, 404, 'Food stall not found.'); return sendSuccess(res, { stall: await readPublicDetail(stall) }); }
   catch (error) { console.error('[Food public detail]', error); return sendError(res, 500, 'Unable to load this food stall.'); }
 });
+
 export default router;
