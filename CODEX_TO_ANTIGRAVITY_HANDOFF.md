@@ -174,4 +174,30 @@ Codex review and audit of the domain model and migration plan before initiating 
 - **Whitespace / Lint Checks (`git diff --check`):** Passed with 0 errors.
 
 ### Next Step:
-Independent Codex audit of Stage 0 foundation before beginning Admin UI generation. Admin UI remains strictly paused.
+Codex review of Stage 0 foundation resulted in the Stage 0.5 operationalization requirements documented below.
+
+---
+
+## Phase 5: Stage 0.5 Canonical Booking + Authorization Operationalization
+
+### Status: Complete & Verified (Ready for Codex Review)
+- **Objective Achieved:** Operationalized the Stage 0 foundation into server-authoritative live execution paths without building Admin UI.
+  1. **PostgreSQL Timestamptz Migration (`015_stage05_operationalization.js`):** Converted canonical interval columns (`bookings`, `facility_blocks`, `facility_sessions`, `payment_holds`) from `timestamp without time zone` to `timestamptz` with explicit `Asia/Kolkata` interpretation. Verified live on Supabase PostgreSQL.
+  2. **Canonical Booking Command (`server/domain/booking/canonicalBookingCommand.js`):** Created central transactional command (`createCanonicalBooking`) enforcing quick 1h/2h on `:00`, custom quarter-hour starts with whole hours, 60m customer lead time, walk-in <1h full payment requirement, session extension occupancy, and automatic hold expiry.
+  3. **Transactional Concurrency Protection:** Implemented PostgreSQL transaction-level advisory locks (`pg_advisory_xact_lock`) keyed on physical facility hashes to prevent race conditions during slot allocation.
+  4. **Legacy Booking Reconciliation:** Quarantined 8 legacy bookings in `legacy_booking_reconciliation` as `MANUAL_REVIEW` due to ambiguous facility identifiers (`box-cricket`). Completely severed new writes to obsolete booking schemas.
+  5. **Database-Backed RBAC Enforcement:** Seeded 44 role permissions and user assignments; guarded all administrative and mutation routes (`facilities`, `pricing`, `bookings`, `payments`, `dining`, `events`) with `requirePermission(...)` middleware.
+  6. **Authoritative Campus Dining Order Engine (`server/domain/dining/diningOrderCommand.js`):** Enforced server-calculated menu pricing in paise from DB (ignoring client price manipulation), verified active dining tables, and strictly enforced order state machine transitions.
+  7. **Preflight Readiness Check:** `node server/scripts/preflightCheck.js` reports `status: "READY"` with 0 missing tables and 10/10 verified timezone columns.
+
+### Test & Build Verification
+- **Automated Regression Suite (`npm test`):** 82 / 82 tests passing across 30 test suites (including 27 new Stage 0.5 integration tests).
+- **Production Web Build (`npm run build`):** Built cleanly in 3.33s (0 errors, 1884 modules).
+- **Whitespace / Lint Checks (`git diff --check`):** Passed with 0 errors.
+
+### Implementation Documentation:
+- [`docs/domain/STAGE05_IMPLEMENTATION_REPORT.md`](file:///home/pc/www/POC/TurfAndTaste/docs/domain/STAGE05_IMPLEMENTATION_REPORT.md)
+
+### Immediate Next Step:
+Independent Codex review of Stage 0.5 Canonical Booking + Authorization Operationalization.
+Admin UI remains STRICTLY PAUSED.
