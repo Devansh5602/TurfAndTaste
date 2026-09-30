@@ -233,10 +233,12 @@ export async function updateDiningOrderStatus(db, orderId, targetStatus, actorOr
       throw new Error('Forbidden: Updating dining order status requires staff authorization (dining.order.manage).');
     }
 
-    // Stall-scoped check: if actor is stall_staff assigned to a specific stall
+    // Stall-scoped check: if actor is stall_staff, must have assigned stall and match order.stall_id
     const actorStallId = actor.stallId || actor.stall_id;
-    if (actor.role === 'stall_staff' && actorStallId && order.stall_id && order.stall_id !== actorStallId) {
-      throw new Error('Forbidden: You can only manage orders for your assigned stall.');
+    if (actor.role === 'stall_staff') {
+      if (!actorStallId || !order.stall_id || order.stall_id !== actorStallId) {
+        throw new Error('Forbidden: You can only manage orders for your assigned stall.');
+      }
     }
   }
 

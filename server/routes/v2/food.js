@@ -134,16 +134,22 @@ router.get('/orders/:id', attachOptionalAdmin, async (req, res) => {
 
     // Case 1: Authenticated Management User (via verified session middleware)
     if (req.admin) {
-      const userRole = req.admin.role;
-      const perms = req.admin.permissions || [];
-      const canRead = userRole === 'super_admin' || hasPermission(perms, 'dining.order.read') || hasPermission(perms, 'dining.order.manage');
+      let perms = req.admin.permissions;
+      if (!Array.isArray(perms) || perms.length === 0) {
+        const { loadUserPermissions } = await import('../../domain/rbac/rbacEngine.js');
+        perms = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, req.admin.role);
+        req.admin.permissions = perms;
+      }
+      const canRead = hasPermission(perms, 'dining.order.read') || hasPermission(perms, 'dining.order.manage');
       if (!canRead) {
         return sendError(res, 403, 'Forbidden: Missing required permission "dining.order.read".');
       }
 
-      // Stall-scoped check for stall staff
-      if (req.admin.role === 'stall_staff' && req.admin.stallId && order.stall_id && order.stall_id !== req.admin.stallId) {
-        return sendError(res, 403, 'Forbidden: You can only view orders for your assigned stall.');
+      // Stall-scoped check for stall staff: MUST have assigned stall and match order.stall_id
+      if (req.admin.role === 'stall_staff') {
+        if (!req.admin.stallId || !order.stall_id || order.stall_id !== req.admin.stallId) {
+          return sendError(res, 403, 'Forbidden: You can only view orders for your assigned stall.');
+        }
       }
 
       return sendSuccess(res, { order: { ...order, items } });
@@ -193,7 +199,10 @@ router.get('/admin/orders', authenticateAdminToken, requirePermission('dining.or
     let { stallId, status } = req.query;
 
     // Stall-scoped enforcement for stall_staff
-    if (req.admin.role === 'stall_staff' && req.admin.stallId) {
+    if (req.admin.role === 'stall_staff') {
+      if (!req.admin.stallId) {
+        return sendError(res, 403, 'Forbidden: Stall staff must have an assigned stall.');
+      }
       stallId = req.admin.stallId;
     }
 
