@@ -191,20 +191,16 @@ export function requirePermission(permissionKey) {
     }
 
     const userRole = req.admin.role;
-    // Super admin and manager roles have full access
-    if (userRole === 'super_admin' || userRole === 'manager') {
-      return next();
-    }
-
     let permissions = req.admin.permissions;
     if (!Array.isArray(permissions) || permissions.length === 0) {
-      // Load dynamically from database if db is available on app or imported
+      // Load dynamically from database persistence
       try {
         const { default: dbAsync } = await import('../../db.js');
         permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, userRole);
         req.admin.permissions = permissions;
       } catch (e) {
         permissions = userRole ? (DEFAULT_ROLE_PERMISSIONS[userRole] || DEFAULT_ROLE_PERMISSIONS[userRole.replace(/^role_/, '')] || []) : [];
+        req.admin.permissions = permissions;
       }
     }
 

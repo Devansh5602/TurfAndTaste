@@ -4,7 +4,6 @@ import dbAsync from '../db.js';
 const JWT_SECRET = process.env.JWT_SECRET;
 export const ADMIN_ROLES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
-  MANAGER: 'manager',
   STAFF: 'staff',
   STALL_STAFF: 'stall_staff'
 });
@@ -15,19 +14,42 @@ const isEnabled = (value) => value === true || Number(value) === 1;
 // JWTs identify a session, but management authorization remains authoritative
 // in the database. This makes account disablement effective immediately for
 // already-issued tokens and rejects unsupported future role values by default.
-const getActiveAdmin = async (decoded) => {
+export const getActiveAdmin = async (decoded) => {
   if (!decoded?.id) return null;
 
-  const admin = await dbAsync.get(
-    'SELECT id, username, role, is_enabled, session_version FROM admins WHERE id = ?',
-    [decoded.id]
-  );
-  if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
-  // Tokens issued before this migration intentionally carry version zero,
-  // preserving active sessions until a security event explicitly revokes them.
-  if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
+  try {
+    const admin = await dbAsync.get(
+      'SELECT id, username, role, stall_id, is_enabled, session_version FROM admins WHERE id = ?',
+      [decoded.id]
+    );
+    if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
+    // Tokens issued before this migration intentionally carry version zero,
+    // preserving active sessions until a security event explicitly revokes them.
+    if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
 
-  return { id: admin.id, username: admin.username, role: admin.role, sessionVersion: Number(admin.session_version ?? 0) };
+    return {
+      id: admin.id,
+      username: admin.username,
+      role: admin.role,
+      stallId: admin.stall_id || null,
+      sessionVersion: Number(admin.session_version ?? 0)
+    };
+  } catch (_e) {
+    // If stall_id column query failed on older schema
+    const admin = await dbAsync.get(
+      'SELECT id, username, role, is_enabled, session_version FROM admins WHERE id = ?',
+      [decoded.id]
+    );
+    if (!admin || !isEnabled(admin.is_enabled) || !activeAdminRoles.has(admin.role)) return null;
+    if (Number(decoded.sv ?? 0) !== Number(admin.session_version ?? 0)) return null;
+    return {
+      id: admin.id,
+      username: admin.username,
+      role: admin.role,
+      stallId: null,
+      sessionVersion: Number(admin.session_version ?? 0)
+    };
+  }
 };
 
 export async function authenticateAdminToken(req, res, next) {

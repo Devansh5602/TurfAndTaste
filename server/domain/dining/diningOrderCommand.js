@@ -207,7 +207,7 @@ export async function createDiningOrder(db, input, context = {}) {
  */
 export async function updateDiningOrderStatus(db, orderId, targetStatus, actorOrContext = {}) {
   const actor = actorOrContext.actor || actorOrContext;
-  const order = await db.get('SELECT id, order_status, customer_name, customer_phone FROM dining_orders WHERE id = ?', [orderId]);
+  const order = await db.get('SELECT id, stall_id, order_status, customer_name, customer_phone FROM dining_orders WHERE id = ?', [orderId]);
   if (!order) {
     throw new Error(`Dining order "${orderId}" not found.`);
   }
@@ -219,18 +219,25 @@ export async function updateDiningOrderStatus(db, orderId, targetStatus, actorOr
   }
 
   // Authorization check
-  const isStaff = actor.role === 'super_admin' || actor.role === 'manager' || actor.role === 'staff' || actor.role === 'stall_staff' ||
-    (actor.permissions && (actor.permissions.includes('dining.order.manage') || actor.permissions.includes('dining.order.update')));
   const isCustomer = actor.type === 'CUSTOMER';
-
-
   if (isCustomer) {
     // Customer can ONLY cancel an order while it is still in PLACED status
     if (targetStatus !== DINING_ORDER_STATUSES.CANCELLED || order.order_status !== DINING_ORDER_STATUSES.PLACED) {
       throw new Error('Customers can only cancel unaccepted orders in PLACED status.');
     }
-  } else if (!isStaff) {
-    throw new Error('Forbidden: Updating dining order status requires staff authorization (dining.order.manage).');
+  } else {
+    // Staff/Stall management requires permission
+    const permissions = actor.permissions || (actor.role ? (await import('../rbac/rbacEngine.js')).DEFAULT_ROLE_PERMISSIONS[actor.role] : []);
+    const { hasPermission } = await import('../rbac/rbacEngine.js');
+    if (!hasPermission(permissions, 'dining.order.manage') && !hasPermission(permissions, 'dining.order.update')) {
+      throw new Error('Forbidden: Updating dining order status requires staff authorization (dining.order.manage).');
+    }
+
+    // Stall-scoped check: if actor is stall_staff assigned to a specific stall
+    const actorStallId = actor.stallId || actor.stall_id;
+    if (actor.role === 'stall_staff' && actorStallId && order.stall_id && order.stall_id !== actorStallId) {
+      throw new Error('Forbidden: You can only manage orders for your assigned stall.');
+    }
   }
 
   await db.run(
