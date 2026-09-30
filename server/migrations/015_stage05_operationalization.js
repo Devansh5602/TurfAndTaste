@@ -93,6 +93,11 @@ export async function up({ isPostgres, exec }) {
   await exec(`
     INSERT INTO role_permissions (role_id, permission_id)
     SELECT 'role_super_admin', id FROM permissions
+    -- SQLite parses an UPSERT following SELECT ... FROM as a JOIN unless the
+    -- SELECT is explicitly terminated with a WHERE clause. Keeping this
+    -- no-op predicate preserves PostgreSQL behaviour and makes a clean
+    -- SQLite migration/reapply safe.
+    WHERE 1 = 1
     ON CONFLICT DO NOTHING;
 
     -- Staff Role Permissions

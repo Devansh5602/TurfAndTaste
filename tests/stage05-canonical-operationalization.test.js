@@ -719,14 +719,17 @@ describe('Stage 0.5: Canonical Booking Engine & Operationalization', () => {
   // 10. PREFLIGHT READINESS REPORT
   // ==========================================================================
   describe('Stage 0.5 Preflight Readiness Check', () => {
-    it('passes preflight check with status READY and zero missing target tables', async () => {
+    it('reports every unreconciled legacy booking without assuming production fixture data', async () => {
       const report = await runPreflightReport();
+      const expectedQuarantined = await dbAsync.get(
+        'SELECT COUNT(*) AS count FROM bookings WHERE physical_facility_id IS NULL'
+      );
       assert.equal(report.status, 'READY', `Preflight must report READY. Error: ${report.error || 'unknown'}`);
       assert.equal(report.missingTargetTables.length, 0);
       assert.equal(report.physicalInventory.missing.length, 0);
       assert.equal(report.shootingMachineInvariant.isValid, true);
       assert.ok(report.rbacAudit.rolePermissionsCount >= 40);
-      assert.equal(report.legacyReconciliation.quarantinedCount, 8);
+      assert.equal(report.legacyReconciliation.quarantinedCount, Number(expectedQuarantined.count));
     });
   });
 });
