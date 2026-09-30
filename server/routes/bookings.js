@@ -364,7 +364,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
         durationHours: Number(duration) || 1,
         bookingMode: payload.bookingType || 'STANDARD_QUICK',
         deliveryPreference: payload.deliveryPreference || 'WHATSAPP',
-        status: payload.status,
+        // status is NOT forwarded from client — it is server-derived in canonicalBookingCommand
         payment: {
           type: paymentType,
           totalAmountPaise: verifiedQuote ? verifiedQuote.total * 100 : (payload.amount ? Math.round(parseFloat(String(payload.amount).replace(/[^0-9.]/g, '')) * 100) : 0),
@@ -374,6 +374,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
         },
         holdToken: payload.holdToken || null
       });
+
     } catch (cmdErr) {
       const errMsg = cmdErr.message || 'Booking creation failed.';
       const isConflict = /prevented|conflict|already reserved|lead time|threshold/i.test(errMsg);

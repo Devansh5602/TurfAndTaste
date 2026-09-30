@@ -371,9 +371,12 @@ export async function createCanonicalBooking(db, input, context = {}) {
 
   // 8. Generate Booking ID & Status
   const bookingId = input.id || `TT-${Math.floor(100000 + Math.random() * 900000)}`;
-  const bookingStatus = input.status || (isStaff
+  // Status is server-derived from actor type and payment status.
+  // Client-supplied status is NEVER trusted.
+  const bookingStatus = isStaff
     ? 'Confirmed'
-    : (String(payment.paymentStatus || '').toUpperCase() === 'PAID' ? 'Confirmed' : 'Payment Review'));
+    : (String(payment.paymentStatus || '').toUpperCase() === 'PAID' ? 'Confirmed' : 'Payment Review');
+
 
   const totalPaise = parseInt(payment.totalAmountPaise || payment.amountPaidPaise || 0, 10);
 

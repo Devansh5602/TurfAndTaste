@@ -19,6 +19,7 @@ import { id as diningContentBackfillMigrationId, up as applyDiningContentBackfil
 import { id as eventsFoundationMigrationId, up as applyEventsFoundationMigration } from './migrations/013_events_foundation.js';
 import { id as stage0FoundationMigrationId, up as applyStage0FoundationMigration } from './migrations/014_stage0_foundation.js';
 import { id as stage05OperationalizationMigrationId, up as applyStage05OperationalizationMigration } from './migrations/015_stage05_operationalization.js';
+import { id as stage06HardeningMigrationId, up as applyStage06HardeningMigration } from './migrations/016_stage06_hardening.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,6 +96,7 @@ const runVersionedMigrations = async () => {
     { id: eventsFoundationMigrationId, up: applyEventsFoundationMigration },
     { id: stage0FoundationMigrationId, up: applyStage0FoundationMigration },
     { id: stage05OperationalizationMigrationId, up: applyStage05OperationalizationMigration },
+    { id: stage06HardeningMigrationId, up: applyStage06HardeningMigration },
   ];
 
   for (const migration of migrations) {
@@ -535,6 +537,54 @@ export const dbAsync = {
         sqliteDb.prepare(sql).run(...params);
       }
       sqliteDb.exec('COMMIT');
+    } catch (error) {
+      sqliteDb.exec('ROLLBACK');
+      throw error;
+    }
+  },
+
+  /**
+   * Executes a callback with a single dedicated database connection/client.
+   * For PostgreSQL: provides a pg.Client with BEGIN/COMMIT/ROLLBACK lifecycle
+   * so advisory locks persist across all queries in the callback.
+   * For SQLite: provides a thin synchronous wrapper with the same interface.
+   * @param {Function} callback - async (client) => result
+   */
+  withTransaction: async (callback) => {
+    if (isPostgres) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await callback({
+          query: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            return client.query(pgSql, params);
+          }
+        });
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    // SQLite: serialize all writes in a transaction
+    sqliteDb.exec('BEGIN');
+    try {
+      const result = await callback({
+        query: (sql, params = []) => {
+          const stmt = sqliteDb.prepare(sql);
+          if (stmt.reader) return { rows: stmt.all(...params) };
+          const info = stmt.run(...params);
+          return { rows: [], rowCount: info.changes };
+        }
+      });
+      sqliteDb.exec('COMMIT');
+      return result;
     } catch (error) {
       sqliteDb.exec('ROLLBACK');
       throw error;

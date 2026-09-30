@@ -116,12 +116,46 @@ router.post('/orders', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/v2/food/orders/:id
+ * Get a specific dining order by ID.
+ * Requires EITHER:
+ * - An authenticated admin token (staff / super_admin)
+ * - A matching access_token query param (customer-safe proof)
+ */
 router.get('/orders/:id', async (req, res) => {
   try {
+    const { accessToken } = req.query;
+
+    // Check for admin token first
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    let isAdmin = false;
+    if (token && process.env.JWT_SECRET) {
+      try {
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+        if (decoded?.id) isAdmin = true;
+      } catch (_e) {}
+    }
+
     const order = await dbAsync.get('SELECT * FROM dining_orders WHERE id = ?', [req.params.id]);
     if (!order) return sendError(res, 404, 'Dining order not found.');
+
+    // Authorization: admin can always read; customer must present access token
+    if (!isAdmin) {
+      if (!accessToken) {
+        return sendError(res, 401, 'An access token is required to view this order.');
+      }
+      if (!order.access_token || order.access_token !== accessToken) {
+        return sendError(res, 403, 'Order access token does not match.');
+      }
+    }
+
     const items = await dbAsync.all('SELECT * FROM dining_order_items WHERE order_id = ?', [req.params.id]);
-    return sendSuccess(res, { order: { ...order, items } });
+    // Omit sensitive customer phone from public response
+    const { customer_phone: _phone, ...safeOrder } = order;
+    return sendSuccess(res, { order: { ...safeOrder, items } });
   } catch (error) {
     return sendError(res, 500, 'Unable to load dining order.');
   }
@@ -148,7 +182,7 @@ router.get('/admin/orders', authenticateAdminToken, requirePermission('dining.or
   }
 });
 
-router.put('/admin/orders/:id/status', authenticateAdminToken, requirePermission('dining.order.update'), async (req, res) => {
+router.put('/admin/orders/:id/status', authenticateAdminToken, requirePermission('dining.order.manage'), async (req, res) => {
   try {
     const { status } = req.body;
     const result = await updateDiningOrderStatus(dbAsync, req.params.id, status, { actor: req.admin });

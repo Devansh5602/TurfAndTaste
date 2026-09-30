@@ -260,12 +260,12 @@ describe('Stage 0.5: Canonical Booking Engine & Operationalization', () => {
 
     it('rejects double-booking on the SAME physical resource (Turf 1 vs Turf 1)', async () => {
       const b1 = await createCanonicalBooking(dbAsync, {
+        actor: { type: 'STAFF', username: 'test-staff' },
         customer: { name: 'Team Alpha', phone: '9876543210' },
         physicalFacilityId: 'fac_box_cricket_1',
         date: conflictDate,
         startTime: '18:00',
         durationHours: 1,
-        status: 'Confirmed',
         now: new Date('2028-11-01T00:00:00.000Z')
       });
       createdBookingIds.push(b1.bookingId);
@@ -303,12 +303,12 @@ describe('Stage 0.5: Canonical Booking Engine & Operationalization', () => {
     it('Green Net + Shooting Machine conflicts with Green Net Practice (same physical resource)', async () => {
       // 1. Reserve Green Net for standard practice
       const netBooking = await createCanonicalBooking(dbAsync, {
+        actor: { type: 'STAFF', username: 'test-staff' },
         customer: { name: 'Cricket Player A', phone: '9876543213' },
         physicalFacilityId: 'fac_green_net_1',
         date: conflictDate,
         startTime: '07:00',
         durationHours: 1,
-        status: 'Confirmed',
         now: new Date('2028-11-01T00:00:00.000Z')
       });
       createdBookingIds.push(netBooking.bookingId);
@@ -554,13 +554,13 @@ describe('Stage 0.5: Canonical Booking Engine & Operationalization', () => {
   describe('Cross-Midnight Booking Invariants', () => {
     it('accurately normalizes and rejects overlapping cross-midnight intervals', async () => {
       const bCross = await createCanonicalBooking(dbAsync, {
+        actor: { type: 'STAFF', username: 'test-staff' },
         customer: { name: 'Night Owl 1', phone: '9876543210' },
         physicalFacilityId: 'fac_box_cricket_1',
         date: '2028-12-30',
         startTime: '23:00',
         durationHours: 2, // 23:00 -> 01:00 next day
         bookingMode: 'STANDARD_QUICK',
-        status: 'Confirmed',
         now: new Date('2028-11-01T00:00:00.000Z')
       });
       createdBookingIds.push(bCross.bookingId);

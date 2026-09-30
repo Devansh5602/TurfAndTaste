@@ -4,7 +4,9 @@ import dbAsync from '../db.js';
 const JWT_SECRET = process.env.JWT_SECRET;
 export const ADMIN_ROLES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
-  MANAGER: 'manager'
+  MANAGER: 'manager',
+  STAFF: 'staff',
+  STALL_STAFF: 'stall_staff'
 });
 const activeAdminRoles = new Set(Object.values(ADMIN_ROLES));
 

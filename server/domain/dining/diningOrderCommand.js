@@ -1,18 +1,23 @@
 /**
  * Campus Dining Order Command (Server-Authoritative)
- * 
+ *
  * Rules:
- * 1. Server-Authoritative Pricing: Menu prices are loaded directly from food_menu_items in paise.
- *    Client-submitted prices are strictly ignored and never trusted.
- * 2. Item Availability: Inactive or unavailable menu items are rejected.
- * 3. Table Proof & Validation: Table must exist and be active in dining_tables.
- * 4. State Machine & Authorization:
+ * 1. Server-Authoritative Pricing: Menu prices loaded from food_menu_items in paise.
+ *    Client-submitted prices are strictly ignored.
+ * 2. Item Availability: Inactive or unavailable items are rejected.
+ * 3. Active Stall Check: The stall must be active at time of order.
+ * 4. Single-Stall Constraint: All items in one order must belong to ONE stall.
+ * 5. Atomic Persistence: Header row + line items written in a single transaction.
+ * 6. Access Token: A secure random token is generated for customer-safe order lookup.
+ * 7. Table Proof & Validation: Table must exist and be active in dining_tables.
+ * 8. State Machine & Authorization:
  *    PLACED -> ACCEPTED -> PREPARING -> READY -> SERVED -> COMPLETED
- *    Stall/Staff operations require dining.order.manage permission.
+ *    Staff operations require dining.order.manage permission.
  *    Customer can only cancel an order while in PLACED state.
  *    CANCELLED and COMPLETED are terminal.
  */
 
+import crypto from 'crypto';
 import { canTransitionDiningOrder, DINING_ORDER_STATUSES } from './diningEngine.js';
 
 export async function createDiningOrder(db, input, context = {}) {
@@ -47,7 +52,6 @@ export async function createDiningOrder(db, input, context = {}) {
     throw new Error(`Table "${rawTableInput}" is currently inactive or closed for service.`);
   }
 
-
   // If tableQrToken is provided, verify match if qr_code_token is set
   if (table.qr_code_token && tableQrToken && table.qr_code_token !== tableQrToken) {
     throw new Error('Table verification token does not match the active table QR.');
@@ -61,7 +65,7 @@ export async function createDiningOrder(db, input, context = {}) {
   // 3. Load Server-Authoritative Menu Items & Prices from Database
   let subtotalPaise = 0;
   const processedItems = [];
-  let stallId = null;
+  let resolvedStallId = null;
 
   for (const item of items) {
     const menuItemId = item.menuItemId || item.id;
@@ -87,12 +91,16 @@ export async function createDiningOrder(db, input, context = {}) {
       throw new Error(`Item "${menuItem.name}" is currently unavailable or out of stock.`);
     }
 
-    // Set stall from first item if not set
-    if (!stallId && menuItem.stall_id) {
-      stallId = menuItem.stall_id;
+    // 4. Single-stall constraint — all items must belong to one stall
+    if (!resolvedStallId) {
+      resolvedStallId = menuItem.stall_id;
+    } else if (resolvedStallId !== menuItem.stall_id) {
+      throw new Error(
+        `All items in a single order must belong to one stall. Item "${menuItem.name}" belongs to a different stall.`
+      );
     }
 
-    // Server-authoritative unit price in paise (client input is strictly ignored!)
+    // Server-authoritative unit price in paise (client input strictly ignored)
     const unitPricePaise = parseInt(menuItem.price_paise, 10);
     const itemTotalPaise = unitPricePaise * quantity;
     subtotalPaise += itemTotalPaise;
@@ -107,62 +115,82 @@ export async function createDiningOrder(db, input, context = {}) {
     });
   }
 
-  // 4. Compute Tax & Total
+  // 5. Validate that the resolved stall is active
+  if (resolvedStallId) {
+    const stall = await db.get(
+      "SELECT id, status FROM food_stalls WHERE id = ?",
+      [resolvedStallId]
+    );
+    if (!stall) {
+      throw new Error(`Stall "${resolvedStallId}" not found.`);
+    }
+    if (stall.status !== 'active') {
+      throw new Error(`The stall is currently closed and not accepting orders.`);
+    }
+  }
+
+  // 6. Compute Tax & Total
   const taxPaise = Math.round((subtotalPaise * 5) / 100); // 5% GST
   const totalAmountPaise = subtotalPaise + taxPaise;
 
-  // 5. Generate Order Number & Persist
+  // 7. Generate Order ID, access token, and order number
   const orderId = `dord_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
   const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
   const orderSource = actor.type === 'STAFF' ? 'STAFF' : 'CUSTOMER';
   const customerName = (actor.name || input.customerName || 'Dine-in Customer').trim();
   const customerPhone = String(actor.phone || input.customerPhone || '').replace(/\D/g, '');
 
-  await db.run(
-    `INSERT INTO dining_orders (
-      id, stall_id, table_id, table_number, order_number, order_source,
-      customer_name, customer_phone, order_status, subtotal_paise,
-      tax_paise, total_amount_paise, payment_status, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLACED', ?, ?, ?, 'PENDING', ?)`,
-    [
+  // Secure access token for customer-safe order lookup (never guessable)
+  const accessToken = crypto.randomBytes(24).toString('hex');
+
+  // 8. Persist atomically: header + all line items in one transaction
+  const lineStatements = processedItems.map((item) => ({
+    sql: `INSERT INTO dining_order_items (
+            id, order_id, menu_item_id, item_name, quantity, unit_price_paise, total_price_paise, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      `doi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       orderId,
-      stallId,
-      table.id,
-      table.table_number,
-      orderNumber,
-      orderSource,
-      customerName,
-      customerPhone,
-      subtotalPaise,
-      taxPaise,
-      totalAmountPaise,
-      notes
-
+      item.menuItemId,
+      item.name,
+      item.quantity,
+      item.unitPricePaise,
+      item.totalPricePaise,
+      item.notes
     ]
-  );
+  }));
 
-  for (const item of processedItems) {
-    await db.run(
-      `INSERT INTO dining_order_items (
-        id, order_id, menu_item_id, item_name, quantity, unit_price_paise, total_price_paise, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        `doi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  await db.transaction([
+    {
+      sql: `INSERT INTO dining_orders (
+              id, stall_id, table_id, table_number, order_number, order_source,
+              customer_name, customer_phone, order_status, subtotal_paise,
+              tax_paise, total_amount_paise, payment_status, notes, access_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLACED', ?, ?, ?, 'PENDING', ?, ?)`,
+      params: [
         orderId,
-        item.menuItemId,
-        item.name,
-        item.quantity,
-        item.unitPricePaise,
-        item.totalPricePaise,
-        item.notes
+        resolvedStallId,
+        table.id,
+        table.table_number,
+        orderNumber,
+        orderSource,
+        customerName,
+        customerPhone,
+        subtotalPaise,
+        taxPaise,
+        totalAmountPaise,
+        notes,
+        accessToken
       ]
-    );
-  }
+    },
+    ...lineStatements
+  ]);
 
   return {
     success: true,
     orderId,
     orderNumber,
+    accessToken,
     tableNumber: table.table_number,
     orderStatus: DINING_ORDER_STATUSES.PLACED,
     items: processedItems,
@@ -191,7 +219,8 @@ export async function updateDiningOrderStatus(db, orderId, targetStatus, actorOr
   }
 
   // Authorization check
-  const isStaff = actor.role === 'super_admin' || actor.role === 'staff' || actor.role === 'stall_staff' || (actor.permissions && actor.permissions.includes('dining.order.manage'));
+  const isStaff = actor.role === 'super_admin' || actor.role === 'manager' || actor.role === 'staff' || actor.role === 'stall_staff' ||
+    (actor.permissions && (actor.permissions.includes('dining.order.manage') || actor.permissions.includes('dining.order.update')));
   const isCustomer = actor.type === 'CUSTOMER';
 
 

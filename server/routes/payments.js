@@ -5,14 +5,9 @@ import dbAsync from '../db.js';
 import { authenticateAdminToken } from '../middleware/auth.js';
 import { verifyQuoteToken } from '../utils/quoteToken.js';
 import { requirePermission } from '../domain/rbac/rbacEngine.js';
-import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
-import { resolveCanonicalFacility } from '../domain/booking/canonicalBookingCommand.js';
+import { finalizeBookingFromPayment } from '../domain/booking/paymentFinalization.js';
 
 const router = express.Router();
-
-
-const keyId = process.env.RAZORPAY_KEY_ID;
-const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
 const getRazorpayInstance = () => {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -84,7 +79,14 @@ router.post('/create-order', async (req, res) => {
 
 /**
  * POST /api/payments/verify
- * Cryptographic Signature Verification & Atomic Booking Creation
+ * Cryptographic Signature Verification & Canonical Booking Finalization
+ *
+ * This is the ONLY authoritative path for confirming a Razorpay-backed booking.
+ * All booking creation is delegated to finalizeBookingFromPayment() which:
+ * - Uses server-persisted quote context (never client-submitted prices/status)
+ * - Acquires a per-facility resource lock within a single database transaction
+ * - Checks conflicts, creates booking + session + payment records atomically
+ * - Is idempotent: duplicate callbacks return the existing confirmed booking
  */
 router.post('/verify', async (req, res) => {
   try {
@@ -92,130 +94,148 @@ router.post('/verify', async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      bookingId,
       bookingPayload,
     } = req.body;
 
-    const orderContext = await dbAsync.get('SELECT * FROM payment_orders WHERE order_id = ?', [razorpay_order_id]);
-    if (!orderContext) return res.status(404).json({ success: false, error: 'Payment order was not found.' });
-    if (orderContext.status !== 'created') return res.status(409).json({ success: false, error: 'This payment order has already been processed.' });
-    if (bookingId && bookingId !== orderContext.booking_reference) return res.status(409).json({ success: false, error: 'Payment order does not match this booking.' });
-    let quote;
-    try { quote = JSON.parse(orderContext.quote_context); } catch { return res.status(500).json({ success: false, error: 'Payment order context is invalid.' }); }
-    if (quote.exp < Math.floor(Date.now() / 1000)) return res.status(409).json({ success: false, error: 'Payment quote expired before verification. Please contact support if payment was captured.' });
-
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    let isVerified = false;
-
-    if (keySecret && razorpay_order_id && razorpay_payment_id && razorpay_signature) {
-      const body = razorpay_order_id + '|' + razorpay_payment_id;
-      const expectedSignature = crypto
-        .createHmac('sha256', keySecret)
-        .update(body.toString())
-        .digest('hex');
-
-      isVerified = razorpay_signature.length === expectedSignature.length
-        && crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(razorpay_signature));
-    } else {
-      return res.status(503).json({ success: false, error: 'Online payment verification is unavailable. Please use a configured gateway or submit a UPI reference for staff review.' });
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, error: 'Payment gateway credentials are required.' });
     }
+
+    // 1. Cryptographic signature verification (HMAC-SHA256)
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      return res.status(503).json({ success: false, error: 'Online payment verification is unavailable. Please use UPI review or contact the arena.' });
+    }
+
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(body.toString())
+      .digest('hex');
+
+    const isVerified = razorpay_signature.length === expectedSignature.length
+      && crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(razorpay_signature));
 
     if (!isVerified) {
-      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+      return res.status(400).json({ success: false, error: 'Payment signature verification failed.' });
     }
 
-    const razorpayInstance = getRazorpayInstance();
-    if (!razorpayInstance) return res.status(503).json({ success: false, error: 'Online payment verification is unavailable.' });
-    const providerPayment = await razorpayInstance.payments.fetch(razorpay_payment_id);
-    if (providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== Number(orderContext.expected_amount) * 100) {
-      return res.status(409).json({ success: false, error: 'Provider payment does not match the expected order amount.' });
+    // 2. Load persisted order context for provider cross-check
+    const orderContext = await dbAsync.get(
+      'SELECT * FROM payment_orders WHERE order_id = ?',
+      [razorpay_order_id]
+    );
+    if (!orderContext) {
+      return res.status(404).json({ success: false, error: 'Payment order not found.' });
     }
-    const finalPaymentId = razorpay_payment_id;
-    const targetBookingId = orderContext.booking_reference;
 
-    // 1. Audit Log Payment in payments table
-    let confirmedBooking = null;
-
-    // Atomically record the provider payment, consume the quote, and create
-    // the booking from persisted server context (not browser amounts/status).
-    if (bookingPayload) {
-      const b = bookingPayload;
-      const bId = targetBookingId;
-      const facilityId = quote.facilityId;
-      const facilityName = quote.facilityName;
-      const date = quote.date;
-      const timeSlot = quote.timeSlot;
-      const customerName = String(b.customer?.name || b.customerName || '').trim();
-      const customerPhone = String(b.customer?.phone || b.customerPhone || '').replace(/\D/g, '');
-      const customerEmail = String(b.customer?.email || b.customerEmail || '').trim();
-      if (customerName.length < 2 || !/^[6-9]\d{9}$/.test(customerPhone)) {
-        return res.status(400).json({ success: false, error: 'A valid customer name and 10-digit mobile number are required to confirm payment.' });
+    // 3. Idempotency: if already verified and finalized, return existing booking
+    if (orderContext.status === 'verified' && orderContext.finalized_booking_id) {
+      const existingBooking = await dbAsync.get(
+        'SELECT * FROM bookings WHERE id = ?',
+        [orderContext.finalized_booking_id]
+      );
+      if (existingBooking) {
+        return res.json({
+          success: true,
+          verified: true,
+          idempotent: true,
+          paymentId: razorpay_payment_id,
+          booking: {
+            id: existingBooking.id,
+            facilityName: existingBooking.facility_name,
+            date: existingBooking.date,
+            time: existingBooking.time_slot,
+            customerName: existingBooking.customer_name,
+            status: existingBooking.booking_status,
+            paymentId: razorpay_payment_id
+          },
+          message: 'Payment already verified and booking confirmed.'
+        });
       }
-      const teamName = b.customer?.teamName || b.teamName || '';
-      const duration = quote.durationHours;
-      const bPaymentType = orderContext.payment_type;
-      const amountPaid = `₹${orderContext.expected_amount} (${bPaymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`;
+    }
 
-      const normInterval = normalizeBookingInterval({ date, timeSlot });
-      const canonicalFacility = resolveCanonicalFacility(facilityId);
-      const physicalFacilityId = canonicalFacility ? canonicalFacility.id : facilityId;
-      const totalAmountPaise = Math.round(orderContext.expected_amount * 100);
+    // 4. Provider payment cross-check (amount & order binding)
+    const razorpayInstance = getRazorpayInstance();
+    if (!razorpayInstance) {
+      return res.status(503).json({ success: false, error: 'Online payment verification is unavailable.' });
+    }
+    const providerPayment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+    if (
+      providerPayment.order_id !== razorpay_order_id ||
+      Number(providerPayment.amount) !== Number(orderContext.expected_amount) * 100
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: 'Provider payment does not match the expected order amount.'
+      });
+    }
 
-      const bookingInsert = {
-        sql: `INSERT INTO bookings (
-            id, facility_id, facility_name, date, time_slot, customer_name,
-            customer_phone, customer_email, team_name, duration, payment_type,
-            amount_paid, payment_status, booking_status, payment_id,
-            physical_facility_id, scheduled_start_at, scheduled_end_at,
-            booking_type, total_amount_paise
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Paid', 'Confirmed', ?, ?, ?, ?, 'STANDARD_QUICK', ?)`,
-        params: [
-            bId, physicalFacilityId, facilityName, date, timeSlot, customerName,
-            customerPhone, customerEmail, teamName, duration, bPaymentType,
-            amountPaid, finalPaymentId, physicalFacilityId,
-            normInterval.startAt.toISOString(), normInterval.endAt.toISOString(),
-            totalAmountPaise
-        ],
-      };
-      await dbAsync.transaction([
-        { sql: 'INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)', params: [quote.quoteId, bId, new Date(quote.exp * 1000).toISOString()] },
-        { sql: `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, 'captured')`, params: [bId, razorpay_order_id, finalPaymentId, razorpay_signature, orderContext.expected_amount, bPaymentType] },
-        { sql: "UPDATE payment_orders SET status = 'verified', payment_id = ?, verified_at = CURRENT_TIMESTAMP WHERE order_id = ? AND status = 'created'", params: [finalPaymentId, razorpay_order_id] },
-        bookingInsert,
-        {
-          sql: `INSERT INTO facility_sessions (id, booking_id, facility_id, scheduled_start_at, scheduled_end_at, session_status) VALUES (?, ?, ?, ?, ?, 'PENDING')`,
-          params: [`ses_${bId}`, bId, physicalFacilityId, normInterval.startAt.toISOString(), normInterval.endAt.toISOString()]
-        }
-      ]);
+    // 5. Extract customer details from bookingPayload (name/phone/email only)
+    //    ALL pricing, facility, date, time, status come from server-persisted quote.
+    const b = bookingPayload || {};
+    const customerDetails = {
+      name: String(b.customer?.name || b.customerName || '').trim(),
+      phone: String(b.customer?.phone || b.customerPhone || '').replace(/\D/g, ''),
+      email: String(b.customer?.email || b.customerEmail || '').trim(),
+      teamName: String(b.customer?.teamName || b.teamName || '').trim()
+    };
 
-      confirmedBooking = {
-        id: bId,
-        facilityId: physicalFacilityId,
-        facilityName,
-        date,
-        time: timeSlot,
-        customerName,
-        customerPhone,
-        customerEmail,
-        teamName,
-        duration,
-        paymentType: bPaymentType,
-        amount: amountPaid,
-        status: 'Confirmed',
-        paymentId: finalPaymentId
-      };
-    } else return res.status(400).json({ success: false, error: 'Booking details are required to confirm this payment.' });
+    if (customerDetails.name.length < 2 || !/^[6-9]\d{9}$/.test(customerDetails.phone)) {
+      return res.status(400).json({
+        success: false,
+        error: 'A valid customer name and 10-digit mobile number are required to confirm the booking.'
+      });
+    }
+
+    // 6. Delegate ALL booking finalization to the canonical service
+    const result = await finalizeBookingFromPayment(dbAsync, {
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
+      customerDetails,
+      holdToken: b.holdToken || null
+    });
+
+    const legacyTime = result.interval
+      ? (() => {
+          const fmtTime = (d) => {
+            const h = (d.getUTCHours() + 5 + Math.floor((d.getUTCMinutes() + 30) / 60)) % 24;
+            const m = (d.getUTCMinutes() + 30) % 60;
+            const p = h >= 12 ? 'PM' : 'AM'; const dh = h % 12 || 12;
+            return `${String(dh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${p}`;
+          };
+          return `${fmtTime(result.interval.startAt)} – ${fmtTime(result.interval.endAt)}`;
+        })()
+      : '';
 
     res.json({
       success: true,
       verified: true,
-      paymentId: finalPaymentId,
-      booking: confirmedBooking,
-      message: 'Payment verified and booking confirmed in Cloud Database'
+      idempotent: result.idempotent || false,
+      paymentId: razorpay_payment_id,
+      booking: {
+        id: result.bookingId,
+        facilityId: result.physicalFacilityId,
+        facilityName: result.facilityName,
+        date: result.date,
+        time: legacyTime,
+        customerName: result.customerName,
+        customerPhone: result.customerPhone,
+        customerEmail: result.customerEmail,
+        teamName: result.teamName,
+        paymentType: result.paymentType,
+        status: result.bookingStatus,
+        paymentId: razorpay_payment_id
+      },
+      message: result.idempotent
+        ? 'Payment already verified. Booking confirmed.'
+        : 'Payment verified and booking confirmed.'
     });
   } catch (err) {
     console.error('[Payment Verification Error]:', err);
-    res.status(500).json({ success: false, error: err.message });
+    const status = err.httpStatus || 500;
+    res.status(status).json({ success: false, error: err.message });
   }
 });
 
@@ -224,7 +244,6 @@ router.post('/verify', async (req, res) => {
  * Get payment logs (Requires payment.read)
  */
 router.get('/history', authenticateAdminToken, requirePermission('payment.read'), async (req, res) => {
-
   try {
     const payments = await dbAsync.all('SELECT * FROM payments ORDER BY created_at DESC');
     res.json({ success: true, count: payments.length, payments });

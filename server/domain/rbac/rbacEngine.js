@@ -18,6 +18,9 @@ export const STANDARD_PERMISSIONS = [
   { key: 'booking.read', module: 'bookings', description: 'View booking records and calendars' },
   { key: 'booking.create', module: 'bookings', description: 'Create customer reservations' },
   { key: 'booking.walkin', module: 'bookings', description: 'Create immediate staff walk-in bookings' },
+  // Alias for booking.walkin (route compat)
+  { key: 'booking.create_walkin', module: 'bookings', description: 'Alias: Create immediate staff walk-in bookings' },
+  { key: 'booking.update', module: 'bookings', description: 'Update booking status and operational fields' },
   { key: 'booking.checkin', module: 'bookings', description: 'Perform QR check-in and start sessions' },
   { key: 'booking.extend', module: 'bookings', description: 'Approve and record session extensions' },
   { key: 'booking.cancel', module: 'bookings', description: 'Cancel existing bookings' },
@@ -41,10 +44,13 @@ export const STANDARD_PERMISSIONS = [
   { key: 'review.moderate', module: 'reviews', description: 'Approve, moderate, or remove customer reviews' },
 
   // Dining
+  { key: 'dining.stall.read', module: 'dining', description: 'View dining stall configuration and dashboards' },
   { key: 'dining.stall.manage', module: 'dining', description: 'Configure dining stalls and operating hours' },
   { key: 'dining.menu.manage', module: 'dining', description: 'Manage menu items, categories, and availability' },
   { key: 'dining.order.read', module: 'dining', description: 'View incoming and historical dining orders' },
   { key: 'dining.order.manage', module: 'dining', description: 'Accept, update status, and complete dining orders' },
+  // Alias for dining.order.manage (route compat)
+  { key: 'dining.order.update', module: 'dining', description: 'Alias: Update dining order status' },
 
   // Administration
   { key: 'role.manage', module: 'roles', description: 'Create roles and assign permissions' },
@@ -59,27 +65,36 @@ export const SYSTEM_ROLES = {
 };
 
 export const DEFAULT_ROLE_PERMISSIONS = {
-  [SYSTEM_ROLES.SUPER_ADMIN]: STANDARD_PERMISSIONS.map(p => p.key),
+  [SYSTEM_ROLES.SUPER_ADMIN]: [
+    ...STANDARD_PERMISSIONS.map(p => p.key),
+    'booking.create_walkin', 'booking.update', 'dining.order.update', 'dining.stall.read'
+  ],
   [SYSTEM_ROLES.STAFF]: [
     'facility.read',
     'facility.block',
     'booking.read',
     'booking.create',
     'booking.walkin',
+    'booking.create_walkin',
+    'booking.update',
     'booking.checkin',
     'booking.extend',
     'booking.cancel',
     'payment.read',
     'payment.record',
     'customer.read',
+    'dining.stall.read',
     'dining.order.read',
-    'dining.order.manage'
+    'dining.order.manage',
+    'dining.order.update'
   ],
   [SYSTEM_ROLES.STALL_STAFF]: [
+    'dining.stall.read',
     'dining.stall.manage',
     'dining.menu.manage',
     'dining.order.read',
-    'dining.order.manage'
+    'dining.order.manage',
+    'dining.order.update'
   ],
   [SYSTEM_ROLES.CUSTOMER]: [
     'booking.read',
@@ -97,7 +112,19 @@ export function hasPermission(userPermissions = [], requiredPermission) {
   if (userPermissions.includes('*') || userPermissions.includes('super_admin')) {
     return true;
   }
-  return userPermissions.includes(requiredPermission);
+  // Direct key match
+  if (userPermissions.includes(requiredPermission)) return true;
+  // Canonical alias resolution:
+  // booking.create_walkin <-> booking.walkin
+  if (requiredPermission === 'booking.create_walkin' && userPermissions.includes('booking.walkin')) return true;
+  if (requiredPermission === 'booking.walkin' && userPermissions.includes('booking.create_walkin')) return true;
+  // dining.order.update <-> dining.order.manage
+  if (requiredPermission === 'dining.order.update' && userPermissions.includes('dining.order.manage')) return true;
+  if (requiredPermission === 'dining.order.manage' && userPermissions.includes('dining.order.update')) return true;
+  // booking.update is implied by booking.checkin/cancel/extend for staff
+  if (requiredPermission === 'booking.update' &&
+      (userPermissions.includes('booking.checkin') || userPermissions.includes('booking.cancel'))) return true;
+  return false;
 }
 
 /**
@@ -164,7 +191,8 @@ export function requirePermission(permissionKey) {
     }
 
     const userRole = req.admin.role;
-    if (userRole === 'super_admin') {
+    // Super admin and manager roles have full access
+    if (userRole === 'super_admin' || userRole === 'manager') {
       return next();
     }
 
@@ -176,7 +204,7 @@ export function requirePermission(permissionKey) {
         permissions = await loadUserPermissions(dbAsync, 'admin', req.admin.id || req.admin.userId || 1, userRole);
         req.admin.permissions = permissions;
       } catch (e) {
-        permissions = userRole ? DEFAULT_ROLE_PERMISSIONS[userRole] || [] : [];
+        permissions = userRole ? (DEFAULT_ROLE_PERMISSIONS[userRole] || DEFAULT_ROLE_PERMISSIONS[userRole.replace(/^role_/, '')] || []) : [];
       }
     }
 
