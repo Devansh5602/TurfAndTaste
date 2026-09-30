@@ -18,6 +18,7 @@ import { id as foodMenuFoundationMigrationId, up as applyFoodMenuFoundationMigra
 import { id as diningContentBackfillMigrationId, up as applyDiningContentBackfillMigration } from './migrations/012_backfill_dining_content.js';
 import { id as eventsFoundationMigrationId, up as applyEventsFoundationMigration } from './migrations/013_events_foundation.js';
 import { id as stage0FoundationMigrationId, up as applyStage0FoundationMigration } from './migrations/014_stage0_foundation.js';
+import { id as stage05OperationalizationMigrationId, up as applyStage05OperationalizationMigration } from './migrations/015_stage05_operationalization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,6 +94,7 @@ const runVersionedMigrations = async () => {
     { id: diningContentBackfillMigrationId, up: applyDiningContentBackfillMigration },
     { id: eventsFoundationMigrationId, up: applyEventsFoundationMigration },
     { id: stage0FoundationMigrationId, up: applyStage0FoundationMigration },
+    { id: stage05OperationalizationMigrationId, up: applyStage05OperationalizationMigration },
   ];
 
   for (const migration of migrations) {
