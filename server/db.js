@@ -17,6 +17,7 @@ import { id as adminAuthAuditMigrationId, up as applyAdminAuthAuditMigration } f
 import { id as foodMenuFoundationMigrationId, up as applyFoodMenuFoundationMigration } from './migrations/011_food_menu_foundation.js';
 import { id as diningContentBackfillMigrationId, up as applyDiningContentBackfillMigration } from './migrations/012_backfill_dining_content.js';
 import { id as eventsFoundationMigrationId, up as applyEventsFoundationMigration } from './migrations/013_events_foundation.js';
+import { id as stage0FoundationMigrationId, up as applyStage0FoundationMigration } from './migrations/014_stage0_foundation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,6 +88,7 @@ const runVersionedMigrations = async () => {
     { id: foodMenuFoundationMigrationId, up: applyFoodMenuFoundationMigration },
     { id: diningContentBackfillMigrationId, up: applyDiningContentBackfillMigration },
     { id: eventsFoundationMigrationId, up: applyEventsFoundationMigration },
+    { id: stage0FoundationMigrationId, up: applyStage0FoundationMigration },
   ];
 
   for (const migration of migrations) {
