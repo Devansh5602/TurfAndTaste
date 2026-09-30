@@ -3,6 +3,10 @@ import dbAsync from '../db.js';
 import { attachOptionalAdmin, authenticateAdminToken } from '../middleware/auth.js';
 import { verifyQuoteToken } from '../utils/quoteToken.js';
 import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted, venueNow } from '../utils/venueTime.js';
+import { canAccessBookingHistory } from '../domain/guest/guestPrivacy.js';
+import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
+import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
+import { validateLeadTime } from '../domain/booking/bookingRules.js';
 
 const router = express.Router();
 
@@ -91,10 +95,15 @@ router.get('/', authenticateAdminToken, async (req, res) => {
 
 /**
  * GET /api/bookings/history
- * Search Customer Booking History by Phone or Email
+ * Search Customer Booking History by Phone or Email (Protected)
  */
-router.get('/history', async (req, res) => {
+router.get('/history', attachOptionalAdmin, async (req, res) => {
   try {
+    const access = canAccessBookingHistory(req);
+    if (!access.allowed) {
+      return res.status(401).json({ success: false, error: access.error });
+    }
+
     const { phone, email } = req.query;
 
     const cleanPhone = String(phone || '').replace(/\D/g, '');
@@ -272,6 +281,22 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Facility selection is required.' });
     }
 
+    // Canonical Interval & Lead Time Validation
+    let normInterval;
+    try {
+      normInterval = normalizeBookingInterval({ date, timeSlot });
+    } catch (e) {
+      return res.status(400).json({ success: false, error: `Invalid booking time interval: ${e.message}` });
+    }
+
+    const leadCheck = validateLeadTime(normInterval.startAt, {
+      isStaffWalkIn: Boolean(req.admin),
+      now: new Date()
+    });
+    if (!leadCheck.valid) {
+      return res.status(409).json({ success: false, error: leadCheck.error });
+    }
+
     // Double-Booking Prevention: Check if slot is already reserved
     const requestedRange = parseSlotRange(timeSlot);
     const existingBookings = await dbAsync.all(
@@ -313,6 +338,8 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
     const paymentType = payload.paymentType || 'deposit';
     const isAdminReservation = Boolean(req.admin);
     const submittedPaymentId = String(payload.paymentId || '').trim();
+    const deliveryPreference = payload.deliveryPreference || 'WHATSAPP';
+    const bookingType = payload.bookingType || (normInterval.durationMinutes % 60 === 0 && (normInterval.durationHours === 1 || normInterval.durationHours === 2) ? 'STANDARD_QUICK' : 'CUSTOM');
     let verifiedQuote = null;
     if (!isAdminReservation) {
       const verification = verifyQuoteToken(payload.quote?.quoteToken || payload.quoteToken);
@@ -347,12 +374,15 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       sql: `INSERT INTO bookings (
         id, facility_id, facility_name, date, time_slot, customer_name,
         customer_phone, customer_email, team_name, duration, payment_type,
-        amount_paid, payment_status, booking_status, payment_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        amount_paid, payment_status, booking_status, payment_id,
+        scheduled_start_at, scheduled_end_at, booking_type, delivery_preference
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id, facilityId, facilityName, date, timeSlot, customerName,
         customerPhone, customerEmail, teamName, duration, paymentType,
-        amountPaid, paymentStatus, bookingStatus, paymentId
+        amountPaid, paymentStatus, bookingStatus, paymentId,
+        normInterval.startAt.toISOString(), normInterval.endAt.toISOString(),
+        bookingType, deliveryPreference
       ]
     };
     try {
@@ -405,18 +435,36 @@ router.put('/:id/status', authenticateAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const allowedStatuses = new Set(['Confirmed', 'Checked-in', 'Completed', 'Cancelled']);
 
-    if (!allowedStatuses.has(status)) {
-      return res.status(400).json({ success: false, error: 'Choose a valid booking status.' });
+    const existing = await dbAsync.get('SELECT id, booking_status FROM bookings WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Booking not found.' });
     }
 
-    const result = await dbAsync.run('UPDATE bookings SET booking_status = ? WHERE id = ?', [status, id]);
+    const check = canTransitionBookingStatus(existing.booking_status, status);
+    if (!check.valid) {
+      return res.status(409).json({ success: false, error: check.error });
+    }
+
+    const isCancelling = check.toStatus === 'CANCELLED';
+    const cancellationActor = isCancelling ? (req.admin?.username || 'admin') : null;
+    const cancelledAt = isCancelling ? new Date().toISOString() : null;
+
+    let updateSql = 'UPDATE bookings SET booking_status = ?';
+    const params = [status];
+    if (isCancelling) {
+      updateSql += ', cancellation_actor = ?, cancelled_at = ?';
+      params.push(cancellationActor, cancelledAt);
+    }
+    updateSql += ' WHERE id = ?';
+    params.push(id);
+
+    const result = await dbAsync.run(updateSql, params);
     if (!result.rowCount) {
       return res.status(404).json({ success: false, error: 'Booking not found.' });
     }
 
-    res.json({ success: true, bookingId: id, newStatus: status });
+    res.json({ success: true, bookingId: id, newStatus: status, isTerminal: isCancelling });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -424,15 +472,30 @@ router.put('/:id/status', authenticateAdminToken, async (req, res) => {
 
 /**
  * DELETE /api/bookings/:id
- * Permanently delete a booking after the management UI's confirmation/undo window.
+ * Cancels and preserves booking history (Soft-cancel); does not erase audit trail.
  */
 router.delete('/:id', authenticateAdminToken, async (req, res) => {
   try {
-    const result = await dbAsync.run('DELETE FROM bookings WHERE id = ?', [req.params.id]);
-    if (!result.rowCount) {
+    const { id } = req.params;
+    const existing = await dbAsync.get('SELECT id, booking_status FROM bookings WHERE id = ?', [id]);
+    if (!existing) {
       return res.status(404).json({ success: false, error: 'Booking not found.' });
     }
-    res.json({ success: true, bookingId: req.params.id });
+
+    const check = canTransitionBookingStatus(existing.booking_status, 'CANCELLED');
+    if (!check.valid) {
+      return res.status(409).json({ success: false, error: check.error });
+    }
+
+    const cancellationActor = req.admin?.username || 'admin';
+    const cancelledAt = new Date().toISOString();
+
+    await dbAsync.run(
+      'UPDATE bookings SET booking_status = ?, cancellation_actor = ?, cancelled_at = ? WHERE id = ?',
+      ['Cancelled', cancellationActor, cancelledAt, id]
+    );
+
+    res.json({ success: true, bookingId: id, status: 'Cancelled', message: 'Booking cancelled and inventory released; historical record preserved.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
