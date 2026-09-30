@@ -167,83 +167,72 @@ export async function checkCanonicalConflicts(db, options) {
     }
   }
 
-  // 2. Active facility blocks
-  try {
-    const blocks = await db.all(
-      `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
-       FROM facility_blocks
-       WHERE facility_id = ? AND status = 'active'`,
-      [resolvedFacilityId]
-    );
+  // 2. Active facility blocks (fail-closed)
+  const blocks = await db.all(
+    `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
+     FROM facility_blocks
+     WHERE facility_id = ? AND status = 'active'`,
+    [resolvedFacilityId]
+  );
 
-    for (const bl of blocks) {
-      const blInterval = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
-      if (intervalsOverlap(reqInterval, blInterval)) {
+  for (const bl of blocks) {
+    if (!bl.start_at || !bl.end_at) continue;
+    const blInterval = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
+    if (intervalsOverlap(reqInterval, blInterval)) {
+      conflicts.push({
+        type: 'BLOCK',
+        id: bl.id,
+        reason: `Facility is blocked for ${bl.reason_code || 'maintenance'}${bl.internal_note ? `: ${bl.internal_note}` : ''}.`
+      });
+    }
+  }
+
+  // 3. Approved session extensions extending active facility sessions (fail-closed)
+  const sessionsWithExt = await db.all(
+    `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+            COALESCE(SUM(sa.minutes), 0) as extension_minutes
+     FROM facility_sessions fs
+     LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
+     WHERE fs.facility_id = ? AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
+     GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at`,
+    [resolvedFacilityId]
+  );
+
+  for (const s of sessionsWithExt) {
+    if (excludeBookingId && (s.booking_id === excludeBookingId || s.id === excludeBookingId)) continue;
+    const extMinutes = parseInt(s.extension_minutes, 10) || 0;
+    if (extMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
+      const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
+      const extendedEnd = new Date(baseInterval.endAt.getTime() + extMinutes * 60000);
+      const extendedInterval = { startAt: baseInterval.startAt, endAt: extendedEnd };
+      if (intervalsOverlap(reqInterval, extendedInterval)) {
         conflicts.push({
-          type: 'BLOCK',
-          id: bl.id,
-          reason: `Facility is blocked for ${bl.reason_code || 'maintenance'}${bl.internal_note ? `: ${bl.internal_note}` : ''}.`
+          type: 'SESSION_EXTENSION',
+          id: s.id,
+          reason: `Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`
         });
       }
     }
-  } catch (e) {
-    // If facility_blocks table is empty or inaccessible
   }
 
-  // 3. Approved session extensions extending active facility sessions
-  try {
-    const sessionsWithExt = await db.all(
-      `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
-              COALESCE(SUM(sa.minutes), 0) as extension_minutes
-       FROM facility_sessions fs
-       LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
-       WHERE fs.facility_id = ? AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
-       GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at`,
-      [resolvedFacilityId]
-    );
+  // 4. Active unexpired payment holds (fail-closed)
+  const holds = await db.all(
+    `SELECT id, facility_id, start_at, end_at, hold_token, expires_at
+     FROM payment_holds
+     WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
+    [resolvedFacilityId, now.toISOString()]
+  );
 
-    for (const s of sessionsWithExt) {
-      if (excludeBookingId && (s.booking_id === excludeBookingId || s.id === excludeBookingId)) continue;
-      const extMinutes = parseInt(s.extension_minutes, 10) || 0;
-      if (extMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
-        const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
-        const extendedEnd = new Date(baseInterval.endAt.getTime() + extMinutes * 60000);
-        const extendedInterval = { startAt: baseInterval.startAt, endAt: extendedEnd };
-        if (intervalsOverlap(reqInterval, extendedInterval)) {
-          conflicts.push({
-            type: 'SESSION_EXTENSION',
-            id: s.id,
-            reason: `Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`
-          });
-        }
-      }
+  for (const h of holds) {
+    if (excludeHoldToken && h.hold_token === excludeHoldToken) continue;
+    const hInterval = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
+    if (intervalsOverlap(reqInterval, hInterval)) {
+      conflicts.push({
+        type: 'PAYMENT_HOLD',
+        id: h.id,
+        reason: 'A temporary reservation hold is currently active for this time slot.'
+      });
     }
-  } catch (e) {
-    // Non-fatal if session_adjustments is not yet populated
-  }
-
-  // 4. Active unexpired payment holds
-  try {
-    const holds = await db.all(
-      `SELECT id, facility_id, start_at, end_at, hold_token, expires_at
-       FROM payment_holds
-       WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
-      [resolvedFacilityId, now.toISOString()]
-    );
-
-    for (const h of holds) {
-      if (excludeHoldToken && h.hold_token === excludeHoldToken) continue;
-      const hInterval = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
-      if (intervalsOverlap(reqInterval, hInterval)) {
-        conflicts.push({
-          type: 'PAYMENT_HOLD',
-          id: h.id,
-          reason: 'A temporary reservation hold is currently active for this time slot.'
-        });
-      }
-    }
-  } catch (e) {
-    // Non-fatal if payment_holds is not yet populated
   }
 
   return {

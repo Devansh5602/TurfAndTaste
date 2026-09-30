@@ -479,6 +479,18 @@ export async function initDatabase() {
   }
 }
 
+let sqliteTxMutex = Promise.resolve();
+
+const acquireSqliteLock = () => {
+  let release;
+  const nextLock = new Promise((resolve) => {
+    release = resolve;
+  });
+  const currentLock = sqliteTxMutex;
+  sqliteTxMutex = currentLock.then(() => nextLock);
+  return currentLock.then(() => release);
+};
+
 // Universal Async Database Abstraction Layer
 export const dbAsync = {
   isPostgres: () => isPostgres,
@@ -531,15 +543,20 @@ export const dbAsync = {
       return;
     }
 
-    sqliteDb.exec('BEGIN');
+    const release = await acquireSqliteLock();
     try {
-      for (const { sql, params = [] } of statements) {
-        sqliteDb.prepare(sql).run(...params);
+      sqliteDb.exec('BEGIN IMMEDIATE');
+      try {
+        for (const { sql, params = [] } of statements) {
+          sqliteDb.prepare(sql).run(...params);
+        }
+        sqliteDb.exec('COMMIT');
+      } catch (error) {
+        sqliteDb.exec('ROLLBACK');
+        throw error;
       }
-      sqliteDb.exec('COMMIT');
-    } catch (error) {
-      sqliteDb.exec('ROLLBACK');
-      throw error;
+    } finally {
+      release();
     }
   },
 
@@ -547,7 +564,8 @@ export const dbAsync = {
    * Executes a callback with a single dedicated database connection/client.
    * For PostgreSQL: provides a pg.Client with BEGIN/COMMIT/ROLLBACK lifecycle
    * so advisory locks persist across all queries in the callback.
-   * For SQLite: provides a thin synchronous wrapper with the same interface.
+   * For SQLite: serializes access with an async mutex and BEGIN IMMEDIATE
+   * to guarantee complete conflict check + insert atomicity under concurrency.
    * @param {Function} callback - async (client) => result
    */
   withTransaction: async (callback) => {
@@ -555,13 +573,32 @@ export const dbAsync = {
       const client = await pgPool.connect();
       try {
         await client.query('BEGIN');
-        const result = await callback({
+        const helper = {
+          isPostgres: true,
           query: async (sql, params = []) => {
             let i = 0;
             const pgSql = sql.replace(/\?/g, () => `$${++i}`);
             return client.query(pgSql, params);
+          },
+          get: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            const res = await client.query(pgSql, params);
+            return res.rows[0] || null;
+          },
+          all: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            const res = await client.query(pgSql, params);
+            return res.rows || [];
+          },
+          run: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            return client.query(pgSql, params);
           }
-        });
+        };
+        const result = await callback(helper);
         await client.query('COMMIT');
         return result;
       } catch (error) {
@@ -572,22 +609,46 @@ export const dbAsync = {
       }
     }
 
-    // SQLite: serialize all writes in a transaction
-    sqliteDb.exec('BEGIN');
+    // SQLite: serialize writes in a transaction with BEGIN IMMEDIATE and mutex
+    const release = await acquireSqliteLock();
     try {
-      const result = await callback({
-        query: (sql, params = []) => {
-          const stmt = sqliteDb.prepare(sql);
-          if (stmt.reader) return { rows: stmt.all(...params) };
-          const info = stmt.run(...params);
-          return { rows: [], rowCount: info.changes };
-        }
-      });
-      sqliteDb.exec('COMMIT');
-      return result;
-    } catch (error) {
-      sqliteDb.exec('ROLLBACK');
-      throw error;
+      sqliteDb.exec('BEGIN IMMEDIATE');
+      try {
+        const helper = {
+          isPostgres: false,
+          query: async (sql, params = []) => {
+            const stmt = sqliteDb.prepare(sql);
+            if (stmt.reader) return { rows: stmt.all(...params) };
+            const info = stmt.run(...params);
+            return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+          },
+          get: async (sql, params = []) => {
+            const stmt = sqliteDb.prepare(sql);
+            if (stmt.reader) return stmt.get(...params) || null;
+            stmt.run(...params);
+            return null;
+          },
+          all: async (sql, params = []) => {
+            const stmt = sqliteDb.prepare(sql);
+            if (stmt.reader) return stmt.all(...params);
+            stmt.run(...params);
+            return [];
+          },
+          run: async (sql, params = []) => {
+            const stmt = sqliteDb.prepare(sql);
+            const info = stmt.run(...params);
+            return { rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+          }
+        };
+        const result = await callback(helper);
+        sqliteDb.exec('COMMIT');
+        return result;
+      } catch (error) {
+        sqliteDb.exec('ROLLBACK');
+        throw error;
+      }
+    } finally {
+      release();
     }
   }
 };

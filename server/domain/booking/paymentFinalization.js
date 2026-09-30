@@ -12,18 +12,22 @@
  * 4. Resolve physical facility from server quote.
  * 5. Validate canonical booking interval.
  * 6. Customer lead time check.
- * 7. Idempotency: if already finalized, return existing booking safely.
- * 8. Acquire same-connection resource lock (PostgreSQL) WITHIN the transaction.
- * 9. Conflict check while lock held.
- * 10. All mutations in ONE transaction: booking insert, session insert, hold release,
- *     payment record, quote redemption, order status update.
- * 11. Commit or full rollback.
+ * 7. Validate customer details.
+ * 8. Execute within a unified, atomic transaction (db.withTransaction):
+ *    - PostgreSQL: acquire physical-facility advisory lock, lock payment_order row FOR UPDATE.
+ *    - SQLite: serialize through async transaction mutex + BEGIN IMMEDIATE.
+ *    - Idempotency check under lock (if already finalized, return existing booking safely).
+ *    - Complete fail-closed conflict check (bookings, active blocks, approved session extensions, active holds).
+ *    - All mutations in one transaction: booking insert, session insert, payment record,
+ *      quote redemption, hold conversion, payment order verification.
+ * 9. Commit or full rollback.
  *
  * Invariants:
  * - Client-submitted prices are IGNORED — server quote is price authority.
  * - Client-submitted status is IGNORED — Confirmed is derived from payment success.
  * - Same payment retry returns existing booking (idempotent — no duplicate booking).
- * - Per-facility advisory locks avoid serializing unrelated courts.
+ * - Concurrent attempts for SAME resource + interval yield exactly 1 booking.
+ * - Concurrent attempts for DIFFERENT resources succeed.
  */
 
 import { formatToISTString, normalizeBookingInterval, intervalsOverlap } from '../time/bookingInterval.js';
@@ -32,7 +36,7 @@ import { isOccupyingStatus } from './bookingStateMachine.js';
 import { resolveCanonicalFacility } from './canonicalBookingCommand.js';
 
 /**
- * @param {object} db - dbAsync abstraction layer (with withTransaction if available)
+ * @param {object} db - dbAsync abstraction layer (with withTransaction)
  * @param {object} params
  * @param {string} params.razorpayOrderId
  * @param {string} params.razorpayPaymentId
@@ -60,7 +64,7 @@ export async function finalizeBookingFromPayment(db, params) {
     throw Object.assign(new Error('Payment order not found.'), { code: 'ORDER_NOT_FOUND', httpStatus: 404 });
   }
 
-  // ── 2. Idempotency guard (pre-lock) ─────────────────────────────────────────
+  // ── 2. Idempotency guard (pre-lock check for fast return) ───────────────────
   if (orderContext.status === 'verified' && orderContext.finalized_booking_id) {
     const existing = await db.get('SELECT * FROM bookings WHERE id = ?', [orderContext.finalized_booking_id]);
     if (existing) {
@@ -154,7 +158,7 @@ export async function finalizeBookingFromPayment(db, params) {
   // ── 10. Generate booking ID ──────────────────────────────────────────────────
   const bookingId = `TT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-  // ── 11. Execute atomically ───────────────────────────────────────────────────
+  // ── 11. Transaction Execution (PostgreSQL & SQLite Unified) ──────────────────
   const ctx = {
     bookingId, resolvedFacilityId, facilityName, normInterval, bookingMode,
     customerName, customerPhone, customerEmail, teamName,
@@ -163,57 +167,84 @@ export async function finalizeBookingFromPayment(db, params) {
     holdToken, now
   };
 
-  if (db.isPostgres && db.isPostgres() && typeof db.withTransaction === 'function') {
-    return await db.withTransaction((client) => _pgTransaction(client, ctx));
-  }
-  return await _sqliteTransaction(db, ctx);
+  return await db.withTransaction(async (tx) => {
+    // A. Concurrency Protection & Row Locking
+    if (tx.isPostgres) {
+      // Per-facility advisory lock scoped to this transaction
+      await tx.query(
+        `SELECT pg_advisory_xact_lock(hashtext($1))`,
+        [`finalize_lock_${resolvedFacilityId}`]
+      );
+      // Lock payment_orders row FOR UPDATE
+      const lockRow = await tx.query(
+        `SELECT status, finalized_booking_id FROM payment_orders WHERE order_id = $1 FOR UPDATE`,
+        [razorpayOrderId]
+      );
+      const lockedOrder = lockRow.rows[0];
+      if (!lockedOrder) throw Object.assign(new Error('Payment order not found inside transaction.'), { httpStatus: 404 });
+      if (lockedOrder.status === 'verified' && lockedOrder.finalized_booking_id) {
+        const bRow = await tx.query(`SELECT * FROM bookings WHERE id = $1`, [lockedOrder.finalized_booking_id]);
+        if (bRow.rows[0]) return _existingResult(bRow.rows[0], razorpayPaymentId);
+      }
+      if (lockedOrder.status !== 'created') {
+        throw Object.assign(new Error('Payment order has already been processed.'), { httpStatus: 409 });
+      }
+    } else {
+      // SQLite: under BEGIN IMMEDIATE + tx mutex
+      const lockedOrder = await tx.get(
+        `SELECT status, finalized_booking_id FROM payment_orders WHERE order_id = ?`,
+        [razorpayOrderId]
+      );
+      if (!lockedOrder) throw Object.assign(new Error('Payment order not found inside transaction.'), { httpStatus: 404 });
+      if (lockedOrder.status === 'verified' && lockedOrder.finalized_booking_id) {
+        const existing = await tx.get(`SELECT * FROM bookings WHERE id = ?`, [lockedOrder.finalized_booking_id]);
+        if (existing) return _existingResult(existing, razorpayPaymentId);
+      }
+      if (lockedOrder.status !== 'created') {
+        throw Object.assign(new Error('Payment order has already been processed.'), { httpStatus: 409 });
+      }
+    }
+
+    // B. Fail-Closed Occupancy & Conflict Determination Under Lock
+    await _assertNoConflicts(tx, ctx);
+
+    // C. Atomic Persistence of all mutations
+    await _persistFinalizedBooking(tx, ctx);
+
+    return _successResult(ctx);
+  });
 }
 
-// ── PostgreSQL: advisory lock + single client transaction ──────────────────────
-async function _pgTransaction(client, ctx) {
-  const { resolvedFacilityId, razorpayOrderId } = ctx;
-
-  // Acquire per-facility advisory lock INSIDE transaction
-  await client.query(
-    `SELECT pg_advisory_xact_lock(hashtext($1))`,
-    [`finalize_lock_${resolvedFacilityId}`]
-  );
-
-  // Idempotency re-check under lock (FOR UPDATE on payment_orders row)
-  const lockRow = await client.query(
-    `SELECT status, finalized_booking_id FROM payment_orders WHERE order_id = $1 FOR UPDATE`,
-    [razorpayOrderId]
-  );
-  const lockedOrder = lockRow.rows[0];
-  if (!lockedOrder) throw Object.assign(new Error('Payment order not found inside transaction.'), { httpStatus: 404 });
-  if (lockedOrder.status === 'verified' && lockedOrder.finalized_booking_id) {
-    const bRow = await client.query(`SELECT * FROM bookings WHERE id = $1`, [lockedOrder.finalized_booking_id]);
-    if (bRow.rows[0]) return _existingResult(bRow.rows[0], ctx.razorpayPaymentId);
-  }
-  if (lockedOrder.status !== 'created') {
-    throw Object.assign(new Error('Payment order has already been processed.'), { httpStatus: 409 });
-  }
-
-  // Conflict check while lock held
-  await _assertNoConflictsPg(client, ctx);
-
-  // All mutations in one transaction
-  await _pgInsertAll(client, ctx);
-
-  return _successResult(ctx);
-}
-
-async function _assertNoConflictsPg(client, ctx) {
+/**
+ * Checks for physical resource conflicts across confirmed bookings, active blocks,
+ * approved session extensions, and active holds. Fails closed on query errors.
+ */
+async function _assertNoConflicts(tx, ctx) {
   const { resolvedFacilityId, normInterval, holdToken, now } = ctx;
-  const bRows = await client.query(
-    `SELECT id, booking_status, scheduled_start_at, scheduled_end_at FROM bookings
-     WHERE (physical_facility_id = $1 OR (physical_facility_id IS NULL AND facility_id = $1))`,
-    [resolvedFacilityId]
+
+  // 1. Confirmed bookings on the physical facility
+  const bookings = await tx.all(
+    `SELECT id, booking_status, scheduled_start_at, scheduled_end_at, date, time_slot
+     FROM bookings
+     WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
+    [resolvedFacilityId, resolvedFacilityId]
   );
-  for (const b of bRows.rows) {
+
+  for (const b of bookings) {
     if (!isOccupyingStatus(b.booking_status)) continue;
-    if (!b.scheduled_start_at || !b.scheduled_end_at) continue;
-    const bi = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });
+    let bi;
+    if (b.scheduled_start_at && b.scheduled_end_at) {
+      bi = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });
+    } else if (b.date && b.time_slot) {
+      try {
+        bi = normalizeBookingInterval({ date: b.date, timeSlot: b.time_slot });
+      } catch {
+        continue;
+      }
+    } else {
+      continue;
+    }
+
     if (intervalsOverlap(normInterval, bi)) {
       throw Object.assign(
         new Error(`Double-booking prevented: Facility already reserved (${b.id}).`),
@@ -221,51 +252,79 @@ async function _assertNoConflictsPg(client, ctx) {
       );
     }
   }
-  try {
-    const hRows = await client.query(
-      `SELECT id, hold_token, start_at, end_at FROM payment_holds
-       WHERE facility_id = $1 AND status = 'ACTIVE' AND expires_at > $2`,
-      [resolvedFacilityId, now.toISOString()]
-    );
-    for (const h of hRows.rows) {
-      if (holdToken && h.hold_token === holdToken) continue;
+
+  // 2. Active facility maintenance / event blocks (fail-closed)
+  const blocks = await tx.all(
+    `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
+     FROM facility_blocks
+     WHERE facility_id = ? AND status = 'active'`,
+    [resolvedFacilityId]
+  );
+
+  for (const bl of blocks) {
+    if (!bl.start_at || !bl.end_at) continue;
+    const bli = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
+    if (intervalsOverlap(normInterval, bli)) {
+      throw Object.assign(
+        new Error(`Double-booking prevented: Facility is blocked for ${bl.reason_code || 'maintenance'}.`),
+        { code: 'BOOKING_CONFLICT', httpStatus: 409 }
+      );
+    }
+  }
+
+  // 3. Approved session extensions extending active facility sessions (fail-closed)
+  const sessionsWithExt = await tx.all(
+    `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+            COALESCE(SUM(sa.minutes), 0) as extension_minutes
+     FROM facility_sessions fs
+     LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
+     WHERE fs.facility_id = ? AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
+     GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at`,
+    [resolvedFacilityId]
+  );
+
+  for (const s of sessionsWithExt) {
+    const extMinutes = parseInt(s.extension_minutes, 10) || 0;
+    if (extMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
+      const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
+      const extendedEnd = new Date(baseInterval.endAt.getTime() + extMinutes * 60000);
+      const extInterval = { startAt: baseInterval.startAt, endAt: extendedEnd };
+      if (intervalsOverlap(normInterval, extInterval)) {
+        throw Object.assign(
+          new Error(`Double-booking prevented: Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`),
+          { code: 'BOOKING_CONFLICT', httpStatus: 409 }
+        );
+      }
+    }
+  }
+
+  // 4. Active unexpired payment holds (fail-closed)
+  const holds = await tx.all(
+    `SELECT id, facility_id, start_at, end_at, hold_token, expires_at, customer_identifier
+     FROM payment_holds
+     WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
+    [resolvedFacilityId, now.toISOString()]
+  );
+
+  for (const h of holds) {
+    if (holdToken && h.hold_token === holdToken) {
+      // Verify hold facility and interval match the quote
       const hi = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
-      if (intervalsOverlap(normInterval, hi)) {
-        throw Object.assign(
-          new Error('Double-booking prevented: An active hold conflicts with this slot.'),
-          { code: 'BOOKING_CONFLICT', httpStatus: 409 }
-        );
+      if (h.facility_id === resolvedFacilityId && intervalsOverlap(normInterval, hi)) {
+        continue; // Valid hold owned by caller
       }
     }
-  } catch (e) {
-    if (e.code === 'BOOKING_CONFLICT') throw e;
-    // hold check failure is logged but non-fatal (table may not have rows)
-  }
-  try {
-    const blRows = await client.query(
-      `SELECT id, start_at, end_at FROM facility_blocks WHERE facility_id = $1 AND status = 'active'`,
-      [resolvedFacilityId]
-    );
-    for (const bl of blRows.rows) {
-      const bli = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
-      if (intervalsOverlap(normInterval, bli)) {
-        throw Object.assign(
-          new Error('Double-booking prevented: Facility is blocked for maintenance.'),
-          { code: 'BOOKING_CONFLICT', httpStatus: 409 }
-        );
-      }
+    const hi = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
+    if (intervalsOverlap(normInterval, hi)) {
+      throw Object.assign(
+        new Error('Double-booking prevented: An active hold conflicts with this slot.'),
+        { code: 'BOOKING_CONFLICT', httpStatus: 409 }
+      );
     }
-  } catch (e) {
-    if (e.code === 'BOOKING_CONFLICT') throw e;
   }
 }
 
-function _pg(sql) {
-  let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
-}
-
-async function _pgInsertAll(client, ctx) {
+async function _persistFinalizedBooking(tx, ctx) {
   const { bookingId, resolvedFacilityId, facilityName, normInterval, bookingMode,
           customerName, customerPhone, customerEmail, teamName,
           paymentType, totalAmountPaise, depositAmountPaise,
@@ -278,102 +337,35 @@ async function _pgInsertAll(client, ctx) {
     paymentType, totalAmountPaise, depositAmountPaise, razorpayPaymentId
   });
 
-  await client.query(_pg(insertSql), insertParams);
-  await client.query(_pg(sessionSql), sessionParams);
+  await tx.run(insertSql, insertParams);
+  await tx.run(sessionSql, sessionParams);
 
-  await client.query(
+  await tx.run(
     `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'captured')`,
+     VALUES (?, ?, ?, ?, ?, ?, 'captured')`,
     [bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature, orderContext.expected_amount, paymentType]
   );
 
-  await client.query(
-    `INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES ($1, $2, $3) ON CONFLICT (quote_id) DO NOTHING`,
+  await tx.run(
+    `INSERT INTO quote_redemptions (quote_id, booking_id, expires_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT (quote_id) DO NOTHING`,
     [quote.quoteId, bookingId, new Date(quote.exp * 1000).toISOString()]
   );
 
   if (holdToken) {
-    await client.query(
-      `UPDATE payment_holds SET status = 'CONVERTED' WHERE hold_token = $1`,
+    await tx.run(
+      `UPDATE payment_holds SET status = 'CONVERTED' WHERE hold_token = ? AND status = 'ACTIVE'`,
       [holdToken]
     );
   }
 
-  await client.query(
+  await tx.run(
     `UPDATE payment_orders
-       SET status = 'verified', payment_id = $1, verified_at = NOW(), finalized_booking_id = $2
-     WHERE order_id = $3 AND status = 'created'`,
+       SET status = 'verified', payment_id = ?, verified_at = CURRENT_TIMESTAMP, finalized_booking_id = ?
+     WHERE order_id = ? AND status = 'created'`,
     [razorpayPaymentId, bookingId, razorpayOrderId]
   );
-}
-
-// ── SQLite / fallback: serialized transaction (no advisory lock) ──────────────
-async function _sqliteTransaction(db, ctx) {
-  const { resolvedFacilityId, normInterval, holdToken, now } = ctx;
-
-  // Sequential conflict check before transaction (SQLite is single-writer anyway)
-  const bookings = await db.all(
-    `SELECT id, booking_status, scheduled_start_at, scheduled_end_at FROM bookings
-     WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
-    [resolvedFacilityId, resolvedFacilityId]
-  );
-  for (const b of bookings) {
-    if (!isOccupyingStatus(b.booking_status)) continue;
-    if (!b.scheduled_start_at || !b.scheduled_end_at) continue;
-    const bi = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });
-    if (intervalsOverlap(normInterval, bi)) {
-      throw Object.assign(
-        new Error(`Double-booking prevented: Facility already reserved (${b.id}).`),
-        { code: 'BOOKING_CONFLICT', httpStatus: 409 }
-      );
-    }
-  }
-  try {
-    const holds = await db.all(
-      `SELECT id, hold_token, start_at, end_at FROM payment_holds
-       WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
-      [resolvedFacilityId, now.toISOString()]
-    );
-    for (const h of holds) {
-      if (holdToken && h.hold_token === holdToken) continue;
-      const hi = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
-      if (intervalsOverlap(normInterval, hi)) {
-        throw Object.assign(
-          new Error('Double-booking prevented: Active hold conflicts.'),
-          { code: 'BOOKING_CONFLICT', httpStatus: 409 }
-        );
-      }
-    }
-  } catch (e) { if (e.code === 'BOOKING_CONFLICT') throw e; }
-
-  const { insertSql, insertParams, sessionSql, sessionParams } = _buildBookingInsert(ctx);
-  const { quote, orderContext, razorpayOrderId, razorpayPaymentId, razorpaySignature, paymentType, bookingId, holdToken: ht } = ctx;
-
-  const statements = [
-    { sql: insertSql, params: insertParams },
-    { sql: sessionSql, params: sessionParams },
-    {
-      sql: `INSERT INTO payments (booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, payment_type, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'captured')`,
-      params: [bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature, orderContext.expected_amount, paymentType]
-    },
-    {
-      sql: `INSERT INTO quote_redemptions (quote_id, booking_id, expires_at) VALUES (?, ?, ?)
-            ON CONFLICT (quote_id) DO NOTHING`,
-      params: [quote.quoteId, bookingId, new Date(quote.exp * 1000).toISOString()]
-    },
-    {
-      sql: `UPDATE payment_orders SET status = 'verified', payment_id = ?, verified_at = CURRENT_TIMESTAMP, finalized_booking_id = ?
-            WHERE order_id = ? AND status = 'created'`,
-      params: [razorpayPaymentId, bookingId, razorpayOrderId]
-    }
-  ];
-  if (ht) {
-    statements.push({ sql: `UPDATE payment_holds SET status = 'CONVERTED' WHERE hold_token = ?`, params: [ht] });
-  }
-
-  await db.transaction(statements);
-  return _successResult(ctx);
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -430,7 +422,7 @@ function _existingResult(b, paymentId) {
   return {
     idempotent: true,
     bookingId: b.id,
-    physicalFacilityId: b.physical_facility_id,
+    physicalFacilityId: b.physical_facility_id || b.facility_id,
     facilityName: b.facility_name,
     date: b.date,
     timeSlot: b.time_slot,
