@@ -20,7 +20,7 @@ Administrators can create new custom roles (e.g. `Night Duty Staff`, `Event Coor
 | `super_admin` | Super Administrator | Property Owner / Lead Manager | Full system access, role management, financial logs, system config |
 | `staff` | Ground Operations Staff | Turf & Front Desk Operators | Walk-in bookings, QR check-ins, session start/end, court extensions |
 | `stall_staff` | Dining / Stall Operator | Café & Kitchen Operators | Food order management, menu item stock/availability, table delivery |
-| `customer` | Registered Member | End-User Customer | Account bookings, passes, table ordering, saved details, reviews |
+| `customer` | Registered Member | End-User Customer | Account bookings, passes, dining discovery, saved details, reviews |
 
 ---
 
@@ -42,7 +42,7 @@ Administrators can create new custom roles (e.g. `Night Duty Staff`, `Event Coor
 | | `session.check_in` | Mark customer checked in | ✓ | ✓ | — | — |
 | | `session.start_end` | Record actual start/end times | ✓ | ✓ | — | — |
 | | `session.adjust` | Apply delay compensation | ✓ | ✓ | — | — |
-| **Dining** | `dining.order_table` | Place food orders by table number | ✓ | ✓ | ✓ | ✓ |
+| **Dining** | `dining.view_menu` | Browse outlets, menus, and item details | ✓ | ✓ | ✓ | ✓ |
 | | `dining.manage_orders`| Update kitchen order progress | ✓ | — | ✓ | — |
 | | `dining.manage_menu` | Update food menu items & prices | ✓ | — | ✓ (Own stall) | — |
 | | `dining.manage_stalls`| Add/edit dining stalls & shops | ✓ | — | — | — |

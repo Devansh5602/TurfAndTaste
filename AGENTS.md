@@ -13,7 +13,7 @@
 4. [docs/domain/PRICING_ENGINE.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/PRICING_ENGINE.md) — Dynamic multi-tier pricing, floodlight night rates, weekend surge, package offers.
 5. [docs/domain/SESSION_OPERATIONS.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/SESSION_OPERATIONS.md) — Scheduled vs actual time, QR check-in, 15-minute extensions, ground delay adjustments.
 6. [docs/domain/RBAC.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/RBAC.md) — Permission-oriented access control matrix.
-7. [docs/domain/DINING_AND_ORDERS.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/DINING_AND_ORDERS.md) — Multi-stall property dining, table-number food ordering in scope.
+7. [docs/domain/DINING_AND_ORDERS.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/DINING_AND_ORDERS.md) — Multi-stall property dining, customer dining is informational/discovery only.
 8. [docs/domain/DATA_MODEL.md](file:///home/pc/www/POC/TurfAndTaste/docs/domain/DATA_MODEL.md) — Target normalized relational data model.
 
 ---
@@ -25,7 +25,7 @@
 2. **NO Fake Arena Identities:** NEVER invent external arena names (e.g. "Skyline Arena"). All facilities belong directly to the single Turf & Taste campus.
 3. **NO Hardcoded 90-Minute Booking:** NEVER use fixed 90-minute / 1.5h durations. Standard durations are strictly **1 Hour** and **2 Hours**.
 4. **NO Hardcoded 11 PM Sports Closing:** Sports facilities operate **24/7** conceptually, constrained only by active bookings, approved extensions, and administrative maintenance blocks.
-5. **NO View-Only Dining Claims:** Customer table-number food ordering is IN SCOPE. Never claim dining is view-only.
+5. **NO Customer Food Ordering:** Customer dining is strictly informational/discovery only. Never implement or claim customer food ordering, cart, checkout, or food payment.
 6. **NO Separate Shooting Machine Facility:** The Ball-Shooting Machine is an optional paid add-on on the single Cricket Green Net facility, not a standalone court.
 7. **NO Fake Production Auth / Payments:** Keep mock preview states isolated; never fake verified production auth or live payment records.
 8. **NO Route-Only QA Verification:** Never mark functional QA passed merely because HTTP 200 was returned. Forms must accept real typing, CTAs must trigger real state transitions, and step guards must be validated interactively.

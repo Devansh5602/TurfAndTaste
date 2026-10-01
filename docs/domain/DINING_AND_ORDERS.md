@@ -11,19 +11,18 @@ The Dining & Café area is an integral section of the Turf & Taste Patan campus.
 
 ---
 
-## 2. Table-Based Customer Food Ordering (In Scope)
+## 2. Customer Dining Scope (Informational / Discovery Only)
 
-> **CRITICAL ARCHITECTURAL UPDATE:** The previous prototype rule restricting Dining to "view-only discovery" is OBSOLETE. Customer food ordering is officially in scope.
+> **AUTHORITATIVE RULE:** Customer dining is strictly informational/discovery only. There is NO customer food ordering, cart, checkout, or food payment on the customer app.
 
-### Customer App Order Flow:
-1. Customer browses stalls and menu items on their mobile device.
-2. Customer selects items and enters their physical **Table Number** (or scans Table QR).
-3. Customer places order (`source = 'customer_app'`).
-4. Kitchen receives order tagged with Table Number.
+### Customer App Dining Flow:
+1. Customer browses outlets (Sports Café, Gourmet Parlour) and menu items on their mobile device.
+2. Customer views outlet information, categories, menu item descriptions, prices, images, and availability.
+3. Customer views operating hours and outlet details.
 
-### Stall / Staff Portal Order Flow:
-1. Counter staff or waiter enters walk-in table or takeout orders directly in the Staff POS view (`source = 'staff_pos'`).
-2. Staff updates order preparation progress and marks delivery.
+### Admin Dining CMS:
+1. Admin manages outlets, food categories, menu item descriptions, paise prices, and instant availability toggles.
+2. Admin Dining CMS is the authoritative source for all dining content displayed to customers.
 
 ---
 

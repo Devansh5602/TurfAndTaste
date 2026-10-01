@@ -8,7 +8,7 @@ Turf & Taste is a **single multi-facility sports, recreational, and dining prope
 ### What Turf & Taste IS:
 - A unified sports & dining campus situated on a single physical property in Patan, Gujarat.
 - A property housing multiple sports sections (Box Cricket, Pickleball, Skating, Cricket Green Nets) and a dedicated Dining Section with multiple food stalls/cafés.
-- A single destination offering 24/7 sports facility operations, dynamic multi-tier pricing, advance & walk-in bookings, operational session management with QR check-in, and in-app table-based food ordering.
+- A single destination offering 24/7 sports facility operations, dynamic multi-tier pricing, advance & walk-in bookings, operational session management with QR check-in, and informational/discovery dining (outlets, menus, descriptions, prices, availability).
 
 ### What Turf & Taste IS NOT (Strict Prohibitions):
 1. **NO Multiple Branches / Cities:** Turf & Taste does NOT have branches in Bopal, Ahmedabad, South Bopal, Gandhinagar, or anywhere outside Patan, Gujarat. Any reference to Bopal, Ahmedabad, or external city branches is an obsolete prototype artifact and strictly forbidden.
@@ -60,7 +60,7 @@ graph TD
         Stall1["Stall / Outlet 1: The Dugout Café"]
         Stall2["Stall / Outlet 2: The Pavilion Parlour"]
         
-        Table1["Table QR / Number Ordering (Customer App)"]
+        Table1["Informational Menu Browsing (Customer App)"]
         POS1["Counter / Staff POS Order Management"]
         
         Stall1 & Stall2 --> Table1 & POS1
@@ -96,5 +96,5 @@ graph TD
 4. **Walk-In Payment Rule:** Walk-ins booked >= 1h in advance can pay token deposit or full payment; walk-ins inside the 1-hour threshold require **Full Payment**.
 5. **Booking Horizon:** No artificial maximum advance-booking horizon (customers can book arbitrarily far in advance as long as pricing/schedules exist).
 6. **Cancellation & Refunds:** Customer or Admin can cancel a booking at any time. **Current Refund Policy = 0% / NONE**. Cancellation is permanent and terminal.
-7. **Dining Model:** Dining is on the same property with multiple stalls. **Food ordering based on Table Number is IN SCOPE** (reversing the obsolete view-only constraint).
+7. **Dining Model:** Dining is on the same property with multiple stalls. **Customer dining is strictly informational/discovery only** (outlet discovery, menu browsing, descriptions, prices, availability). No customer food ordering, cart, checkout, or food payment.
 8. **Customer Accounts & Guest Flow:** Guest booking is first-class (no mandatory login). Customers can authenticate via **Mobile, Email, or Username + Password**. Delivery preferences (**WhatsApp** or **SMS**) are stored per booking.

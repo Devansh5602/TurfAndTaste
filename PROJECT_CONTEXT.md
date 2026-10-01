@@ -119,6 +119,11 @@ Future facilities are CMS-driven through database tables (`physical_facilities`,
 
 ## 13. Current Project State & Next Step
 - **Current Branch:** `feature/turf-and-taste-admin-platform`
-- **Admin Platform Status:** 100% complete, verified with 224/224 automated tests, responsive on all mobile viewports, and aligned with Clubhouse Ivory design.
-- **Customer Mobile Status:** Functional prototype exists; full functional correction and UI redesign is queued for the **next phase**.
-- **Next Planned Action:** One independent Admin review, followed by Customer Mobile correction.
+- **Admin Platform Status:** FUNCTIONALLY SUBSTANTIAL / IMPLEMENTATION COMPLETE CANDIDATE — FINAL FUNCTIONAL AND VISUAL VERIFICATION PENDING. Substantial Admin functional/domain implementation exists with extensive automated coverage (224/224 tests passing in previous checkpoints). Final independent end-to-end Admin verification, user acceptance, visual fidelity sign-off, and interactive form/navigation/CRUD/device QA remain pending.
+- **Customer Mobile Status:** Functional prototype exists; full functional correction and UI redesign is queued for the **next phase** (after Admin acceptance).
+- **Next Development Priority:**
+  1. Perform one consolidated independent Admin verification
+  2. Correct genuine Admin functional defects found
+  3. Align Admin UI with the authoritative curated design
+  4. Verify responsive/mobile interactions
+  5. Only after Admin acceptance, proceed to Customer Mobile correction and UI alignment
