@@ -1,5 +1,9 @@
 # Turf & Taste — Pricing Engine Specification
 
+> **CANONICAL PRICING AUTHORITY:** `server/domain/pricing/pricingResolver.js`
+> All quote calculation, walk-in pricing, extension tariffs, and token/deposit determinations MUST evaluate strictly through this canonical authority.
+> Legacy quote callers (e.g. `POST /api/v2/quotes`, `POST /api/bookings`) delegate directly to the canonical resolver. No independent parallel pricing calculators exist.
+
 ## 1. Dynamic Multi-Tier Pricing Architecture
 
 Pricing is calculated server-authoritatively using rule-based evaluation rather than hardcoded UI formulas.

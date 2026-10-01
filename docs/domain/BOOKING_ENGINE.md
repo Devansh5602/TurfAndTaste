@@ -1,5 +1,9 @@
 # Turf & Taste — Booking Engine Specification
 
+> **CANONICAL AVAILABILITY AUTHORITY:** `server/domain/booking/canonicalBookingCommand.js` (`loadCanonicalOccupancies`, `checkCanonicalConflicts`)
+> All slot availability, admin walk-in validation, booking creation, facility blocks, and extension conflict checks MUST evaluate strictly through this canonical authority.
+> Legacy `blocked_slots` logic is de-authoritized. Active blocks are represented authoritatively by `facility_blocks`. Legacy routes (`/api/bookings/blocked-slots`, `/block-slot`, `/unblock-slot`) bridge directly to `facility_blocks`.
+
 ## 1. Core Booking Rules & Constraints
 
 ### 1.1 Lead Time Rules
