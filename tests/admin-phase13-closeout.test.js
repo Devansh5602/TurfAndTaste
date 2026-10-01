@@ -211,6 +211,10 @@ describe('Admin Phase 1.3: Canonical Authority & Pricing Snapshot Closeout', () 
 
       // 1. Configure Rate A (₹800/hr = 80000 paise)
       await dbAsync.run(
+        "DELETE FROM pricing_rules WHERE facility_id = ? AND period_type = 'DAY'",
+        [facilityId]
+      );
+      await dbAsync.run(
         `INSERT INTO pricing_rules (id, facility_id, rule_type, period_type, rate_paise_per_hour, is_active)
          VALUES ('pr_snap_day', ?, 'BASE_RATE', 'DAY', 80000, 1)
          ON CONFLICT (id) DO UPDATE SET rate_paise_per_hour = 80000, is_active = 1`,

@@ -732,6 +732,7 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       const saved = await dbAsync.get('SELECT total_amount_paise FROM bookings WHERE id = ?', [data.bookingReference]);
       assert.equal(saved.total_amount_paise, expected.totalAmountPaise);
       assert.notEqual(saved.total_amount_paise, 1);
+      await dbAsync.run("DELETE FROM pricing_rules WHERE id = 'test_walkin_bc2_day'");
     });
 
     it('POST /api/sessions/extend ignores manipulated client amount and persists server price', async () => {
