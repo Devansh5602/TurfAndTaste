@@ -352,11 +352,29 @@ export async function resolvePricing(db, opts) {
   }
 
   // ── [2] Package rule (replaces per-segment subtotal) ──────────────────────
+  let prePackageSubtotalPaise = 0;
+  let packageDiscountPaise = 0;
   if (!hasReplacementSpecialDate) {
     const packageRule = findPackageRule(rules, hours);
     if (packageRule) {
       const packageTotal = packageRule.rate_paise_total;
       if (packageTotal > 0) {
+        if (startIST !== null && rules.length > 0) {
+          const segments = segmentByPeriod(startIST, hours * 60, isWeekend, floodlightStart);
+          for (const seg of segments) {
+            const rule = findBaseRuleForPeriod(rules, seg.periodType);
+            if (rule && rule.rate_paise_per_hour > 0) {
+              prePackageSubtotalPaise += Math.round(rule.rate_paise_per_hour * seg.minutes / 60);
+            }
+          }
+        }
+        if (prePackageSubtotalPaise === 0 && legacyTier) {
+          const isNight = startIST !== null ? (startIST >= floodlightStart || startIST < 360) : false;
+          let rate = isNight ? Math.round(Number(legacyTier.night_rate) || 0) : Math.round(Number(legacyTier.day_rate) || 0);
+          if (isWeekend && Number(legacyTier.weekend_surge) > 0) rate = Math.round(rate * (1 + Number(legacyTier.weekend_surge) / 100));
+          prePackageSubtotalPaise = rate * 100 * hours;
+        }
+        packageDiscountPaise = Math.max(0, prePackageSubtotalPaise - packageTotal);
         baseAmountPaise = packageTotal;
         packageUsed = true;
         primaryRule = { type: 'PACKAGE', rule: packageRule };
@@ -364,6 +382,8 @@ export async function resolvePricing(db, opts) {
           type: 'PACKAGE',
           ruleId: packageRule.id,
           hours,
+          prePackageSubtotalPaise,
+          packageDiscountPaise,
           amountPaise: packageTotal,
         });
       }
@@ -466,9 +486,15 @@ export async function resolvePricing(db, opts) {
   const depositAmountPaise = resolveDeposit(totalAmountPaise, primaryRule?.rule || null, legacyTier);
 
   // ── [6] Token cutoff: inside-1-hour walk-in requires full payment ──────────
-  // Checked at the call site; paymentType is passed in as resolved by caller.
+  const now = opts.now ? new Date(opts.now) : new Date();
+  const diffMinutesFromNow = normStartAt ? Math.floor((normStartAt.getTime() - now.getTime()) / 60000) : null;
+  const isImmediate = diffMinutesFromNow !== null && diffMinutesFromNow < 60;
+  const isStaffWalkIn = Boolean(opts.isStaffWalkIn || opts.source === 'STAFF_WALKIN');
+  const fullPaymentRequired = (isStaffWalkIn && isImmediate) || depositAmountPaise >= totalAmountPaise;
+  const depositAllowed = !fullPaymentRequired;
 
-  const chargedAmountPaise = paymentType === 'full' ? totalAmountPaise : depositAmountPaise;
+  const effectivePaymentType = fullPaymentRequired ? 'full' : (paymentType === 'full' ? 'full' : 'deposit');
+  const chargedAmountPaise = effectivePaymentType === 'full' ? totalAmountPaise : depositAmountPaise;
 
   // ── Determine display context ──────────────────────────────────────────────
   const activePeriodType = startIST !== null
@@ -477,14 +503,21 @@ export async function resolvePricing(db, opts) {
   const isNight = activePeriodType === 'NIGHT' || activePeriodType === 'WEEKEND_NIGHT';
 
   return {
+    quoteId: opts.quoteId || `qt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    currency: 'INR',
     facilityId,
     serviceId,
     addOnIds,
     date,
+    timeSlot: opts.timeSlot || null,
+    startAt: normStartAt ? normStartAt.toISOString() : null,
+    endAt: normEndAt ? normEndAt.toISOString() : null,
     durationHours: hours,
     isNight,
     isWeekend,
-    paymentType,
+    paymentType: effectivePaymentType,
+    fullPaymentRequired,
+    depositAllowed,
     totalAmountPaise,
     depositAmountPaise,
     chargedAmountPaise,
@@ -492,13 +525,18 @@ export async function resolvePricing(db, opts) {
     resolverVersion: '2.0',
     breakdown: {
       baseAmountPaise,
+      prePackageSubtotalPaise: packageUsed ? prePackageSubtotalPaise : baseAmountPaise,
+      packageDiscountPaise,
       addOnAmountPaise,
       totalAmountPaise,
       depositAmountPaise,
       chargedAmountPaise,
+      fullPaymentRequired,
+      depositAllowed,
       periodType: activePeriodType,
       packageUsed,
       specialDateApplied: Boolean(specialDate),
+      currency: 'INR',
     },
   };
 }
@@ -609,6 +647,8 @@ export async function resolveAdminWalkInPricing(db, opts) {
     endAt: opts.endAt || null,
     durationHours: opts.durationHours || 1,
     paymentType: opts.paymentType || 'full',
+    isStaffWalkIn: true,
+    now: opts.now,
   });
 
   // Surface the display fields the Admin UI reads directly
