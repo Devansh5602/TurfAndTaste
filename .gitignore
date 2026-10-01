@@ -3,6 +3,8 @@ dist
 dist-ssr
 *.local
 *.tmp
+*.log
+*.dump
 .env
 .env.*
 !.env.example
