@@ -6,6 +6,7 @@ import { validateSessionExtension, computeSessionMetrics } from '../domain/sessi
 import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 import { findResourceConflicts } from '../domain/booking/conflictEngine.js';
 import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
+import { resolveExtensionPricing } from '../domain/pricing/pricingResolver.js';
 
 const router = express.Router();
 
@@ -362,8 +363,12 @@ router.post('/delay', authenticateAdminToken, requirePermission('booking.update'
  */
 router.post('/extend', authenticateAdminToken, requirePermission('booking.extend'), async (req, res) => {
   try {
-    const { bookingId, extensionMinutes = 15, isFree = false, chargePaise = 0, reason = '' } = req.body;
+    const { bookingId, extensionMinutes = 15, isFree = false, reason = '' } = req.body;
     if (!bookingId) return res.status(400).json({ success: false, error: 'bookingId is required.' });
+
+    // Client-supplied chargePaise is intentionally not read here.
+    // The server resolves the authoritative extension charge from pricing rules.
+    // Staff may only choose: isFree=true (zero charge) or isFree=false (server price).
 
     const requestedExtensionMinutes = Number(extensionMinutes);
     if (!Number.isInteger(requestedExtensionMinutes) || requestedExtensionMinutes <= 0) {
@@ -440,21 +445,26 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       }
 
       // Record adjustment entry
+      // chargePaise is server-resolved for paid extensions; zero for free extensions.
+      // Client-submitted chargePaise values are NEVER trusted.
+      const resolvedCharge = Boolean(isFree) ? 0 : await resolveExtensionPricing(client, {
+        facilityId,
+        extensionStartAt: currentEndDate.toISOString(),
+        extensionMinutes: requestedExtensionMinutes,
+      }).then(r => r.chargePaise).catch(() => 0);
+
       const adjId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await client.run(
         `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
          VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
-        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, Number(chargePaise) || 0, operatorId, reason || 'Staff Approved Extension']
+        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, resolvedCharge, operatorId, reason || 'Staff Approved Extension']
       );
 
-      // The session keeps its contractual scheduled end; the booking interval
-      // carries the current occupied end and the adjustment is the immutable
-      // audit record. This avoids counting the same extension twice.
       await client.run(
         `UPDATE bookings SET scheduled_end_at = ? WHERE id = ?`,
         [proposedEndDate.toISOString(), bookingId]
       );
-      return { proposedEndDate };
+      return { proposedEndDate, resolvedCharge };
     });
 
     res.json({
@@ -463,7 +473,8 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       extensionMinutes: requestedExtensionMinutes,
       newScheduledEndAt: extensionResult.proposedEndDate.toISOString(),
       isFree: Boolean(isFree),
-      chargePaise: Number(chargePaise) || 0,
+      // Server-resolved charge persisted in session_adjustments
+      resolvedChargePaise: extensionResult.resolvedCharge,
       approvedBy: operatorId,
       message: `Session extended by ${requestedExtensionMinutes} minutes until ${extensionResult.proposedEndDate.toLocaleTimeString()}.`
     });
