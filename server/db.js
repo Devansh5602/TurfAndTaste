@@ -23,6 +23,7 @@ import { id as stage06HardeningMigrationId, up as applyStage06HardeningMigration
 import { id as stage07RemediationMigrationId, up as applyStage07RemediationMigration } from './migrations/017_stage07_remediation.js';
 import { id as stage08ReconciliationMigrationId, up as applyStage08ReconciliationMigration } from './migrations/018_stage08_reconciliation_and_rbac.js';
 import { id as stage09ReconciliationRepairMigrationId, up as applyStage09ReconciliationRepairMigration } from './migrations/019_stage09_reconciliation_repair.js';
+import { id as pricingRulesMigrationId, up as applyPricingRulesMigration } from './migrations/020_pricing_rules.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +108,7 @@ const runVersionedMigrations = async () => {
     { id: stage07RemediationMigrationId, up: applyStage07RemediationMigration },
     { id: stage08ReconciliationMigrationId, up: applyStage08ReconciliationMigration },
     { id: stage09ReconciliationRepairMigrationId, up: applyStage09ReconciliationRepairMigration },
+    { id: pricingRulesMigrationId, up: applyPricingRulesMigration },
   ];
 
   for (const migration of migrations) {
