@@ -39,3 +39,15 @@ Refer to the specialized project skills in `.agents/skills/` and `docs/ai/skills
 - `turf-taste-admin-cms`: CMS modules and data management rules.
 - `turf-taste-functional-qa`: Interactive state and UI validation standards.
 - `turf-taste-no-invention`: Strict anti-hallucination policies.
+
+---
+
+## 4. Mandatory Repository Cleanliness Rule
+
+Before EVERY commit and push, all AI agents (Antigravity, Codex, etc.) must:
+1. **Remove Debug & Dead Code:** Remove temporary `console.log` statements, print assertions, and abandoned helpers.
+2. **Remove Unnecessary Comments:** Delete AI-generated narration, obvious code restatements, and temporary fix notes. Keep only comments explaining non-obvious business/security/database invariants.
+3. **Remove Accidental Generated Files:** Ensure runtime sidecars (`*.db-wal`, `*.db-shm`), temporary scratch files, and build dumps are not tracked in git.
+4. **Inspect Untracked Files & Run Diff Check:** Run `git status` and `git diff --check` before committing.
+5. **Preserve Architectural History:** Keep repository structure intentional and do not delete valuable domain documentation or regression tests.
+
