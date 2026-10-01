@@ -1,10 +1,10 @@
 # Turf & Taste — Antigravity → Codex Handoff
 
 ## Checkpoint Date
-2026-09-30
+2026-10-01
 
 ## Stage
-**Stage 0.8: Final Identity & Historical Timestamp Release Blocker Remediation**
+**Stage 0.9: Final Timestamp Reconciliation & Repository Cleanup Gate**
 
 ## Branch
 `feature/customer-mobile-curated`
@@ -12,17 +12,16 @@
 ---
 
 ## Phase Completed
-**Stage 0.8: Final Identity & Historical Timestamp Release Blocker Remediation**
+**Stage 0.9: Final Timestamp Reconciliation & Repository Cleanup Gate**
 
-All 6 blockers identified in `docs/domain/CODEX_STAGE07_REVIEW.md` have been fully resolved:
-1. **Historical Timestamp Provenance & Operational Quarantine:** Explicit UTC (`Z`) and offset (`+05:30`) instants preserved without double shift; unannotated legacy strings converted once; ambiguous records quarantined as `MANUAL_REVIEW` and excluded from live booking occupancy.
-2. **Elimination of Role-Name Authorization Bypasses:** Completely eliminated all `super_admin` / `manager` route shortcuts. Authorization is 100% permission-governed.
-3. **Safe Legacy Manager Identity Mapping:** Non-destructive migration 018 safely maps legacy `manager` accounts to `staff` with audit records in `admin_role_migration_audit`.
-4. **Dynamic Principal & Staff/Stall Effective Permissions:** `getActiveAdmin()` loads effective permissions dynamically from the database.
-5. **Strict Stall Tenancy Scoping:** `stall_staff` accounts can only access/manage orders for their assigned stall. Cross-stall and unscoped requests are rejected with HTTP 403.
-6. **100% Test Pass Rate:** 136/136 tests passing across all 6 test suites.
+All 4 blockers identified in `docs/domain/CODEX_STAGE08_REVIEW.md` have been fully resolved:
+1. **PostgreSQL Timestamp Driver Date Handling:** JavaScript `Date` instances from PostgreSQL `TIMESTAMPTZ` driver are treated as exact UTC instants and preserved without being coerced into locale strings or shifted as local time. Discrepant instants are quarantined as `MANUAL_REVIEW`.
+2. **Transaction-Scoped Migration Adapter:** `runVersionedMigrations()` provides a unified transaction-scoped database adapter into migrations `018` and `019`, ensuring DDL and reconciliation queries commit or roll back together atomically.
+3. **Additive Migration 019 Follow-Up:** `019_stage09_reconciliation_repair.js` safely reconciles databases where migration `018` already ran.
+4. **Self-Contained & Isolated Test Execution:** `scripts/test-runner.js` isolates automated test execution to a dedicated temporary database, passing 146/146 tests consecutively without manual resets.
+5. **Repository Cleanliness & Hygiene Pass:** Untracked legacy `turf_and_taste.db-wal` and `turf_and_taste.db-shm` files, removed dead/debugging comments, and added permanent cleanliness rule to `AGENTS.md`.
 
-See full details in [`docs/domain/STAGE08_IMPLEMENTATION_REPORT.md`](docs/domain/STAGE08_IMPLEMENTATION_REPORT.md).
+See full details in [`docs/domain/STAGE09_IMPLEMENTATION_REPORT.md`](docs/domain/STAGE09_IMPLEMENTATION_REPORT.md).
 
 ---
 
@@ -34,23 +33,24 @@ See full details in [`docs/domain/STAGE08_IMPLEMENTATION_REPORT.md`](docs/domain
 | stage06-hardening | **20/20** | 0 |
 | stage07-release-gate | **15/15** | 0 |
 | stage08-release-gate | **19/19** | 0 |
+| stage09-release-gate | **10/10** | 0 |
 | customer-mobile-regression | **43/43** | 0 |
-| **Total Tests** | **136/136** | **0** |
+| **Total Tests** | **146/146** | **0** |
 | Production build (Vite) | ✅ Passing | — |
-| Static Bypass Scan | ✅ 0 shortcuts | — |
+| Sequential Repeatable Test Runs | ✅ 100% | — |
 
 ---
 
 ## Key Commits & Files Changed
-- `server/domain/time/timestampAudit.js` — Provenance evaluation engine, explicit UTC/offset preservation, operational quarantine, and idempotent reconciliation runner
-- `server/migrations/018_stage08_reconciliation_and_rbac.js` — Schema migration for `is_quarantined`, `reconciliation_status`, `admin_role_migration_audit`, manager -> staff mapping, and timestamp reconciliation invocation
-- `server/middleware/auth.js` — Dynamic principal permission loading and role resolution in `getActiveAdmin()`
-- `server/routes/bookings.js` — Removed `super_admin` role-name bypasses and excluded quarantined records from availability
-- `server/routes/v2/food.js` — Removed role bypasses and enforced strict stall-scoping for `stall_staff`
-- `server/domain/dining/diningOrderCommand.js` — Stall-scoping verification on order status mutations
-- `server/domain/booking/canonicalBookingCommand.js`, `paymentFinalization.js`, `conflictEngine.js`, `quotes.js` — Exclusion of quarantined bookings from live conflict checks
-- `tests/stage08-release-gate.test.js` — Pre-Admin Stage 0.8 release-gate test suite
-- `docs/domain/STAGE08_IMPLEMENTATION_REPORT.md` — Detailed Stage 0.8 verification report
+- `server/domain/time/timestampAudit.js` — Provenance engine handling PostgreSQL `Date` objects, explicit UTC/offset preservation, and unswallowed transactional queries
+- `server/migrations/018_stage08_reconciliation_and_rbac.js` — Migration 018 updated to use transactional `db` adapter
+- `server/migrations/019_stage09_reconciliation_repair.js` — Migration 019 additive reconciliation repair for existing databases
+- `server/db.js` — Transaction adapter injection into `migration.up` and migration 019 registration
+- `server/domain/dining/diningOrderCommand.js` — Stall-scoping error formatting with `httpStatus: 403`
+- `scripts/test-runner.js` — Isolated temporary database test runner with `--test-concurrency=1`
+- `tests/stage09-release-gate.test.js` — Stage 0.9 release-gate test suite
+- `AGENTS.md` — Section 4 Mandatory Repository Cleanliness Rule
+- `docs/domain/STAGE09_IMPLEMENTATION_REPORT.md` — Detailed Stage 0.9 verification report
 
 ---
 
