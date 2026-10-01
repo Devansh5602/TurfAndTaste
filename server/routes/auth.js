@@ -87,13 +87,18 @@ router.post('/login', loginRateLimit, async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    const { loadUserPermissions } = await import('../domain/rbac/rbacEngine.js');
+    const permissions = await loadUserPermissions(dbAsync, 'admin', adminUser.id, adminUser.role);
+
     return res.json({
       success: true,
       token,
       user: {
         id: adminUser.id,
         username: adminUser.username,
-        role: adminUser.role
+        role: adminUser.role,
+        stallId: adminUser.stall_id || null,
+        permissions: Array.isArray(permissions) ? permissions : []
       },
       message: 'Admin authentication successful'
     });

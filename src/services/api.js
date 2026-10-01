@@ -377,5 +377,136 @@ export const api = {
       body: JSON.stringify(settings)
     });
     return await res.json();
+  },
+
+  // Physical Inventory & Sections CMS
+  getSections: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities/sections`);
+    return await res.json();
+  },
+  saveSection: async (section, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/facilities/sections` : `${API_BASE_URL}/facilities/sections/${encodeURIComponent(section.id)}`;
+    const res = await fetch(endpoint, {
+      method: isCreate ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(section)
+    });
+    return await res.json();
+  },
+  getPhysicalFacilities: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities/physical`);
+    return await res.json();
+  },
+  savePhysicalFacility: async (facility, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/facilities/physical` : `${API_BASE_URL}/facilities/physical/${encodeURIComponent(facility.id)}`;
+    const res = await fetch(endpoint, {
+      method: isCreate ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(facility)
+    });
+    return await res.json();
+  },
+  getServices: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities/services`);
+    return await res.json();
+  },
+  saveService: async (service) => {
+    const res = await fetch(`${API_BASE_URL}/facilities/services`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(service)
+    });
+    return await res.json();
+  },
+  getAddOns: async () => {
+    const res = await fetch(`${API_BASE_URL}/facilities/add-ons`);
+    return await res.json();
+  },
+  saveAddOn: async (addOn) => {
+    const res = await fetch(`${API_BASE_URL}/facilities/add-ons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(addOn)
+    });
+    return await res.json();
+  },
+
+  // Availability & Facility Blocks
+  getFacilityBlocks: async (facilityId = '') => {
+    const query = facilityId ? `?facilityId=${encodeURIComponent(facilityId)}` : '';
+    const res = await fetch(`${API_BASE_URL}/facilities/blocks${query}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+  createFacilityBlock: async (blockPayload) => {
+    const res = await fetch(`${API_BASE_URL}/facilities/blocks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(blockPayload)
+    });
+    return await res.json();
+  },
+  deleteFacilityBlock: async (blockId) => {
+    const res = await fetch(`${API_BASE_URL}/facilities/blocks/${encodeURIComponent(blockId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  // Ground Sessions & QR Check-In
+  lookupSession: async (query) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/lookup?q=${encodeURIComponent(query)}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+  getTodaySessions: async (date = '') => {
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const res = await fetch(`${API_BASE_URL}/sessions/today${query}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+  checkInSession: async (bookingId) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/checkin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ bookingId })
+    });
+    return await res.json();
+  },
+  startSession: async (bookingId) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ bookingId })
+    });
+    return await res.json();
+  },
+  endSession: async (bookingId) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ bookingId })
+    });
+    return await res.json();
+  },
+  recordSessionDelay: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/delay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+  extendSession: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/sessions/extend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
   }
 };

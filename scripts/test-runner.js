@@ -35,6 +35,7 @@ const testFiles = testArgs.length > 0 ? testArgs : [
   'tests/stage07-release-gate.test.js',
   'tests/stage08-release-gate.test.js',
   'tests/stage09-release-gate.test.js',
+  'tests/admin-phase1.test.js',
   'tests/customer-mobile-regression.test.js'
 ];
 

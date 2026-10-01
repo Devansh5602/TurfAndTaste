@@ -1,11 +1,12 @@
 import express from 'express';
 import dbAsync from '../db.js';
-import { authenticateAdminToken } from '../middleware/auth.js';
+import { authenticateAdminToken, attachOptionalAdmin } from '../middleware/auth.js';
 import { isPlainObject, safeJsonParse, sendError, sendSuccess } from '../utils/api.js';
 import { requirePermission } from '../domain/rbac/rbacEngine.js';
+import { findResourceConflicts } from '../domain/booking/conflictEngine.js';
+import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 
 const router = express.Router();
-
 
 const parseJsonArray = (value) => {
   try {
@@ -42,7 +43,7 @@ const formatSchedule = (schedule) => ({
   isBookable: Boolean(schedule.is_bookable),
 });
 
-const validId = (value) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || ''));
+const validId = (value) => /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(String(value || ''));
 
 const normalizeSchedules = (value) => {
   if (value === undefined) return null;
@@ -80,10 +81,371 @@ const getFacility = (identifier, includeInactive = false) => dbAsync.get(
   [identifier, identifier, includeInactive ? 1 : 0],
 );
 
-/**
- * Public facility inventory. The existing SPA intentionally continues to use
- * its static presentation data until its consumer migration is complete.
- */
+/* ============================================================
+   1. SECTION & CATEGORY CMS
+   ============================================================ */
+
+router.get('/sections', async (_req, res) => {
+  try {
+    const rows = await dbAsync.all('SELECT * FROM sections ORDER BY display_order ASC, display_name ASC');
+    res.json({ success: true, count: rows.length, sections: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Unable to load sections.' });
+  }
+});
+
+router.post('/sections', authenticateAdminToken, requirePermission('facility.create'), async (req, res) => {
+  try {
+    const { id, code, displayName, sectionType = 'SPORTS', displayOrder = 0, status = 'active' } = req.body;
+    if (!code || !displayName) {
+      return res.status(400).json({ success: false, error: 'code and displayName are required.' });
+    }
+    const sectionId = id || `sec_${code.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    await dbAsync.run(
+      `INSERT INTO sections (id, property_id, code, display_name, section_type, display_order, status)
+       VALUES (?, 'prop_patan', ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET
+         code = EXCLUDED.code,
+         display_name = EXCLUDED.display_name,
+         section_type = EXCLUDED.section_type,
+         display_order = EXCLUDED.display_order,
+         status = EXCLUDED.status,
+         updated_at = CURRENT_TIMESTAMP`,
+      [sectionId, code.toUpperCase(), displayName, sectionType.toUpperCase(), Number(displayOrder) || 0, status]
+    );
+    const saved = await dbAsync.get('SELECT * FROM sections WHERE id = ?', [sectionId]);
+    res.status(201).json({ success: true, section: saved });
+  } catch (error) {
+    console.error('[Section Create Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/sections/:id', authenticateAdminToken, requirePermission('facility.update'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { displayName, displayOrder, status } = req.body;
+    const existing = await dbAsync.get('SELECT * FROM sections WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ success: false, error: 'Section not found.' });
+
+    await dbAsync.run(
+      `UPDATE sections
+       SET display_name = COALESCE(?, display_name),
+           display_order = COALESCE(?, display_order),
+           status = COALESCE(?, status),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [displayName, displayOrder !== undefined ? Number(displayOrder) : null, status, id]
+    );
+    const updated = await dbAsync.get('SELECT * FROM sections WHERE id = ?', [id]);
+    res.json({ success: true, section: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/* ============================================================
+   2. PHYSICAL FACILITY CMS
+   ============================================================ */
+
+router.get('/physical', async (_req, res) => {
+  try {
+    const facilities = await dbAsync.all(`
+      SELECT pf.*, s.display_name AS section_name
+      FROM physical_facilities pf
+      LEFT JOIN sections s ON pf.section_id = s.id
+      ORDER BY pf.created_at ASC
+    `);
+
+    // Fetch attached services and add-ons
+    const enhanced = await Promise.all(facilities.map(async (f) => {
+      const services = await dbAsync.all(`
+        SELECT s.*, fs.is_primary
+        FROM facility_services fs
+        JOIN services s ON fs.service_id = s.id
+        WHERE fs.facility_id = ?
+      `, [f.id]);
+
+      const addOns = await dbAsync.all(`
+        SELECT a.*
+        FROM facility_add_ons fa
+        JOIN add_ons a ON fa.add_on_id = a.id
+        WHERE fa.facility_id = ?
+      `, [f.id]);
+
+      return {
+        id: f.id,
+        sectionId: f.section_id,
+        sectionName: f.section_name,
+        code: f.code,
+        defaultName: f.default_name,
+        customName: f.custom_name,
+        capacity: f.capacity,
+        isActive: Boolean(f.is_active),
+        isBookable: Boolean(f.is_bookable),
+        metadata: safeJsonParse(f.metadata_json),
+        services: services.map(s => ({ id: s.id, name: s.name, code: s.code, isPrimary: Boolean(s.is_primary) })),
+        addOns: addOns.map(a => ({ id: a.id, name: a.name, code: a.code, description: a.description }))
+      };
+    }));
+
+    res.json({ success: true, count: enhanced.length, facilities: enhanced });
+  } catch (error) {
+    console.error('[Physical Facilities Error]:', error);
+    res.status(500).json({ success: false, error: 'Unable to load physical facilities.' });
+  }
+});
+
+router.post('/physical', authenticateAdminToken, requirePermission('facility.create'), async (req, res) => {
+  try {
+    const { id, sectionId = 'sec_sports', code, defaultName, customName, capacity = 10, isActive = true, isBookable = true, serviceIds = [], addOnIds = [] } = req.body;
+    if (!code || !defaultName) {
+      return res.status(400).json({ success: false, error: 'code and defaultName are required.' });
+    }
+    const facilityId = id || `fac_${code.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+    await dbAsync.run(
+      `INSERT INTO physical_facilities (id, section_id, code, default_name, custom_name, capacity, is_active, is_bookable, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET
+         section_id = EXCLUDED.section_id,
+         code = EXCLUDED.code,
+         default_name = EXCLUDED.default_name,
+         custom_name = EXCLUDED.custom_name,
+         capacity = EXCLUDED.capacity,
+         is_active = EXCLUDED.is_active,
+         is_bookable = EXCLUDED.is_bookable,
+         updated_at = CURRENT_TIMESTAMP`,
+      [facilityId, sectionId, code, defaultName, customName || defaultName, Number(capacity) || 10, isActive ? 1 : 0, isBookable ? 1 : 0]
+    );
+
+    // Update service mappings
+    if (Array.isArray(serviceIds) && serviceIds.length > 0) {
+      await dbAsync.run('DELETE FROM facility_services WHERE facility_id = ?', [facilityId]);
+      for (let i = 0; i < serviceIds.length; i++) {
+        const sId = serviceIds[i];
+        await dbAsync.run(
+          'INSERT INTO facility_services (id, facility_id, service_id, is_primary) VALUES (?, ?, ?, ?)',
+          [`fs_${facilityId}_${sId}`, facilityId, sId, i === 0 ? 1 : 0]
+        );
+      }
+    }
+
+    // Update add-on mappings
+    if (Array.isArray(addOnIds)) {
+      await dbAsync.run('DELETE FROM facility_add_ons WHERE facility_id = ?', [facilityId]);
+      for (const aId of addOnIds) {
+        await dbAsync.run(
+          'INSERT INTO facility_add_ons (id, facility_id, add_on_id) VALUES (?, ?, ?)',
+          [`fa_${facilityId}_${aId}`, facilityId, aId]
+        );
+      }
+    }
+
+    res.status(201).json({ success: true, message: `Physical facility ${facilityId} registered.` });
+  } catch (error) {
+    console.error('[Physical Facility Create Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/physical/:id', authenticateAdminToken, requirePermission('facility.update'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customName, capacity, isActive, isBookable, serviceIds, addOnIds } = req.body;
+    const existing = await dbAsync.get('SELECT * FROM physical_facilities WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ success: false, error: 'Physical facility not found.' });
+
+    await dbAsync.run(
+      `UPDATE physical_facilities
+       SET custom_name = COALESCE(?, custom_name),
+           capacity = COALESCE(?, capacity),
+           is_active = COALESCE(?, is_active),
+           is_bookable = COALESCE(?, is_bookable),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [customName, capacity !== undefined ? Number(capacity) : null, isActive !== undefined ? (isActive ? 1 : 0) : null, isBookable !== undefined ? (isBookable ? 1 : 0) : null, id]
+    );
+
+    if (Array.isArray(serviceIds)) {
+      await dbAsync.run('DELETE FROM facility_services WHERE facility_id = ?', [id]);
+      for (let i = 0; i < serviceIds.length; i++) {
+        const sId = serviceIds[i];
+        await dbAsync.run(
+          'INSERT INTO facility_services (id, facility_id, service_id, is_primary) VALUES (?, ?, ?, ?)',
+          [`fs_${id}_${sId}`, id, sId, i === 0 ? 1 : 0]
+        );
+      }
+    }
+
+    if (Array.isArray(addOnIds)) {
+      await dbAsync.run('DELETE FROM facility_add_ons WHERE facility_id = ?', [id]);
+      for (const aId of addOnIds) {
+        await dbAsync.run(
+          'INSERT INTO facility_add_ons (id, facility_id, add_on_id) VALUES (?, ?, ?)',
+          [`fa_${id}_${aId}`, id, aId]
+        );
+      }
+    }
+
+    res.json({ success: true, message: `Physical facility ${id} updated.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/* ============================================================
+   3. SERVICES & ADD-ONS CMS
+   ============================================================ */
+
+router.get('/services', async (_req, res) => {
+  try {
+    const services = await dbAsync.all('SELECT * FROM services ORDER BY name ASC');
+    res.json({ success: true, count: services.length, services });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Unable to load services.' });
+  }
+});
+
+router.post('/services', authenticateAdminToken, requirePermission('facility.create'), async (req, res) => {
+  try {
+    const { id, sectionId = 'sec_sports', code, name, isActive = true } = req.body;
+    if (!code || !name) return res.status(400).json({ success: false, error: 'code and name are required.' });
+    const serviceId = id || `srv_${code.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+    await dbAsync.run(
+      `INSERT INTO services (id, section_id, code, name, is_active, updated_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         is_active = EXCLUDED.is_active,
+         updated_at = CURRENT_TIMESTAMP`,
+      [serviceId, sectionId, code, name, isActive ? 1 : 0]
+    );
+
+    res.status(201).json({ success: true, serviceId, name });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/add-ons', async (_req, res) => {
+  try {
+    const addOns = await dbAsync.all('SELECT * FROM add_ons ORDER BY name ASC');
+    res.json({ success: true, count: addOns.length, addOns });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Unable to load add-ons.' });
+  }
+});
+
+router.post('/add-ons', authenticateAdminToken, requirePermission('facility.create'), async (req, res) => {
+  try {
+    const { id, sectionId = 'sec_sports', code, name, description = '', isActive = true } = req.body;
+    if (!code || !name) return res.status(400).json({ success: false, error: 'code and name are required.' });
+    const addOnId = id || `addon_${code.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+    await dbAsync.run(
+      `INSERT INTO add_ons (id, section_id, code, name, description, is_active, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         is_active = EXCLUDED.is_active,
+         updated_at = CURRENT_TIMESTAMP`,
+      [addOnId, sectionId, code, name, description, isActive ? 1 : 0]
+    );
+
+    res.status(201).json({ success: true, addOnId, name });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/* ============================================================
+   4. AVAILABILITY & FACILITY BLOCKS
+   ============================================================ */
+
+router.get('/blocks', authenticateAdminToken, requirePermission('facility.read'), async (req, res) => {
+  try {
+    const { facilityId } = req.query;
+    let sql = `
+      SELECT fb.*, pf.custom_name AS facility_name
+      FROM facility_blocks fb
+      LEFT JOIN physical_facilities pf ON fb.facility_id = pf.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (facilityId && facilityId !== 'all') {
+      sql += ' AND fb.facility_id = ?';
+      params.push(facilityId);
+    }
+    sql += ' ORDER BY fb.start_at DESC';
+    const blocks = await dbAsync.all(sql, params);
+    res.json({ success: true, count: blocks.length, blocks });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Unable to load blocks.' });
+  }
+});
+
+router.post('/blocks', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
+  try {
+    const { facilityId, startAt, endAt, reasonCode = 'MAINTENANCE', internalNote = '', customerMessage = '' } = req.body;
+    if (!facilityId || !startAt || !endAt) {
+      return res.status(400).json({ success: false, error: 'facilityId, startAt, and endAt are required.' });
+    }
+
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return res.status(400).json({ success: false, error: 'endAt must be strictly after startAt.' });
+    }
+
+    // Conflict check against existing confirmed bookings
+    const conflictResult = await findResourceConflicts(dbAsync, {
+      facilityId,
+      startAt: start.toISOString(),
+      endAt: end.toISOString()
+    });
+
+    const bookingConflicts = conflictResult.conflicts.filter(c => c.conflictType === 'BOOKING');
+    if (bookingConflicts.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot create block: ${bookingConflicts.length} active customer booking(s) overlap with this interval.`,
+        conflicts: bookingConflicts
+      });
+    }
+
+    const blockId = `blk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const createdBy = req.admin?.username || 'admin';
+
+    await dbAsync.run(
+      `INSERT INTO facility_blocks (id, facility_id, start_at, end_at, reason_code, internal_note, customer_message, created_by, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+      [blockId, facilityId, start.toISOString(), end.toISOString(), reasonCode, internalNote, customerMessage, createdBy]
+    );
+
+    res.status(201).json({ success: true, blockId, message: `Block created for ${facilityId} from ${start.toISOString()} to ${end.toISOString()}.` });
+  } catch (error) {
+    console.error('[Create Block Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/blocks/:id', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dbAsync.run('DELETE FROM facility_blocks WHERE id = ?', [id]);
+    res.json({ success: true, message: `Facility block ${id} removed.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/* ============================================================
+   5. FACILITY PROFILES (LEGACY & PUBLIC)
+   ============================================================ */
+
 router.get('/', async (req, res) => {
   try {
     const rows = await dbAsync.all(
@@ -101,7 +463,6 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/admin/all', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
-
   try {
     const rows = await dbAsync.all('SELECT * FROM facility_profiles ORDER BY display_order ASC, name ASC');
     return sendSuccess(res, { facilities: await Promise.all(rows.map(async (facility) => ({

@@ -156,7 +156,8 @@ function AppLayout() {
     '/settings', '/appearance', '/reviews', '/events', '/dining', '/updates', '/contact-support',
     '/ground-rules', '/about-clubhouse', '/terms', '/privacy', '/offline', '/system-error',
   ].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
-  const isCuratedOrPrototype = path === '' || path === '/' || path === '/facilities' || path === '/venues' || path.startsWith('/facilities/') || path.startsWith('/prototype') || isCustomerMobile;
+  const isAdmin = path === '/admin' || path.startsWith('/admin/');
+  const isCuratedOrPrototype = path === '' || path === '/' || path === '/facilities' || path === '/venues' || path.startsWith('/facilities/') || path.startsWith('/prototype') || isCustomerMobile || isAdmin;
 
   if (isCuratedOrPrototype) {
     return (
