@@ -21,11 +21,16 @@ import {
 import { runPreflightReport } from '../server/scripts/preflightCheck.js';
 import { normalizeBookingInterval } from '../server/domain/time/bookingInterval.js';
 import { canTransitionBookingStatus } from '../server/domain/booking/bookingStateMachine.js';
+import { initDatabase } from '../server/db.js';
 
 describe('Stage 0.5: Canonical Booking Engine & Operationalization', () => {
   const createdBookingIds = [];
   const createdHoldTokens = [];
   const createdOrderIds = [];
+
+  before(async () => {
+    await initDatabase();
+  });
 
   after(async () => {
     // Cleanup any test data created during runs
