@@ -9,6 +9,24 @@ import { finalizeBookingFromPayment } from '../domain/booking/paymentFinalizatio
 
 const router = express.Router();
 
+export function resolveSignedQuotePayableAmount(quote, paymentType) {
+  const requestedPaymentType = paymentType === 'full' ? 'full' : 'deposit';
+  if (quote.fullPaymentRequired && requestedPaymentType !== 'full') {
+    const error = new Error('This reservation requires full payment.');
+    error.httpStatus = 409;
+    throw error;
+  }
+  const amountInPaise = Number(
+    requestedPaymentType === 'full' ? quote.totalAmountPaise : quote.depositAmountPaise
+  );
+  if (!Number.isSafeInteger(amountInPaise) || amountInPaise <= 0) {
+    const error = new Error('The signed quote does not contain a valid payable amount.');
+    error.httpStatus = 400;
+    throw error;
+  }
+  return { requestedPaymentType, amountInPaise };
+}
+
 const getRazorpayInstance = () => {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -32,9 +50,14 @@ router.post('/create-order', async (req, res) => {
     const verification = verifyQuoteToken(quoteToken);
     if (verification.error) return res.status(400).json({ success: false, error: verification.error });
     const quote = verification.quote;
-    const requestedPaymentType = paymentType === 'full' ? 'full' : 'deposit';
-    const numericAmount = requestedPaymentType === 'full' ? quote.total : quote.deposit;
-    const amountInPaise = numericAmount * 100;
+    let payable;
+    try {
+      payable = resolveSignedQuotePayableAmount(quote, paymentType);
+    } catch (error) {
+      return res.status(error.httpStatus || 400).json({ success: false, error: error.message });
+    }
+    const { requestedPaymentType, amountInPaise } = payable;
+    const numericAmount = amountInPaise / 100;
     const keyId = process.env.RAZORPAY_KEY_ID;
     const razorpayInstance = getRazorpayInstance();
 
@@ -52,8 +75,19 @@ router.post('/create-order', async (req, res) => {
       });
 
       await dbAsync.run(
-        'INSERT INTO payment_orders (order_id, quote_id, booking_reference, expected_amount, payment_type, quote_context) VALUES (?, ?, ?, ?, ?, ?)',
-        [order.id, quote.quoteId, bookingReference || quote.quoteId, numericAmount, requestedPaymentType, JSON.stringify(quote)],
+        `INSERT INTO payment_orders (
+           order_id, quote_id, booking_reference, expected_amount,
+           expected_amount_paise, payment_type, quote_context
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          order.id,
+          quote.quoteId,
+          bookingReference || quote.quoteId,
+          Math.round(numericAmount),
+          amountInPaise,
+          requestedPaymentType,
+          JSON.stringify(quote)
+        ],
       );
       return res.json({
         success: true,
@@ -163,7 +197,9 @@ router.post('/verify', async (req, res) => {
     const providerPayment = await razorpayInstance.payments.fetch(razorpay_payment_id);
     if (
       providerPayment.order_id !== razorpay_order_id ||
-      Number(providerPayment.amount) !== Number(orderContext.expected_amount) * 100
+      Number(providerPayment.amount) !== Number(
+        orderContext.expected_amount_paise ?? Number(orderContext.expected_amount) * 100
+      )
     ) {
       return res.status(409).json({
         success: false,

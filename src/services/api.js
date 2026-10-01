@@ -244,6 +244,20 @@ export const api = {
     return await res.json();
   },
 
+  getAdminPricing: async () => {
+    const res = await fetch(`${API_BASE_URL}/pricing/admin`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+
+  saveAdminPricing: async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/pricing/admin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
   getTimings: async () => {
     const res = await fetch(`${API_BASE_URL}/pricing/timings`);
     return await res.json();
@@ -520,6 +534,119 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload)
     });
+    return await res.json();
+  },
+
+  // Inquiries status update
+  updateInquiryStatus: async (id, status) => {
+    const res = await fetch(`${API_BASE_URL}/inquiries/${encodeURIComponent(id)}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ status })
+    });
+    return await res.json();
+  },
+
+  // Notices CMS
+  getAdminNotices: async () => {
+    const res = await fetch(`${API_BASE_URL}/notices/admin`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  saveNotice: async (notice, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/notices` : `${API_BASE_URL}/notices/${encodeURIComponent(notice.id)}`;
+    const res = await fetch(endpoint, {
+      method: isCreate ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(notice)
+    });
+    return await res.json();
+  },
+  deleteNotice: async (id) => {
+    const res = await fetch(`${API_BASE_URL}/notices/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  // Customer Reviews Moderation
+  getAdminReviews: async (status = '') => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const res = await fetch(`${API_BASE_URL}/reviews/admin${query}`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  updateReviewStatus: async (id, status) => {
+    const res = await fetch(`${API_BASE_URL}/reviews/${encodeURIComponent(id)}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ status })
+    });
+    return await res.json();
+  },
+  replyReview: async (id, response) => {
+    const res = await fetch(`${API_BASE_URL}/reviews/${encodeURIComponent(id)}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ response })
+    });
+    return await res.json();
+  },
+
+  // Customer CRM
+  getCustomers: async (search = '') => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    const res = await fetch(`${API_BASE_URL}/customers${query}`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  getCustomerBookings: async (phone) => {
+    const res = await fetch(`${API_BASE_URL}/customers/${encodeURIComponent(phone)}/bookings`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+  saveCustomerNote: async (phone, note) => {
+    const res = await fetch(`${API_BASE_URL}/customers/${encodeURIComponent(phone)}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ note })
+    });
+    return await res.json();
+  },
+
+  // Events CMS
+  getAdminEvents: async () => {
+    const res = await fetch(`${API_BASE_URL}/v2/events/admin/all`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  saveEvent: async (event, isCreate = false) => {
+    const endpoint = isCreate ? `${API_BASE_URL}/v2/events/admin/events` : `${API_BASE_URL}/v2/events/admin/events/${encodeURIComponent(event.id || event.slug)}`;
+    const res = await fetch(endpoint, {
+      method: isCreate ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(event)
+    });
+    return await res.json();
+  },
+
+  // Roles & Permissions RBAC
+  getRoles: async () => {
+    const res = await fetch(`${API_BASE_URL}/roles`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  getPermissionsVocabulary: async () => {
+    const res = await fetch(`${API_BASE_URL}/roles/permissions`, { headers: getAuthHeaders() });
+    return await res.json();
+  },
+  saveRolePermissions: async (roleId, permissionKeys) => {
+    const res = await fetch(`${API_BASE_URL}/roles/${encodeURIComponent(roleId)}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ permissionKeys })
+    });
+    return await res.json();
+  },
+  getStaff: async () => {
+    const res = await fetch(`${API_BASE_URL}/roles/staff`, { headers: getAuthHeaders() });
     return await res.json();
   }
 };

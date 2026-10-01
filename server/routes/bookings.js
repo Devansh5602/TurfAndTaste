@@ -198,8 +198,8 @@ router.get('/slots', async (req, res) => {
       const phys = await dbAsync.get(
         "SELECT id FROM physical_facilities WHERE id = ? AND is_active = ? AND is_bookable = ?",
         [canonicalFacility.id, dbAsync.isPostgres() ? true : 1, dbAsync.isPostgres() ? true : 1]
-      ).catch(() => null);
-      if (phys || canonicalFacility.isBookable) {
+      );
+      if (phys) {
         facility = { id: canonicalFacility.id };
       }
     }
@@ -213,7 +213,7 @@ router.get('/slots', async (req, res) => {
       schedule = await dbAsync.get(
         'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
         [canonicalFacility.code, dayOfWeekForVenueDate(targetDate), dbAsync.isPostgres() ? true : 1],
-      ).catch(() => null);
+      );
     }
     if (!schedule) {
       schedule = {
@@ -443,10 +443,10 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
           // Admin walk-in: use server-resolved authoritative amount; customer: use verified quote token
           totalAmountPaise: walkInPricing
             ? walkInPricing.totalAmountPaise
-            : (verifiedQuote ? verifiedQuote.total * 100 : 0),
+            : (verifiedQuote ? verifiedQuote.totalAmountPaise : 0),
           depositAmountPaise: walkInPricing
             ? walkInPricing.depositAmountPaise
-            : (verifiedQuote ? verifiedQuote.deposit * 100 : 0),
+            : (verifiedQuote ? verifiedQuote.depositAmountPaise : 0),
           paymentStatus: isAdminReservation ? (payload.paymentStatus || 'Paid') : 'Pending verification',
           paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
         },

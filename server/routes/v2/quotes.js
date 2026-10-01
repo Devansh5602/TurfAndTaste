@@ -59,10 +59,16 @@ router.post('/', async (req, res) => {
       [facilityId, dbAsync.isPostgres() ? true : 1],
     );
     if (!facility && canonicalFacility) {
-      facility = {
-        id: canonicalFacility.id,
-        name: canonicalFacility.customName || canonicalFacility.defaultName
-      };
+      const physicalFacility = await dbAsync.get(
+        'SELECT id, custom_name, default_name FROM physical_facilities WHERE id = ? AND is_active = ? AND is_bookable = ?',
+        [canonicalFacility.id, dbAsync.isPostgres() ? true : 1, dbAsync.isPostgres() ? true : 1]
+      );
+      if (physicalFacility) {
+        facility = {
+          id: physicalFacility.id,
+          name: physicalFacility.custom_name || physicalFacility.default_name
+        };
+      }
     }
     if (!facility) return sendError(res, 404, 'This facility is not currently bookable.');
 
@@ -75,7 +81,7 @@ router.post('/', async (req, res) => {
       schedule = await dbAsync.get(
         'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
         [canonicalFacility.code, dayOfWeek, dbAsync.isPostgres() ? true : 1]
-      ).catch(() => null);
+      );
     }
     if (schedule) {
       const scheduleClose = normalizeScheduleClose(schedule.opens_at_minutes, schedule.closes_at_minutes);
@@ -126,7 +132,7 @@ router.post('/', async (req, res) => {
       durationHours,
       ratePeriod: pricing.isNight ? 'peak' : 'day',
       hourlyRate: pricing.appliedRules?.[0]?.ratePerHour ? Math.round(pricing.appliedRules[0].ratePerHour / 100) : 0,
-      weekendSurgePercent: pricing.isWeekend ? 20 : 0,
+      weekendSurgePercent: pricing.weekendSurgePercent,
       total,
       deposit,
       totalAmountPaise: pricing.totalAmountPaise,

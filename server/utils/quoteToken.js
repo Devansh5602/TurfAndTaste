@@ -5,7 +5,7 @@ const sign = (body) => crypto.createHmac('sha256', signingSecret()).update(body)
 
 export const createQuoteToken = (quote) => {
   if (!signingSecret()) throw new Error('Quote signing is not configured.');
-  const payload = { ...quote, quoteId: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + Number(process.env.QUOTE_TTL_SECONDS || 600) };
+  const payload = { ...quote, quoteId: quote.quoteId || crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + Number(process.env.QUOTE_TTL_SECONDS || 600) };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${body}.${sign(body)}`;
 };

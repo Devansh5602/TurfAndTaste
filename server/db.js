@@ -25,6 +25,8 @@ import { id as stage08ReconciliationMigrationId, up as applyStage08Reconciliatio
 import { id as stage09ReconciliationRepairMigrationId, up as applyStage09ReconciliationRepairMigration } from './migrations/019_stage09_reconciliation_repair.js';
 import { id as pricingRulesMigrationId, up as applyPricingRulesMigration } from './migrations/020_pricing_rules.js';
 import { id as pricingReconciliationMigrationId, up as applyPricingReconciliationMigration } from './migrations/021_pricing_and_availability_reconciliation.js';
+import { id as phase1CloseoutRepairMigrationId, up as applyPhase1CloseoutRepairMigration } from './migrations/022_phase1_closeout_repair.js';
+import { id as adminCmsModulesMigrationId, up as applyAdminCmsModulesMigration } from './migrations/023_admin_cms_modules.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,6 +113,8 @@ const runVersionedMigrations = async () => {
     { id: stage09ReconciliationRepairMigrationId, up: applyStage09ReconciliationRepairMigration },
     { id: pricingRulesMigrationId, up: applyPricingRulesMigration },
     { id: pricingReconciliationMigrationId, up: applyPricingReconciliationMigration },
+    { id: phase1CloseoutRepairMigrationId, up: applyPhase1CloseoutRepairMigration },
+    { id: adminCmsModulesMigrationId, up: applyAdminCmsModulesMigration },
   ];
 
   for (const migration of migrations) {

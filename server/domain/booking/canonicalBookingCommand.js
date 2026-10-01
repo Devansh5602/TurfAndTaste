@@ -80,6 +80,23 @@ export function resolveCanonicalFacility(identifier) {
   return null;
 }
 
+export async function assertCanonicalFacilityBookable(db, facilityId) {
+  const row = await db.get(
+    'SELECT is_active, is_bookable FROM physical_facilities WHERE id = ?',
+    [facilityId]
+  );
+  const enabled = row
+    && (row.is_active === true || Number(row.is_active) === 1)
+    && (row.is_bookable === true || Number(row.is_bookable) === 1);
+  if (!enabled) {
+    throw Object.assign(
+      new Error('This physical facility is not currently available for booking.'),
+      { code: 'FACILITY_UNAVAILABLE', httpStatus: 409 }
+    );
+  }
+  return row;
+}
+
 /**
  * Creates an ephemeral payment hold for 10 minutes on a physical resource.
  */
@@ -101,6 +118,7 @@ export async function createCanonicalPaymentHold(db, input) {
     throw new Error(`Invalid facility identifier "${physicalFacilityId || facilityId}".`);
   }
   const resolvedFacilityId = facility.id;
+  await assertCanonicalFacilityBookable(db, resolvedFacilityId);
 
   const interval = normalizeBookingInterval({ startAt, endAt, date, timeSlot });
   const expiresAt = new Date(now.getTime() + ttlMinutes * 60000);
@@ -193,15 +211,14 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
   }
 
   // 2. Active facility blocks
-  try {
-    const blocks = await db.all(
+  const blocks = await db.all(
       `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
        FROM facility_blocks
        WHERE facility_id = ? AND status = 'active'`,
       [resolvedFacilityId]
     );
 
-    for (const bl of blocks) {
+  for (const bl of blocks) {
       if (!bl.start_at || !bl.end_at) continue;
       const blInterval = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
       occupancies.push({
@@ -213,12 +230,10 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
         status: 'ACTIVE',
         reason: bl.internal_note || bl.reason_code || 'Facility Maintenance Block'
       });
-    }
-  } catch (_e) {}
+  }
 
   // 3. Approved extensions
-  try {
-    const sessionsWithExt = await db.all(
+  const sessionsWithExt = await db.all(
       `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
               b.scheduled_end_at AS booking_scheduled_end_at, b.booking_status,
               COALESCE(SUM(sa.minutes), 0) as extension_minutes
@@ -233,7 +248,7 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
       [resolvedFacilityId]
     );
 
-    for (const s of sessionsWithExt) {
+  for (const s of sessionsWithExt) {
       const extensionMinutes = Number(s.extension_minutes) || 0;
       if (extensionMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
         const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
@@ -252,19 +267,17 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
           reason: `Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`
         });
       }
-    }
-  } catch (_e) {}
+  }
 
   // 4. Active unexpired payment holds
-  try {
-    const holds = await db.all(
+  const holds = await db.all(
       `SELECT id, facility_id, start_at, end_at, hold_token, expires_at
        FROM payment_holds
        WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
       [resolvedFacilityId, now.toISOString()]
     );
 
-    for (const h of holds) {
+  for (const h of holds) {
       const hInterval = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
       occupancies.push({
         id: h.id,
@@ -277,8 +290,7 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
         expiresAt: h.expires_at,
         reason: 'A temporary reservation hold is currently active for this time slot.'
       });
-    }
-  } catch (_e) {}
+  }
 
   return { resolvedFacilityId, occupancies };
 }
@@ -426,6 +438,8 @@ export async function createCanonicalBooking(db, input, context = {}) {
   if (usesPostgres) {
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${resolvedFacilityId}`]);
   }
+
+  await assertCanonicalFacilityBookable(db, resolvedFacilityId);
 
   const conflictCheck = await checkCanonicalConflicts(db, {
     physicalFacilityId: resolvedFacilityId,

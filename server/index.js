@@ -17,6 +17,10 @@ import v2SettingsRoutes from './routes/v2/settings.js';
 import v2QuoteRoutes from './routes/v2/quotes.js';
 import v2FoodRoutes from './routes/v2/food.js';
 import v2EventRoutes from './routes/v2/events.js';
+import noticesRoutes from './routes/notices.js';
+import reviewsRoutes from './routes/reviews.js';
+import customersRoutes from './routes/customers.js';
+import rolesRoutes from './routes/roles.js';
 import { sendError } from './utils/api.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,14 +61,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize Database safely
-try {
-  initDatabase().catch(err => {
-    console.error('[Database Init Error]:', err?.message || err);
-  });
-} catch (err) {
-  console.error('[Database Bootstrap Error]:', err?.message || err);
-}
+const databaseReady = initDatabase();
+
+app.use(async (_req, res, next) => {
+  try {
+    await databaseReady;
+    next();
+  } catch (error) {
+    console.error('[Database Init Error]:', error?.message || error);
+    res.status(503).json({ success: false, error: 'The service database is unavailable.' });
+  }
+});
 
 // API Health Check
 app.get('/api/health', (req, res) => {
@@ -88,6 +95,10 @@ app.use('/api/v2/settings', v2SettingsRoutes);
 app.use('/api/v2/quotes', v2QuoteRoutes);
 app.use('/api/v2/food', v2FoodRoutes);
 app.use('/api/v2/events', v2EventRoutes);
+app.use('/api/notices', noticesRoutes);
+app.use('/api/reviews', reviewsRoutes);
+app.use('/api/customers', customersRoutes);
+app.use('/api/roles', rolesRoutes);
 app.use('/api', pricingRoutes); // Alias for /api/timings
 
 // 404 Handler for undefined API routes
@@ -107,18 +118,21 @@ app.use((error, _req, res, _next) => {
 
 // Start Express Server when not on Vercel serverless
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
+  databaseReady.then(() => app.listen(PORT, () => {
     console.log(`
   ======================================================
   🏟️  Turf & Taste - Backend Server Running!
   ======================================================
   🚀 Server URL : http://localhost:${PORT}
-  📁 Database   : Supabase Cloud PostgreSQL
+  📁 Database   : Configured datastore
   🔐 Admin Login: POST http://localhost:${PORT}/api/admin/login
   📅 Bookings   : GET  http://localhost:${PORT}/api/bookings
   💳 Payments   : POST http://localhost:${PORT}/api/payments/create-order
   ======================================================
     `);
+  })).catch((error) => {
+    console.error('[Database Bootstrap Error]:', error?.message || error);
+    process.exitCode = 1;
   });
 }
 

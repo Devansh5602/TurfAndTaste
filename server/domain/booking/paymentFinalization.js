@@ -33,7 +33,7 @@
 import { formatToISTString, normalizeBookingInterval, intervalsOverlap } from '../time/bookingInterval.js';
 import { validateQuickBooking, validateCustomBooking, validateLeadTime } from './bookingRules.js';
 import { isOccupyingStatus } from './bookingStateMachine.js';
-import { resolveCanonicalFacility } from './canonicalBookingCommand.js';
+import { assertCanonicalFacilityBookable, resolveCanonicalFacility } from './canonicalBookingCommand.js';
 
 /**
  * @param {object} db - dbAsync abstraction layer (with withTransaction)
@@ -147,13 +147,33 @@ export async function finalizeBookingFromPayment(db, params) {
 
   // ── 9. SERVER-authoritative amounts ─────────────────────────────────────────
   const paymentType = orderContext.payment_type;           // 'full' | 'deposit'
-  const expectedAmount = Number(orderContext.expected_amount); // rupees
+  const expectedAmountPaise = Number(
+    orderContext.expected_amount_paise ?? Number(orderContext.expected_amount) * 100
+  );
+  if (!Number.isSafeInteger(expectedAmountPaise) || expectedAmountPaise <= 0) {
+    throw Object.assign(
+      new Error('Payment order amount context is invalid.'),
+      { code: 'INVALID_PAYMENT_AMOUNT', httpStatus: 500 }
+    );
+  }
+  const quotedTotalPaise = Number.isSafeInteger(Number(quote.totalAmountPaise))
+    ? Number(quote.totalAmountPaise)
+    : Math.round(Number(quote.total) * 100);
+  const quotedDepositPaise = Number.isSafeInteger(Number(quote.depositAmountPaise))
+    ? Number(quote.depositAmountPaise)
+    : Math.round(Number(quote.deposit || 0) * 100);
   const totalAmountPaise = paymentType === 'full'
-    ? Math.round(expectedAmount * 100)
-    : Math.round((quote.total || expectedAmount) * 100);
+    ? expectedAmountPaise
+    : quotedTotalPaise;
   const depositAmountPaise = paymentType === 'deposit'
-    ? Math.round(expectedAmount * 100)
-    : Math.round((quote.deposit || 0) * 100);
+    ? expectedAmountPaise
+    : quotedDepositPaise;
+  if (!Number.isSafeInteger(totalAmountPaise) || totalAmountPaise <= 0 || !Number.isSafeInteger(depositAmountPaise) || depositAmountPaise < 0) {
+    throw Object.assign(
+      new Error('Signed quote amount context is invalid.'),
+      { code: 'INVALID_QUOTE_AMOUNT', httpStatus: 500 }
+    );
+  }
 
   // ── 10. Generate booking ID ──────────────────────────────────────────────────
   const bookingId = `TT-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -204,6 +224,8 @@ export async function finalizeBookingFromPayment(db, params) {
         throw Object.assign(new Error('Payment order has already been processed.'), { httpStatus: 409 });
       }
     }
+
+    await assertCanonicalFacilityBookable(tx, resolvedFacilityId);
 
     // B. Fail-Closed Occupancy & Conflict Determination Under Lock
     await _assertNoConflicts(tx, ctx);

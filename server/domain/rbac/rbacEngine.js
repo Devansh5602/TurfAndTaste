@@ -52,10 +52,11 @@ export const STANDARD_PERMISSIONS = [
   // Alias for dining.order.manage (route compat)
   { key: 'dining.order.update', module: 'dining', description: 'Alias: Update dining order status' },
 
-  // Administration
   { key: 'role.manage', module: 'roles', description: 'Create roles and assign permissions' },
   { key: 'maintenance.manage', module: 'maintenance', description: 'Configure maintenance schedules and system settings' }
 ];
+
+export const PERMISSION_VOCABULARY = STANDARD_PERMISSIONS;
 
 export const SYSTEM_ROLES = {
   SUPER_ADMIN: 'super_admin',

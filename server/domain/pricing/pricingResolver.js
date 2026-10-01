@@ -110,61 +110,57 @@ function segmentByPeriod(startIST, totalMinutes, isWeekend, floodlightStart) {
  * Indexed by rule_type:period_type for fast lookup.
  */
 async function loadPricingRules(db, facilityId, serviceId) {
-  try {
-    const rows = await db.all(
-      `SELECT * FROM pricing_rules
-       WHERE facility_id = ?
-         AND (service_id IS NULL OR service_id = ?)
-         AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
-       ORDER BY id ASC`,
-      [facilityId, serviceId || '']
-    );
-    return (rows || []).sort((a, b) => {
-      const aSpecificity = a.service_id === serviceId ? 0 : 1;
-      const bSpecificity = b.service_id === serviceId ? 0 : 1;
-      return aSpecificity - bSpecificity || String(a.id).localeCompare(String(b.id));
-    });
-  } catch {
-    return [];
-  }
+  const rows = await db.all(
+    `SELECT * FROM pricing_rules
+     WHERE facility_id = ?
+       AND (service_id IS NULL OR service_id = ?)
+       AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
+     ORDER BY id ASC`,
+    [facilityId, serviceId || '']
+  );
+  return (rows || []).sort((a, b) => {
+    const aSpecificity = a.service_id === serviceId ? 0 : 1;
+    const bSpecificity = b.service_id === serviceId ? 0 : 1;
+    const aReconciledFallback = String(a.id).startsWith('pr_reconciled_') ? 1 : 0;
+    const bReconciledFallback = String(b.id).startsWith('pr_reconciled_') ? 1 : 0;
+    const updatedOrder = String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+    const createdOrder = String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    return aSpecificity - bSpecificity
+      || aReconciledFallback - bReconciledFallback
+      || updatedOrder
+      || createdOrder
+      || String(b.id).localeCompare(String(a.id));
+  });
 }
 
 /**
  * Load the special-date price for a specific calendar_date, if any.
  */
 async function loadSpecialDatePrice(db, facilityId, date, serviceId) {
-  try {
-    const rows = await db.all(
-      `SELECT * FROM special_date_prices
-       WHERE facility_id = ?
-         AND calendar_date = ?
-         AND (service_id IS NULL OR service_id = ?)
-         AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
-       ORDER BY id ASC`,
-      [facilityId, date, serviceId || '']
-    );
-    return (rows || []).sort((a, b) => {
-      const aSpecificity = a.service_id === serviceId ? 0 : 1;
-      const bSpecificity = b.service_id === serviceId ? 0 : 1;
-      return aSpecificity - bSpecificity || String(a.id).localeCompare(String(b.id));
-    })[0] || null;
-  } catch {
-    return null;
-  }
+  const rows = await db.all(
+    `SELECT * FROM special_date_prices
+     WHERE facility_id = ?
+       AND calendar_date = ?
+       AND (service_id IS NULL OR service_id = ?)
+       AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
+     ORDER BY id ASC`,
+    [facilityId, date, serviceId || '']
+  );
+  return (rows || []).sort((a, b) => {
+    const aSpecificity = a.service_id === serviceId ? 0 : 1;
+    const bSpecificity = b.service_id === serviceId ? 0 : 1;
+    return aSpecificity - bSpecificity || String(a.id).localeCompare(String(b.id));
+  })[0] || null;
 }
 
 /**
  * Load the legacy pricing tier for a facility (fallback only).
  */
 async function loadLegacyTier(db, facilityId) {
-  try {
-    return await db.get(
-      'SELECT * FROM pricing_tiers WHERE facility_id = ?',
-      [facilityId]
-    ) || null;
-  } catch {
-    return null;
-  }
+  return await db.get(
+    'SELECT * FROM pricing_tiers WHERE facility_id = ?',
+    [facilityId]
+  ) || null;
 }
 
 /**
@@ -173,25 +169,21 @@ async function loadLegacyTier(db, facilityId) {
  */
 async function loadAddOnPrices(db, facilityId, addOnIds) {
   if (!Array.isArray(addOnIds) || addOnIds.length === 0) return [];
-  try {
-    const rows = await db.all(
-      `SELECT * FROM add_on_prices
-       WHERE add_on_id IN (${addOnIds.map(() => '?').join(',')})
-         AND (facility_id IS NULL OR facility_id = ?)
-         AND is_active = ${db.isPostgres ? 'TRUE' : '1'}`,
-      [...addOnIds, facilityId]
-    );
-    const selected = new Map();
-    for (const row of (rows || []).sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
-      const current = selected.get(row.add_on_id);
-      const rowSpecific = row.facility_id === facilityId;
-      const currentSpecific = current?.facility_id === facilityId;
-      if (!current || (rowSpecific && !currentSpecific)) selected.set(row.add_on_id, row);
-    }
-    return [...selected.values()];
-  } catch {
-    return [];
+  const rows = await db.all(
+    `SELECT * FROM add_on_prices
+     WHERE add_on_id IN (${addOnIds.map(() => '?').join(',')})
+       AND (facility_id IS NULL OR facility_id = ?)
+       AND is_active = ${db.isPostgres ? 'TRUE' : '1'}`,
+    [...addOnIds, facilityId]
+  );
+  const selected = new Map();
+  for (const row of (rows || []).sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+    const current = selected.get(row.add_on_id);
+    const rowSpecific = row.facility_id === facilityId;
+    const currentSpecific = current?.facility_id === facilityId;
+    if (!current || (rowSpecific && !currentSpecific)) selected.set(row.add_on_id, row);
   }
+  return [...selected.values()];
 }
 
 /**
@@ -235,7 +227,8 @@ function findExtensionRateRule(rules, periodType) {
  * Precedence:
  *   [1] If applicable BASE_RATE rule has deposit_fixed_paise > 0, use it.
  *   [2] If applicable rule has deposit_pct_of_total > 0, compute percent of total.
- *   [3] If legacy tier exists, deposit_pct column is treated as a fixed ₹ amount (→ paise).
+ *   [3] If a legacy tier exists, prefer its explicit details_json bookingDeposit;
+ *       otherwise preserve the historical fixed-rupee deposit_pct behavior.
  *   [4] Fallback: 30% of total.
  *
  * Deposit is always ≤ total amount.
@@ -253,8 +246,11 @@ function resolveDeposit(totalAmountPaise, applicableRule, legacyTier) {
     }
   }
   if (legacyTier) {
-    // deposit_pct column is historically stored as a fixed ₹ rupee amount
-    const depositRupees = Math.round(Number(legacyTier.deposit_pct) || 0);
+    let configuredDeposit = 0;
+    try {
+      configuredDeposit = Number(String(JSON.parse(legacyTier.details_json || '{}').bookingDeposit || '').replace(/[^0-9.]/g, '')) || 0;
+    } catch {}
+    const depositRupees = configuredDeposit || Math.round(Number(legacyTier.deposit_pct) || 0);
     if (depositRupees > 0) {
       return Math.min(depositRupees * 100, totalAmountPaise);
     }
@@ -327,12 +323,19 @@ export async function resolvePricing(db, opts) {
     loadLegacyTier(db, facilityId),
     loadAddOnPrices(db, facilityId, addOnIds),
   ]);
+  const requestedAddOns = [...new Set(addOnIds)];
+  if (addOnPrices.length !== requestedAddOns.length) {
+    const configured = new Set(addOnPrices.map((price) => price.add_on_id));
+    const missing = requestedAddOns.filter((id) => !configured.has(id));
+    throw new Error(`No active pricing is configured for add-on(s): ${missing.join(', ')}.`);
+  }
 
   // ── Applied rules log (for transparent breakdown) ─────────────────────────
   const appliedRules = [];
   let baseAmountPaise = 0;
   let packageUsed = false;
   let primaryRule = null;
+  let weekendSurgePercent = 0;
 
   // ── [1] Special-date override (highest precedence) ─────────────────────────
   const hasReplacementSpecialDate = Boolean(
@@ -433,6 +436,7 @@ export async function resolvePricing(db, opts) {
         let baseRate = isNightFallback ? nightRate : dayRate;
         if (isWeekend && weekendSurge > 0) {
           baseRate = Math.round(baseRate * (1 + weekendSurge / 100));
+          weekendSurgePercent = weekendSurge;
         }
         baseAmountPaise = baseRate * 100 * hours;
         appliedRules.push({
@@ -504,6 +508,7 @@ export async function resolvePricing(db, opts) {
 
   return {
     quoteId: opts.quoteId || `qt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    calculatedAt: now.toISOString(),
     currency: 'INR',
     facilityId,
     serviceId,
@@ -515,6 +520,8 @@ export async function resolvePricing(db, opts) {
     durationHours: hours,
     isNight,
     isWeekend,
+    weekendSurgePercent,
+    packageUsed,
     paymentType: effectivePaymentType,
     fullPaymentRequired,
     depositAllowed,
@@ -661,7 +668,7 @@ export async function resolveAdminWalkInPricing(db, opts) {
     ...result,
     dayRate: 0,
     nightRate: 0,
-    weekendSurgePercent: 0,
+    weekendSurgePercent: result.weekendSurgePercent,
     baseRatePer1h: surgedRatePer1h,
     surgedRatePer1h,
     breakdown: {
