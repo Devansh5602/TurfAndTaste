@@ -17,8 +17,14 @@ const tempDbPath = path.join(os.tmpdir(), tempDbName);
 
 const env = {
   ...process.env,
-  SQLITE_DB_PATH: process.env.SQLITE_DB_PATH || tempDbPath,
-  DATABASE_URL: process.env.DATABASE_URL || ''
+  // Tests must never inherit a caller's development or production database.
+  // `server/db.js` respects already-defined environment values, so set these
+  // explicitly before it loads dotenv.
+  SQLITE_DB_PATH: tempDbPath,
+  DATABASE_URL: '',
+  DEFAULT_ADMIN_USERNAME: 'test-admin',
+  DEFAULT_ADMIN_PASSWORD: 'TurfTasteTestOnly-NotProduction',
+  JWT_SECRET: 'turf-taste-test-only-jwt-secret'
 };
 
 const testArgs = process.argv.slice(2);
