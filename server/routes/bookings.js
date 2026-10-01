@@ -5,7 +5,7 @@ import { verifyQuoteToken } from '../utils/quoteToken.js';
 import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted, venueNow } from '../utils/venueTime.js';
 import { canAccessBookingHistory, resolveBookingHistoryLookup } from '../domain/guest/guestPrivacy.js';
 import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
-import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
+import { normalizeBookingInterval, intervalsOverlap } from '../domain/time/bookingInterval.js';
 import { validateLeadTime } from '../domain/booking/bookingRules.js';
 import { requirePermission } from '../domain/rbac/rbacEngine.js';
 import { resolveAdminWalkInPricing } from '../domain/pricing/pricingResolver.js';
@@ -14,6 +14,7 @@ import {
   createCanonicalPaymentHold,
   getCanonicalResourceAvailability,
   checkCanonicalConflicts,
+  loadCanonicalOccupancies,
   resolveCanonicalFacility
 } from '../domain/booking/canonicalBookingCommand.js';
 
@@ -171,7 +172,7 @@ router.get('/history', attachOptionalAdmin, async (req, res) => {
 
 /**
  * GET /api/bookings/slots
- * Get Slot availability for facility and date
+ * Get Slot availability for facility and date using canonical physical resource conflicts
  */
 router.get('/slots', async (req, res) => {
   try {
@@ -184,6 +185,44 @@ router.get('/slots', async (req, res) => {
     if (targetDate < venueNow().date) {
       return res.status(409).json({ success: false, error: 'Past dates cannot be booked.' });
     }
+
+    const canonicalFacility = resolveCanonicalFacility(facilityId);
+    const physicalFacilityId = canonicalFacility ? canonicalFacility.id : facilityId;
+
+    let facility = await dbAsync.get(
+      "SELECT id FROM facility_profiles WHERE id = ? AND status = 'active' AND booking_enabled = ?",
+      [facilityId, dbAsync.isPostgres() ? true : 1],
+    );
+    if (!facility && canonicalFacility) {
+      const phys = await dbAsync.get(
+        "SELECT id FROM physical_facilities WHERE id = ? AND is_active = ? AND is_bookable = ?",
+        [canonicalFacility.id, dbAsync.isPostgres() ? true : 1, dbAsync.isPostgres() ? true : 1]
+      ).catch(() => null);
+      if (phys || canonicalFacility.isBookable) {
+        facility = { id: canonicalFacility.id };
+      }
+    }
+    if (!facility) return res.status(404).json({ success: false, error: 'This facility is not currently bookable.' });
+
+    let schedule = await dbAsync.get(
+      'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
+      [facilityId, dayOfWeekForVenueDate(targetDate), dbAsync.isPostgres() ? true : 1],
+    );
+    if (!schedule && canonicalFacility) {
+      schedule = await dbAsync.get(
+        'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
+        [canonicalFacility.code, dayOfWeekForVenueDate(targetDate), dbAsync.isPostgres() ? true : 1],
+      ).catch(() => null);
+    }
+    if (!schedule) {
+      schedule = {
+        opens_at_minutes: 360,
+        closes_at_minutes: 360,
+        slot_minutes: 60,
+        is_bookable: 1
+      };
+    }
+
     const formatTime = (minutes) => {
       const normalized = minutes % 1440;
       const hours = Math.floor(normalized / 60);
@@ -192,16 +231,7 @@ router.get('/slots', async (req, res) => {
       const displayHour = hours % 12 || 12;
       return `${String(displayHour).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${period}`;
     };
-    const facility = await dbAsync.get(
-      "SELECT id FROM facility_profiles WHERE id = ? AND status = 'active' AND booking_enabled = ?",
-      [facilityId, dbAsync.isPostgres() ? true : 1],
-    );
-    if (!facility) return res.status(404).json({ success: false, error: 'This facility is not currently bookable.' });
-    const schedule = await dbAsync.get(
-      'SELECT * FROM facility_schedules WHERE facility_id = ? AND day_of_week = ? AND is_bookable = ?',
-      [facilityId, dayOfWeekForVenueDate(targetDate), dbAsync.isPostgres() ? true : 1],
-    );
-    if (!schedule) return res.status(409).json({ success: false, error: 'This facility is closed on the selected day.' });
+
     const timings = await dbAsync.get('SELECT floodlight_start FROM timings WHERE id = 1');
     const floodlight = parseSlotRange(`12:00 AM – ${timings?.floodlight_start || '06:00 PM'}`)?.end ?? 1080;
     const allSlots = [];
@@ -217,38 +247,31 @@ router.get('/slots', async (req, res) => {
       });
     }
 
-    let bookedSlots = [];
-    let blockedSlots = [];
-    if (facilityId) {
-      const existing = await dbAsync.all(
-        "SELECT time_slot FROM bookings WHERE facility_id = ? AND date = ? AND booking_status != 'Cancelled' AND (is_quarantined IS NULL OR is_quarantined = FALSE OR is_quarantined = 0) AND (reconciliation_status IS NULL OR reconciliation_status != 'MANUAL_REVIEW')",
-        [facilityId, targetDate]
-      );
-      bookedSlots = existing;
-
-      const blocked = await dbAsync.all(
-        "SELECT time_slot, reason FROM blocked_slots WHERE facility_id = ? AND date = ?",
-        [facilityId, targetDate]
-      );
-      blockedSlots = blocked;
-    }
+    const { occupancies } = await loadCanonicalOccupancies(dbAsync, physicalFacilityId);
 
     const slotsWithStatus = allSlots.map(slot => {
+      let normInterval;
+      try {
+        normInterval = normalizeBookingInterval({ date: targetDate, timeSlot: slot.time });
+      } catch (_e) {
+        return { ...slot, status: 'unavailable', maintenanceReason: null };
+      }
+
+      const conflicts = occupancies.filter(item =>
+        intervalsOverlap(normInterval, { startAt: item.startAt, endAt: item.endAt })
+      );
+
+      const blockConflict = conflicts.find(c => c.type === 'BLOCK');
+      const isBlocked = Boolean(blockConflict);
+      const isBooked = conflicts.length > 0 && !isBlocked;
+
       const slotRange = parseSlotRange(slot.time);
-      const isBooked = bookedSlots.some(booking => {
-        const bookingRange = parseSlotRange(booking.time_slot);
-        return slotRange && bookingRange ? slotsOverlap(slotRange, bookingRange) : booking.time_slot === slot.time;
-      });
-      const blockedSlot = blockedSlots.find(blocked => {
-        const blockedRange = parseSlotRange(blocked.time_slot);
-        return slotRange && blockedRange ? slotsOverlap(slotRange, blockedRange) : blocked.time_slot === slot.time;
-      });
-      const isBlocked = Boolean(blockedSlot);
       const isPrimeEvening = slot.peak && slotRange && slotRange.start >= 1080 && slotRange.start < 1260;
+
       return {
         ...slot,
-        status: isBooked ? 'booked' : (isBlocked ? 'maintenance' : (isPrimeEvening ? 'fast-filling' : 'available')),
-        maintenanceReason: blockedSlot?.reason || null
+        status: isBlocked ? 'maintenance' : (isBooked ? 'booked' : (isPrimeEvening ? 'fast-filling' : 'available')),
+        maintenanceReason: blockConflict?.reason || (isBooked ? conflicts[0]?.reason || null : null)
       };
     });
 

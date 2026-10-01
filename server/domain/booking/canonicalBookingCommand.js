@@ -1,7 +1,7 @@
 import { formatToISTString, getISTMinutes, intervalsOverlap, normalizeBookingInterval } from '../time/bookingInterval.js';
 import { validateCustomBooking, validateLeadTime, validateQuickBooking } from './bookingRules.js';
 import { BOOKING_STATES, isOccupyingStatus } from './bookingStateMachine.js';
-import { CANONICAL_FACILITIES } from '../facility/inventory.js';
+import { CANONICAL_FACILITIES, CANONICAL_SERVICES, CANONICAL_ADD_ONS } from '../facility/inventory.js';
 
 /**
  * Resolves any user-provided identifier (id, code, alias, legacy string)
@@ -31,11 +31,23 @@ export function resolveCanonicalFacility(identifier) {
   });
   if (matched) return matched;
 
-  // 4. Aliases for legacy facility profiles / high-level services
+  // 4. Aliases for legacy facility profiles / high-level services / add-ons
   if (raw === 'box-cricket' || raw === 'box_cricket' || raw === 'box cricket') {
     return CANONICAL_FACILITIES.find(f => f.id === 'fac_box_cricket_1');
   }
-  if (raw === 'cricket-nets' || raw === 'cricket_nets' || raw === 'cricket-green-net' || raw === 'green_net' || raw.includes('green net')) {
+  if (
+    raw === 'cricket-nets' ||
+    raw === 'cricket_nets' ||
+    raw === 'cricket-green-net' ||
+    raw === 'green_net' ||
+    raw.includes('green net') ||
+    raw === 'ball-machine' ||
+    raw === 'ball_machine' ||
+    raw === 'ball-shooting-machine' ||
+    raw.includes('shooting') ||
+    raw.includes('ball machine') ||
+    raw === 'addon_shooting_machine'
+  ) {
     return CANONICAL_FACILITIES.find(f => f.id === 'fac_green_net_1');
   }
   if (raw === 'pickleball' || raw === 'pickleball_court') {
@@ -43,6 +55,26 @@ export function resolveCanonicalFacility(identifier) {
   }
   if (raw === 'skating' || raw === 'skating_rink' || raw === 'skating rink') {
     return CANONICAL_FACILITIES.find(f => f.id === 'fac_skating_1');
+  }
+
+  // Canonical services lookup
+  const serviceMatch = CANONICAL_SERVICES.find(s =>
+    s.id.toLowerCase() === raw ||
+    s.code.toLowerCase() === raw ||
+    s.name.toLowerCase() === raw
+  );
+  if (serviceMatch && serviceMatch.supportedFacilityIds?.length > 0) {
+    return CANONICAL_FACILITIES.find(f => f.id === serviceMatch.supportedFacilityIds[0]);
+  }
+
+  // Canonical add-ons lookup
+  const addOnMatch = CANONICAL_ADD_ONS.find(a =>
+    a.id.toLowerCase() === raw ||
+    a.code.toLowerCase() === raw ||
+    a.name.toLowerCase() === raw
+  );
+  if (addOnMatch && addOnMatch.applicableFacilityIds?.length > 0) {
+    return CANONICAL_FACILITIES.find(f => f.id === addOnMatch.applicableFacilityIds[0]);
   }
 
   return null;
@@ -119,6 +151,163 @@ export async function createCanonicalPaymentHold(db, input) {
 }
 
 /**
+ * Loads all active physical resource occupancies across bookings, blocks, holds, and session extensions.
+ */
+export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new Date()) {
+  const facility = resolveCanonicalFacility(physicalFacilityId);
+  const resolvedFacilityId = facility ? facility.id : physicalFacilityId;
+  const occupancies = [];
+
+  // 1. Confirmed / active bookings on the same physical resource
+  const bookings = await db.all(
+    `SELECT id, physical_facility_id, scheduled_start_at, scheduled_end_at, date, time_slot, booking_status, is_quarantined, reconciliation_status
+     FROM bookings
+     WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
+    [resolvedFacilityId, resolvedFacilityId]
+  );
+
+  for (const b of bookings) {
+    if (!isOccupyingStatus(b.booking_status)) continue;
+    if (b.is_quarantined === true || Number(b.is_quarantined) === 1 || b.reconciliation_status === 'MANUAL_REVIEW' || b.reconciliation_status === 'UNRESOLVABLE') continue;
+
+    let bInterval;
+    if (b.scheduled_start_at && b.scheduled_end_at) {
+      bInterval = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });
+    } else {
+      try {
+        bInterval = normalizeBookingInterval({ date: b.date, timeSlot: b.time_slot });
+      } catch (_e) {
+        continue;
+      }
+    }
+
+    occupancies.push({
+      id: b.id,
+      type: 'BOOKING',
+      facilityId: resolvedFacilityId,
+      startAt: bInterval.startAt,
+      endAt: bInterval.endAt,
+      status: b.booking_status,
+      reason: `Physical facility is already reserved from ${formatToISTString(bInterval.startAt)} to ${formatToISTString(bInterval.endAt)} (Booking ${b.id}).`
+    });
+  }
+
+  // 2. Active facility blocks
+  try {
+    const blocks = await db.all(
+      `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
+       FROM facility_blocks
+       WHERE facility_id = ? AND status = 'active'`,
+      [resolvedFacilityId]
+    );
+
+    for (const bl of blocks) {
+      if (!bl.start_at || !bl.end_at) continue;
+      const blInterval = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
+      occupancies.push({
+        id: bl.id,
+        type: 'BLOCK',
+        facilityId: bl.facility_id,
+        startAt: blInterval.startAt,
+        endAt: blInterval.endAt,
+        status: 'ACTIVE',
+        reason: bl.internal_note || bl.reason_code || 'Facility Maintenance Block'
+      });
+    }
+  } catch (_e) {}
+
+  // 3. Approved extensions
+  try {
+    const sessionsWithExt = await db.all(
+      `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+              b.scheduled_end_at AS booking_scheduled_end_at, b.booking_status,
+              COALESCE(SUM(sa.minutes), 0) as extension_minutes
+       FROM facility_sessions fs
+       LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
+       JOIN bookings b ON b.id = fs.booking_id
+       WHERE fs.facility_id = ?
+         AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
+         AND b.booking_status NOT IN ('Cancelled', 'CANCELLED', 'EXPIRED')
+       GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+                b.scheduled_end_at, b.booking_status`,
+      [resolvedFacilityId]
+    );
+
+    for (const s of sessionsWithExt) {
+      const extensionMinutes = Number(s.extension_minutes) || 0;
+      if (extensionMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
+        const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
+        const bookingEnd = s.booking_scheduled_end_at ? new Date(s.booking_scheduled_end_at) : null;
+        const extendedEnd = bookingEnd && bookingEnd.getTime() > baseInterval.endAt.getTime()
+          ? bookingEnd
+          : new Date(baseInterval.endAt.getTime() + extensionMinutes * 60000);
+        occupancies.push({
+          id: s.id,
+          bookingId: s.booking_id,
+          type: 'SESSION_EXTENSION',
+          facilityId: s.facility_id,
+          startAt: baseInterval.startAt,
+          endAt: extendedEnd,
+          status: 'ACTIVE',
+          reason: `Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`
+        });
+      }
+    }
+  } catch (_e) {}
+
+  // 4. Active unexpired payment holds
+  try {
+    const holds = await db.all(
+      `SELECT id, facility_id, start_at, end_at, hold_token, expires_at
+       FROM payment_holds
+       WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
+      [resolvedFacilityId, now.toISOString()]
+    );
+
+    for (const h of holds) {
+      const hInterval = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
+      occupancies.push({
+        id: h.id,
+        holdToken: h.hold_token,
+        type: 'PAYMENT_HOLD',
+        facilityId: h.facility_id,
+        startAt: hInterval.startAt,
+        endAt: hInterval.endAt,
+        status: 'ACTIVE',
+        expiresAt: h.expires_at,
+        reason: 'A temporary reservation hold is currently active for this time slot.'
+      });
+    }
+  } catch (_e) {}
+
+  // 5. Legacy blocked_slots (backwards-compatibility fallback)
+  try {
+    const legacyBlocks = await db.all(
+      `SELECT id, facility_id, date, time_slot, reason
+       FROM blocked_slots
+       WHERE facility_id = ?`,
+      [resolvedFacilityId]
+    );
+    for (const lb of legacyBlocks) {
+      try {
+        const lbInterval = normalizeBookingInterval({ date: lb.date, timeSlot: lb.time_slot });
+        occupancies.push({
+          id: `legacy_block_${lb.id || lb.time_slot}`,
+          type: 'BLOCK',
+          facilityId: resolvedFacilityId,
+          startAt: lbInterval.startAt,
+          endAt: lbInterval.endAt,
+          status: 'ACTIVE',
+          reason: lb.reason || 'Facility Maintenance Block'
+        });
+      } catch (_e) {}
+    }
+  } catch (_e) {}
+
+  return { resolvedFacilityId, occupancies };
+}
+
+/**
  * Checks for physical resource conflicts across confirmed bookings, active blocks,
  * approved session extensions, and unexpired holds.
  */
@@ -132,121 +321,18 @@ export async function checkCanonicalConflicts(db, options) {
     now = new Date()
   } = options;
 
-  const facility = resolveCanonicalFacility(physicalFacilityId);
-  const resolvedFacilityId = facility ? facility.id : physicalFacilityId;
-
+  const { occupancies } = await loadCanonicalOccupancies(db, physicalFacilityId, now);
   const reqInterval = normalizeBookingInterval({ startAt, endAt });
   const conflicts = [];
 
-  // 1. Confirmed / active bookings on the same physical resource
-  const bookings = await db.all(
-    `SELECT id, physical_facility_id, scheduled_start_at, scheduled_end_at, date, time_slot, booking_status, is_quarantined, reconciliation_status
-     FROM bookings
-     WHERE (physical_facility_id = ? OR (physical_facility_id IS NULL AND facility_id = ?))`,
-    [resolvedFacilityId, resolvedFacilityId]
-  );
-
-  for (const b of bookings) {
-    if (excludeBookingId && b.id === excludeBookingId) continue;
-    if (!isOccupyingStatus(b.booking_status)) continue;
-    if (b.is_quarantined === true || Number(b.is_quarantined) === 1 || b.reconciliation_status === 'MANUAL_REVIEW' || b.reconciliation_status === 'UNRESOLVABLE') continue;
-
-    let bInterval;
-    if (b.scheduled_start_at && b.scheduled_end_at) {
-      bInterval = normalizeBookingInterval({ startAt: b.scheduled_start_at, endAt: b.scheduled_end_at });
-    } else {
-      try {
-        bInterval = normalizeBookingInterval({ date: b.date, timeSlot: b.time_slot });
-      } catch (e) {
-        continue;
-      }
-    }
-
-    if (intervalsOverlap(reqInterval, bInterval)) {
+  for (const item of occupancies) {
+    if (excludeBookingId && (item.id === excludeBookingId || item.bookingId === excludeBookingId)) continue;
+    if (excludeHoldToken && item.holdToken === excludeHoldToken) continue;
+    if (intervalsOverlap(reqInterval, { startAt: item.startAt, endAt: item.endAt })) {
       conflicts.push({
-        type: 'BOOKING',
-        id: b.id,
-        reason: `Physical facility is already reserved from ${formatToISTString(bInterval.startAt)} to ${formatToISTString(bInterval.endAt)} (Booking ${b.id}).`
-      });
-    }
-  }
-
-  // 2. Active facility blocks (fail-closed)
-  const blocks = await db.all(
-    `SELECT id, facility_id, start_at, end_at, reason_code, internal_note
-     FROM facility_blocks
-     WHERE facility_id = ? AND status = 'active'`,
-    [resolvedFacilityId]
-  );
-
-  for (const bl of blocks) {
-    if (!bl.start_at || !bl.end_at) continue;
-    const blInterval = normalizeBookingInterval({ startAt: bl.start_at, endAt: bl.end_at });
-    if (intervalsOverlap(reqInterval, blInterval)) {
-      conflicts.push({
-        type: 'BLOCK',
-        id: bl.id,
-        reason: `Facility is blocked for ${bl.reason_code || 'maintenance'}${bl.internal_note ? `: ${bl.internal_note}` : ''}.`
-      });
-    }
-  }
-
-  // 3. Approved extensions. `facility_sessions.scheduled_end_at` preserves
-  // the original scheduled interval; the booking interval is advanced by the
-  // session route after an approved extension. Older records only have the
-  // adjustment row, so calculate one effective end without ever adding the
-  // adjustment to an already-advanced booking end.
-  const sessionsWithExt = await db.all(
-    `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
-            b.scheduled_end_at AS booking_scheduled_end_at, b.booking_status,
-            COALESCE(SUM(sa.minutes), 0) as extension_minutes
-     FROM facility_sessions fs
-     LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
-     JOIN bookings b ON b.id = fs.booking_id
-     WHERE fs.facility_id = ?
-       AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
-       AND b.booking_status NOT IN ('Cancelled', 'CANCELLED', 'EXPIRED')
-     GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
-              b.scheduled_end_at, b.booking_status`,
-    [resolvedFacilityId]
-  );
-
-  for (const s of sessionsWithExt) {
-    if (excludeBookingId && (s.booking_id === excludeBookingId || s.id === excludeBookingId)) continue;
-    const extensionMinutes = Number(s.extension_minutes) || 0;
-    if (extensionMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
-      const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
-      const bookingEnd = s.booking_scheduled_end_at ? new Date(s.booking_scheduled_end_at) : null;
-      const extendedEnd = bookingEnd && bookingEnd.getTime() > baseInterval.endAt.getTime()
-        ? bookingEnd
-        : new Date(baseInterval.endAt.getTime() + extensionMinutes * 60000);
-      const extendedInterval = { startAt: baseInterval.startAt, endAt: extendedEnd };
-      if (intervalsOverlap(reqInterval, extendedInterval)) {
-        conflicts.push({
-          type: 'SESSION_EXTENSION',
-          id: s.id,
-          reason: `Resource is occupied by an approved session extension until ${formatToISTString(extendedEnd)}.`
-        });
-      }
-    }
-  }
-
-  // 4. Active unexpired payment holds (fail-closed)
-  const holds = await db.all(
-    `SELECT id, facility_id, start_at, end_at, hold_token, expires_at
-     FROM payment_holds
-     WHERE facility_id = ? AND status = 'ACTIVE' AND expires_at > ?`,
-    [resolvedFacilityId, now.toISOString()]
-  );
-
-  for (const h of holds) {
-    if (excludeHoldToken && h.hold_token === excludeHoldToken) continue;
-    const hInterval = normalizeBookingInterval({ startAt: h.start_at, endAt: h.end_at });
-    if (intervalsOverlap(reqInterval, hInterval)) {
-      conflicts.push({
-        type: 'PAYMENT_HOLD',
-        id: h.id,
-        reason: 'A temporary reservation hold is currently active for this time slot.'
+        type: item.type,
+        id: item.id,
+        reason: item.reason
       });
     }
   }
@@ -514,6 +600,7 @@ export async function getCanonicalResourceAvailability(db, options) {
 
   const durationMinutes = durationHours * 60;
   const slots = [];
+  const { occupancies } = await loadCanonicalOccupancies(db, facility.id, now);
 
   // Generate 24 hourly intervals across Asia/Kolkata date
   for (let hour = 0; hour < 24; hour++) {
@@ -525,7 +612,7 @@ export async function getCanonicalResourceAvailability(db, options) {
         startTime: startTimeStr,
         durationMinutes
       });
-    } catch (e) {
+    } catch (_e) {
       continue;
     }
 
@@ -533,25 +620,22 @@ export async function getCanonicalResourceAvailability(db, options) {
     const diffMinutes = Math.floor((normInterval.startAt.getTime() - now.getTime()) / 60000);
     const leadTimeValid = diffMinutes >= 60;
 
-    const conflict = await checkCanonicalConflicts(db, {
-      physicalFacilityId: facility.id,
-      startAt: normInterval.startAt,
-      endAt: normInterval.endAt,
-      now
-    });
+    const conflictList = occupancies.filter(item =>
+      intervalsOverlap(normInterval, { startAt: item.startAt, endAt: item.endAt })
+    );
 
     const isPeak = hour >= 18 || hour < 6;
     let status = 'available';
     let reason = null;
 
-    if (conflict.hasConflict) {
-      const topConflict = conflict.conflicts[0];
-      if (topConflict.type === 'BLOCK') {
+    if (conflictList.length > 0) {
+      const blockConflict = conflictList.find(c => c.type === 'BLOCK');
+      if (blockConflict) {
         status = 'maintenance';
-        reason = topConflict.reason;
+        reason = blockConflict.reason;
       } else {
         status = 'booked';
-        reason = topConflict.reason;
+        reason = conflictList[0].reason;
       }
     } else if (isPast) {
       status = 'past';
