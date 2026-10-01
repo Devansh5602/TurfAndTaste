@@ -453,17 +453,21 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       // Record adjustment entry
       // chargePaise is server-resolved for paid extensions; zero for free extensions.
       // Client-submitted chargePaise values are NEVER trusted.
-      const resolvedCharge = isFree ? 0 : await resolveExtensionPricing(client, {
+      const extPricing = isFree ? null : await resolveExtensionPricing(client, {
         facilityId,
         extensionStartAt: currentEndDate.toISOString(),
         extensionMinutes: requestedExtensionMinutes,
-      }).then(r => r.chargePaise);
+      });
+      const resolvedCharge = isFree ? 0 : extPricing.chargePaise;
+      const pricingSnapshotJson = isFree
+        ? JSON.stringify({ isFree: true, chargePaise: 0, reason: String(reason).trim(), approvedBy: operatorId, timestamp: new Date().toISOString() })
+        : JSON.stringify({ isFree: false, chargePaise: resolvedCharge, rateSource: extPricing.rateSource, periodType: extPricing.periodType, minutes: extPricing.minutes, approvedBy: operatorId, timestamp: new Date().toISOString() });
 
       const adjId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await client.run(
-        `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
-         VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
-        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, resolvedCharge, operatorId, String(reason).trim() || 'Staff Approved Extension']
+        `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason, pricing_snapshot)
+         VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?, ?)`,
+        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, resolvedCharge, operatorId, String(reason).trim() || 'Staff Approved Extension', pricingSnapshotJson]
       );
 
       await client.run(

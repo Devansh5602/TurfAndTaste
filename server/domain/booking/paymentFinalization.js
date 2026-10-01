@@ -335,7 +335,8 @@ async function _persistFinalizedBooking(tx, ctx) {
   const { insertSql, insertParams, sessionSql, sessionParams } = _buildBookingInsert({
     bookingId, resolvedFacilityId, facilityName, normInterval, bookingMode,
     customerName, customerPhone, customerEmail, teamName,
-    paymentType, totalAmountPaise, depositAmountPaise, razorpayPaymentId
+    paymentType, totalAmountPaise, depositAmountPaise, razorpayPaymentId,
+    quote
   });
 
   await tx.run(insertSql, insertParams);
@@ -374,7 +375,8 @@ function _buildBookingInsert(opts) {
   const {
     bookingId, resolvedFacilityId, facilityName, normInterval, bookingMode,
     customerName, customerPhone, customerEmail, teamName,
-    paymentType, totalAmountPaise, depositAmountPaise, razorpayPaymentId
+    paymentType, totalAmountPaise, depositAmountPaise, razorpayPaymentId,
+    quote
   } = opts;
 
   const istDate = formatToISTString(normInterval.startAt).slice(0, 10);
@@ -387,19 +389,30 @@ function _buildBookingInsert(opts) {
   const legacySlot = `${fmtTime(normInterval.startAt)} – ${fmtTime(normInterval.endAt)}`;
   const amtStr = `₹${(totalAmountPaise / 100).toFixed(2)} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`;
 
+  const snapshot = quote?.pricingSnapshot || quote || {
+    totalAmountPaise,
+    depositAmountPaise,
+    paymentType,
+    source: 'CUSTOMER_PAYMENT',
+    calculatedAt: new Date().toISOString()
+  };
+  const pricingSnapshotStr = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot);
+
   return {
     insertSql: `INSERT INTO bookings (
       id, facility_id, facility_name, date, time_slot,
       customer_name, customer_phone, customer_email, team_name,
       duration, payment_type, amount_paid, payment_status, booking_status,
       payment_id, physical_facility_id, scheduled_start_at, scheduled_end_at,
-      booking_type, delivery_preference, total_amount_paise, deposit_amount_paise
+      booking_type, delivery_preference, total_amount_paise, deposit_amount_paise,
+      pricing_snapshot
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, 'Paid', 'Confirmed',
       ?, ?, ?, ?,
-      ?, 'WHATSAPP', ?, ?
+      ?, 'WHATSAPP', ?, ?,
+      ?
     )`,
     insertParams: [
       bookingId, resolvedFacilityId, facilityName, istDate, legacySlot,
@@ -407,7 +420,8 @@ function _buildBookingInsert(opts) {
       normInterval.durationHours, paymentType, amtStr,
       razorpayPaymentId, resolvedFacilityId,
       normInterval.startAt.toISOString(), normInterval.endAt.toISOString(),
-      bookingMode, totalAmountPaise, depositAmountPaise
+      bookingMode, totalAmountPaise, depositAmountPaise,
+      pricingSnapshotStr
     ],
     sessionSql: `INSERT INTO facility_sessions (
       id, booking_id, facility_id, scheduled_start_at, scheduled_end_at, session_status

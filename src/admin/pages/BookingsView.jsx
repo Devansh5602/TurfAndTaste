@@ -303,6 +303,38 @@ export default function BookingsView({ showToast }) {
                 </div>
               </div>
 
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                <div style={{ color: '#94A3B8', fontSize: '0.75rem', marginBottom: '4px' }}>Pricing Breakdown (Snapshot)</div>
+                {selectedBooking.pricingSnapshot?.breakdown ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94A3B8' }}>Base Tariff:</span>
+                      <span>₹{(selectedBooking.pricingSnapshot.breakdown.baseAmountPaise / 100).toFixed(0)}</span>
+                    </div>
+                    {selectedBooking.pricingSnapshot.breakdown.packageUsed && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38BDF8' }}>
+                        <span>Package Discount:</span>
+                        <span>-₹{(selectedBooking.pricingSnapshot.breakdown.packageDiscountPaise / 100).toFixed(0)}</span>
+                      </div>
+                    )}
+                    {selectedBooking.pricingSnapshot.breakdown.addOnAmountPaise > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FBBF24' }}>
+                        <span>Add-Ons:</span>
+                        <span>+₹{(selectedBooking.pricingSnapshot.breakdown.addOnAmountPaise / 100).toFixed(0)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '3px', marginTop: '2px' }}>
+                      <span>Total Canonical:</span>
+                      <span style={{ color: 'var(--brand-green, #4ADE80)' }}>₹{(selectedBooking.pricingSnapshot.totalAmountPaise / 100).toFixed(0)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                    Historical record (immutable breakdown unavailable)
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Current Status</div>
                 <span className={`admin-status-badge ${selectedBooking.status?.toLowerCase().replace(/\s+/g, '-')}`} style={{ display: 'inline-block', marginTop: '4px' }}>
