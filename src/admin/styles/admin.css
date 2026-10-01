@@ -790,7 +790,9 @@
 
 .admin-status-badge.confirmed,
 .admin-status-badge.active,
-.admin-status-badge.settled {
+.admin-status-badge.settled,
+.admin-status-badge.checked-in,
+.admin-status-badge.in-progress {
   background: var(--admin-success-bg);
   color: var(--admin-success);
 }
@@ -808,13 +810,183 @@
 }
 
 .admin-status-badge.completed {
-  background: var(--admin-surface-muted);
-  color: var(--admin-text-secondary);
+  background: var(--admin-primary-light);
+  color: var(--admin-primary);
 }
 
 .admin-status-badge.compact {
   padding: 2px 6px;
   font-size: 0.65rem;
+}
+
+/* ── Chip Selectors ── */
+.admin-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  min-height: 44px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-full);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--admin-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.admin-chip:hover {
+  background: var(--admin-surface-muted);
+  border-color: var(--admin-border-subtle);
+  color: var(--admin-text-primary);
+}
+
+.admin-chip.active {
+  background: var(--admin-primary);
+  border-color: var(--admin-primary);
+  color: #FFFFFF;
+}
+
+/* ── Form Inputs ── */
+.admin-input {
+  width: 100%;
+  background: var(--admin-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-md);
+  padding: 10px 14px;
+  min-height: 44px;
+  font-size: 0.88rem;
+  color: var(--admin-text-primary);
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-input:focus {
+  border-color: var(--admin-primary);
+  outline: none;
+  background-color: var(--admin-surface);
+  box-shadow: 0 0 0 3px rgba(15, 61, 46, 0.08);
+}
+
+.admin-input::placeholder {
+  color: var(--admin-text-muted);
+}
+
+/* ── Select Inputs ── */
+.admin-select {
+  width: 100%;
+  background: var(--admin-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-md);
+  padding: 10px 36px 10px 14px;
+  min-height: 44px;
+  font-size: 0.88rem;
+  color: var(--admin-text-primary);
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235A645E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.admin-select:focus {
+  border-color: var(--admin-primary);
+  outline: none;
+  background-color: var(--admin-surface);
+  box-shadow: 0 0 0 3px rgba(15, 61, 46, 0.08);
+}
+
+/* ── Search Bar ── */
+.admin-search-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.admin-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+/* ── Filter Chips Container ── */
+.admin-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.admin-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Booking Card ── */
+.admin-booking-card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--admin-shadow-sm);
+  margin-bottom: 10px;
+}
+
+.admin-booking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.admin-ref-code {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--admin-text-primary);
+  font-family: monospace;
+}
+
+.admin-booking-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.admin-customer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-customer-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--admin-text-primary);
+}
+
+.admin-customer-sub {
+  font-size: 0.74rem;
+  color: var(--admin-text-muted);
+}
+
+.admin-booking-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 /* ── Buttons ── */
@@ -1014,6 +1186,20 @@
   justify-content: center;
 }
 
+.admin-modal {
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-lg);
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--admin-shadow-lg);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: auto;
+  overflow: hidden;
+}
+
 .admin-modal-sheet {
   background: var(--admin-surface);
   border-radius: 20px 20px 0 0;
@@ -1044,6 +1230,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .admin-modal-header.danger {
@@ -1104,7 +1291,11 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   padding: 16px 20px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-ops-tile {

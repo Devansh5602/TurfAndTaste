@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import AdminNav from './components/AdminNav';
 import AdminLogin from './pages/AdminLogin';
@@ -31,12 +31,29 @@ import {
 function AdminShell() {
   const { admin, isAuthenticated, isAuthChecking, logout } = useAdminAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [toast, setToast] = useState(null); // { message, type }
+  const [toastQueue, setToastQueue] = useState([]);
+  const [activeToast, setActiveToast] = useState(null);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = useCallback((message, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToastQueue(prev => [...prev, { id, message, type }]);
+  }, []);
+
+  useEffect(() => {
+    if (!activeToast && toastQueue.length > 0) {
+      setActiveToast(toastQueue[0]);
+      setToastQueue(prev => prev.slice(1));
+    }
+  }, [toastQueue, activeToast]);
+
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
 
   if (isAuthChecking) {
     return (
@@ -58,9 +75,9 @@ function AdminShell() {
   return (
     <div className="admin-platform-shell">
       {/* Toast Alert */}
-      {toast && (
-        <div className={`admin-toast ${toast.type}`}>
-          {toast.message}
+      {activeToast && (
+        <div className={`admin-toast ${activeToast.type}`}>
+          {activeToast.message}
         </div>
       )}
 
@@ -80,7 +97,7 @@ function AdminShell() {
 
             <div className="admin-location-pill">
               <Building2 size={13} color="#0F3D2E" />
-              <span>Patan Campus (HQ)</span>
+              <span>PATAN CAMPUS · HQ</span>
             </div>
 
             <div className="admin-status-pill-live">

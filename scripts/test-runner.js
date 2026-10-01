@@ -41,6 +41,7 @@ const testFiles = testArgs.length > 0 ? testArgs : [
   'tests/admin-phase13-closeout.test.js',
   'tests/admin-phase1-closeout-review.test.js',
   'tests/admin-master-completion.test.js',
+  'tests/admin-ui-corrections.test.js',
   'tests/customer-mobile-regression.test.js'
 ];
 

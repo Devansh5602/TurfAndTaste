@@ -164,7 +164,7 @@ export default function PricingView({ showToast }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   <Sun size={13} color="#FBBF24" />
                   <span>Day Rate / Hour</span>
                 </label>
@@ -179,7 +179,7 @@ export default function PricingView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   <Moon size={13} color="#818CF8" />
                   <span>Night / Floodlit Rate</span>
                 </label>
@@ -194,7 +194,7 @@ export default function PricingView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   <Percent size={13} color="var(--brand-orange, #F97316)" />
                   <span>Weekend Surge (%)</span>
                 </label>
@@ -211,7 +211,7 @@ export default function PricingView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   <DollarSign size={13} color="var(--brand-green, #4ADE80)" />
                   <span>Token Deposit Amount</span>
                 </label>
@@ -240,7 +240,7 @@ export default function PricingView({ showToast }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
             {addOns.map((addOn) => (
               <div key={addOn.addOnId}>
-                <label htmlFor={`pricing-addon-${addOn.addOnId}`} style={{ display: 'block', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label htmlFor={`pricing-addon-${addOn.addOnId}`} style={{ display: 'block', fontSize: '0.75rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   {addOn.addOnName} / Hour
                 </label>
                 <input
@@ -252,7 +252,7 @@ export default function PricingView({ showToast }) {
                   onChange={(event) => handleAddOnFieldChange(addOn.addOnId, event.target.value)}
                   disabled={!can('pricing.manage')}
                 />
-                <span style={{ display: 'block', marginTop: '4px', fontSize: '0.7rem', color: '#64748B' }}>
+                <span style={{ display: 'block', marginTop: '4px', fontSize: '0.7rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                   Attached to {addOn.facilityId}
                 </span>
                 {!String(addOn.hourlyRate || '').trim() && (

@@ -259,7 +259,7 @@ export default function FacilitiesView({ showToast }) {
 
             <form onSubmit={handleSaveFacility} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px', fontWeight: 600 }}>
                   Custom Display Name
                 </label>
                 <input
@@ -273,7 +273,7 @@ export default function FacilitiesView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px', fontWeight: 600 }}>
                   Player Capacity
                 </label>
                 <input

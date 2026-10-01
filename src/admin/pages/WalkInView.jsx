@@ -12,7 +12,8 @@ import {
   CheckCircle, 
   AlertCircle, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 
 export default function WalkInView({ onNavigate, showToast }) {
@@ -124,7 +125,6 @@ export default function WalkInView({ onNavigate, showToast }) {
 
     let cancelled = false;
     setQuoteLoading(true);
-    setServerQuote(null);
     setQuoteError(null);
 
     api.getAdminWalkInQuote({
@@ -308,12 +308,12 @@ export default function WalkInView({ onNavigate, showToast }) {
 
       {formData.errorMessage && (
         <div style={{
-          background: 'rgba(239, 68, 68, 0.12)',
-          border: '1px solid rgba(239, 68, 68, 0.3)',
+          background: 'var(--admin-danger-bg, #FCE8E6)',
+          border: '1px solid rgba(186, 26, 26, 0.25)',
           borderRadius: '10px',
           padding: '10px 14px',
           marginBottom: '16px',
-          color: '#FCA5A5',
+          color: 'var(--admin-danger, #BA1A1A)',
           fontSize: '0.84rem',
           display: 'flex',
           alignItems: 'center',
@@ -392,7 +392,7 @@ export default function WalkInView({ onNavigate, showToast }) {
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>Date</label>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>Date</label>
               <input
                 id="walkin-date"
                 type="date"
@@ -403,7 +403,7 @@ export default function WalkInView({ onNavigate, showToast }) {
             </div>
 
             <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>Duration Mode</label>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>Duration Mode</label>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   type="button"
@@ -427,7 +427,7 @@ export default function WalkInView({ onNavigate, showToast }) {
 
           {formData.bookingMode === 'quick' ? (
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '6px' }}>
                 Quick Duration (Strictly 1h or 2h)
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -447,7 +447,7 @@ export default function WalkInView({ onNavigate, showToast }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                 Custom Start Time (:00, :15, :30, :45) & Whole-Hour Duration
               </label>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -481,7 +481,7 @@ export default function WalkInView({ onNavigate, showToast }) {
                   <option value="AM">AM</option>
                   <option value="PM">PM</option>
                 </select>
-                <span style={{ fontSize: '0.8rem', color: '#94A3B8', margin: '0 4px' }}>for</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted, #5A645E)', margin: '0 4px' }}>for</span>
                 <select
                   id="walkin-custom-duration"
                   className="admin-select"
@@ -509,7 +509,7 @@ export default function WalkInView({ onNavigate, showToast }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px', fontWeight: 600 }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px', fontWeight: 600 }}>
                 Player Full Name *
               </label>
               <input
@@ -525,7 +525,7 @@ export default function WalkInView({ onNavigate, showToast }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px', fontWeight: 600 }}>
                   Mobile Number (10 digits) *
                 </label>
                 <input
@@ -539,7 +539,7 @@ export default function WalkInView({ onNavigate, showToast }) {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   Team / Group Name
                 </label>
                 <input
@@ -562,7 +562,7 @@ export default function WalkInView({ onNavigate, showToast }) {
           </div>
 
           {within1h ? (
-            <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', padding: '10px', fontSize: '0.82rem', color: '#93C5FD', marginBottom: '12px' }}>
+            <div style={{ background: 'var(--admin-warning-bg, #FEF3C7)', border: '1px solid rgba(180, 83, 9, 0.25)', borderRadius: '8px', padding: '10px', fontSize: '0.82rem', color: 'var(--admin-warning, #B45309)', marginBottom: '12px' }}>
               <strong>Immediate / Within 1-Hour Start:</strong> Under platform policy, bookings scheduled inside the 1-hour threshold require <strong>FULL PAYMENT</strong> at counter.
             </div>
           ) : (
@@ -589,18 +589,27 @@ export default function WalkInView({ onNavigate, showToast }) {
           )}
 
           {quoteLoading && (
-            <div style={{ fontSize: '0.82rem', color: '#94A3B8', padding: '8px 0' }}>Resolving server pricing…</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', padding: '4px 0' }}>
+              <RefreshCw size={12} className="spin" />
+              <span>Recalculating server pricing…</span>
+            </div>
           )}
           {quoteError && !quoteLoading && (
-            <div style={{ fontSize: '0.82rem', color: '#FCA5A5', padding: '6px 10px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px', marginBottom: '8px' }}>
+            <div style={{ fontSize: '0.82rem', color: 'var(--admin-danger, #BA1A1A)', padding: '6px 10px', background: 'var(--admin-danger-bg, #FCE8E6)', borderRadius: '6px', marginBottom: '8px' }}>
               Pricing error: {quoteError}
             </div>
           )}
-          {serverQuote && !quoteLoading && (() => {
+          {serverQuote && (() => {
             const effectivePaymentType = within1h ? 'full' : formData.paymentType;
             const charged = effectivePaymentType === 'full' ? serverQuote.totalAmountPaise : serverQuote.depositAmountPaise;
             return (
-              <div style={{ background: 'rgba(15, 61, 46, 0.06)', border: '1px solid rgba(15, 61, 46, 0.18)', borderRadius: '8px', padding: '12px', fontSize: '0.82rem', marginBottom: '8px' }}>
+              <div style={{ position: 'relative', background: 'rgba(15, 61, 46, 0.06)', border: '1px solid rgba(15, 61, 46, 0.18)', borderRadius: '8px', padding: '12px', fontSize: '0.82rem', marginBottom: '8px', opacity: quoteLoading ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                {quoteLoading && (
+                  <div style={{ position: 'absolute', top: '6px', right: '8px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', color: 'var(--admin-text-muted, #5A645E)' }}>
+                    <RefreshCw size={10} className="spin" />
+                    <span>Updating</span>
+                  </div>
+                )}
                 <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 }}>Server-Resolved Quote</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
                   <div>
@@ -614,7 +623,7 @@ export default function WalkInView({ onNavigate, showToast }) {
                   {serverQuote.isWeekend && (
                     <div>
                       <span style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.72rem' }}>Weekend Surge</span>
-                      <div style={{ fontWeight: 600, color: '#D97706' }}>+{serverQuote.weekendSurgePercent}%</div>
+                      <div style={{ fontWeight: 600, color: 'var(--admin-warning, #B45309)' }}>+{serverQuote.weekendSurgePercent}%</div>
                     </div>
                   )}
                   <div>
@@ -642,11 +651,11 @@ export default function WalkInView({ onNavigate, showToast }) {
           id="btn-submit-walkin"
           type="submit"
           className="admin-btn"
-          disabled={loading}
+          disabled={loading || quoteLoading}
           style={{ height: '50px', fontSize: '0.95rem' }}
         >
           <Sparkles size={18} />
-          <span>{loading ? 'Submitting to Booking Engine...' : 'Confirm Walk-In Reservation'}</span>
+          <span>{loading ? 'Submitting to Booking Engine...' : quoteLoading ? 'Confirming Pricing...' : 'Confirm Walk-In Reservation'}</span>
         </button>
       </form>
     </div>

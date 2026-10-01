@@ -178,11 +178,11 @@ export default function BookingsView({ showToast }) {
 
       {/* Booking List Cards (Mobile-first) */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--admin-text-muted, #5A645E)' }}>
           Loading bookings...
         </div>
       ) : filteredBookings.length === 0 ? (
-        <div className="admin-card" style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+        <div className="admin-card" style={{ textAlign: 'center', padding: '30px', color: 'var(--admin-text-muted, #5A645E)' }}>
           No bookings match the selected filters.
         </div>
       ) : (
@@ -205,7 +205,7 @@ export default function BookingsView({ showToast }) {
                   <div style={{ fontWeight: 700, color: 'var(--brand-green, #4ADE80)', fontSize: '0.9rem' }}>
                     {b.amount || '₹800'}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                     {b.paymentType === 'full' ? 'Full Paid' : 'Deposit Paid'}
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export default function BookingsView({ showToast }) {
                       <span style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>₹{(selectedBooking.pricingSnapshot.breakdown.baseAmountPaise / 100).toFixed(0)}</span>
                     </div>
                     {selectedBooking.pricingSnapshot.breakdown.packageUsed && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284C7' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--admin-primary, #0F3D2E)' }}>
                         <span>Package Discount:</span>
                         <span>-₹{(selectedBooking.pricingSnapshot.breakdown.packageDiscountPaise / 100).toFixed(0)}</span>
                       </div>
@@ -370,7 +370,7 @@ export default function BookingsView({ showToast }) {
         <div className="admin-modal-overlay">
           <div className="admin-modal">
             <div className="admin-modal-header">
-              <h3 style={{ color: '#EF4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ color: 'var(--admin-danger, #BA1A1A)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <AlertTriangle size={20} />
                 <span>Confirm Permanent Cancellation</span>
               </h3>

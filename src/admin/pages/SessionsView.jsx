@@ -327,7 +327,7 @@ export default function SessionsView({ showToast }) {
         </div>
 
         {todaySessions.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#64748B', fontSize: '0.85rem' }}>
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.85rem' }}>
             No sessions scheduled on ground today.
           </div>
         ) : (
@@ -378,7 +378,7 @@ export default function SessionsView({ showToast }) {
                 border: '1px solid rgba(239, 68, 68, 0.3)',
                 borderRadius: '8px',
                 padding: '10px',
-                color: '#FCA5A5',
+                color: 'var(--admin-danger, #BA1A1A)',
                 fontSize: '0.82rem',
                 display: 'flex',
                 alignItems: 'center',
@@ -428,7 +428,7 @@ export default function SessionsView({ showToast }) {
 
               {!isFreeExtension && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                     Extension Charge (₹)
                   </label>
                   <input
@@ -442,7 +442,7 @@ export default function SessionsView({ showToast }) {
               )}
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                   Approval Reason / Note
                 </label>
                 <input
@@ -493,7 +493,7 @@ export default function SessionsView({ showToast }) {
 
             <form onSubmit={handleRecordDelay} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>Delay Minutes</label>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>Delay Minutes</label>
                 <input
                   id="input-delay-mins"
                   type="number"
@@ -504,7 +504,7 @@ export default function SessionsView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>Reason</label>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>Reason</label>
                 <select
                   id="select-delay-reason"
                   className="admin-select"
@@ -520,7 +520,7 @@ export default function SessionsView({ showToast }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px' }}>Notes</label>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>Notes</label>
                 <textarea
                   id="textarea-delay-notes"
                   className="admin-input"
