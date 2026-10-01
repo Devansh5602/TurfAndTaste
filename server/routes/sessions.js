@@ -5,8 +5,27 @@ import { requirePermission } from '../domain/rbac/rbacEngine.js';
 import { validateSessionExtension, computeSessionMetrics } from '../domain/session/sessionOperations.js';
 import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 import { findResourceConflicts } from '../domain/booking/conflictEngine.js';
+import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
 
 const router = express.Router();
+
+const PERSISTED_BOOKING_STATUS = Object.freeze({
+  CONFIRMED: 'Confirmed',
+  CHECKED_IN: 'Checked-in',
+  IN_PROGRESS: 'In Progress',
+  COMPLETED: 'Completed',
+});
+
+const validateSessionTransition = (booking, nextStatus, action) => {
+  const transition = canTransitionBookingStatus(booking.booking_status, nextStatus);
+  if (!transition.valid) {
+    return {
+      valid: false,
+      error: `Cannot ${action} while this booking is ${booking.booking_status}. ${transition.error}`,
+    };
+  }
+  return { valid: true, status: PERSISTED_BOOKING_STATUS[transition.toStatus] };
+};
 
 /**
  * GET /api/sessions/lookup
@@ -131,6 +150,9 @@ router.post('/checkin', authenticateAdminToken, requirePermission('booking.check
       return res.status(409).json({ success: false, error: 'Cannot check-in a cancelled booking.' });
     }
 
+    const transition = validateSessionTransition(booking, 'CHECKED_IN', 'check in this booking');
+    if (!transition.valid) return res.status(409).json({ success: false, error: transition.error });
+
     const facilityId = booking.physical_facility_id || booking.facility_id;
     let scheduledStart = booking.scheduled_start_at;
     let scheduledEnd = booking.scheduled_end_at;
@@ -160,8 +182,8 @@ router.post('/checkin', authenticateAdminToken, requirePermission('booking.check
     }
 
     await dbAsync.run(
-      "UPDATE bookings SET booking_status = 'Checked-in' WHERE id = ?",
-      [bookingId]
+      'UPDATE bookings SET booking_status = ? WHERE id = ?',
+      [transition.status, bookingId]
     );
 
     res.json({
@@ -191,6 +213,9 @@ router.post('/start', authenticateAdminToken, requirePermission('booking.checkin
     if (booking.booking_status === 'Cancelled') {
       return res.status(409).json({ success: false, error: 'Cannot start a cancelled booking.' });
     }
+
+    const transition = validateSessionTransition(booking, 'IN_PROGRESS', 'start this session');
+    if (!transition.valid) return res.status(409).json({ success: false, error: transition.error });
 
     const actualStart = new Date().toISOString();
     const facilityId = booking.physical_facility_id || booking.facility_id;
@@ -223,8 +248,8 @@ router.post('/start', authenticateAdminToken, requirePermission('booking.checkin
     }
 
     await dbAsync.run(
-      "UPDATE bookings SET booking_status = 'In Progress' WHERE id = ?",
-      [bookingId]
+      'UPDATE bookings SET booking_status = ? WHERE id = ?',
+      [transition.status, bookingId]
     );
 
     res.json({
@@ -253,22 +278,26 @@ router.post('/end', authenticateAdminToken, requirePermission('booking.checkin')
     const booking = await dbAsync.get('SELECT * FROM bookings WHERE id = ?', [bookingId]);
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
+    const transition = validateSessionTransition(booking, 'COMPLETED', 'complete this session');
+    if (!transition.valid) return res.status(409).json({ success: false, error: transition.error });
+
     const actualEnd = new Date().toISOString();
     const existingSession = await dbAsync.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
     const operatorId = req.admin?.username || 'staff';
 
-    if (existingSession) {
-      await dbAsync.run(
-        `UPDATE facility_sessions
-         SET actual_end_at = ?, session_status = 'COMPLETED', operator_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [actualEnd, operatorId, existingSession.id]
-      );
+    if (!existingSession) {
+      return res.status(409).json({ success: false, error: 'This session has not been started and cannot be completed.' });
     }
+    await dbAsync.run(
+      `UPDATE facility_sessions
+       SET actual_end_at = ?, session_status = 'COMPLETED', operator_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [actualEnd, operatorId, existingSession.id]
+    );
 
     await dbAsync.run(
-      "UPDATE bookings SET booking_status = 'Completed' WHERE id = ?",
-      [bookingId]
+      'UPDATE bookings SET booking_status = ? WHERE id = ?',
+      [transition.status, bookingId]
     );
 
     res.json({
@@ -296,17 +325,23 @@ router.post('/delay', authenticateAdminToken, requirePermission('booking.update'
     const booking = await dbAsync.get('SELECT * FROM bookings WHERE id = ?', [bookingId]);
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
+    const normalizedStatus = String(booking.booking_status || '').toUpperCase().replace(/[- ]/g, '_');
+    if (!['CHECKED_IN', 'IN_PROGRESS'].includes(normalizedStatus)) {
+      return res.status(409).json({ success: false, error: 'A delay can only be recorded after check-in and before session completion.' });
+    }
+
     const operatorId = req.admin?.username || 'staff';
     const existingSession = await dbAsync.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
 
-    if (existingSession) {
-      await dbAsync.run(
-        `UPDATE facility_sessions
-         SET delay_minutes = ?, delay_reason = ?, notes = ?, operator_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [Number(delayMinutes) || 0, delayReason || 'Ground Delay', notes || '', operatorId, existingSession.id]
-      );
+    if (!existingSession) {
+      return res.status(409).json({ success: false, error: 'No active ground session exists for this booking.' });
     }
+    await dbAsync.run(
+      `UPDATE facility_sessions
+       SET delay_minutes = ?, delay_reason = ?, notes = ?, operator_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [Number(delayMinutes) || 0, delayReason || 'Ground Delay', notes || '', operatorId, existingSession.id]
+    );
 
     res.json({
       success: true,
@@ -337,6 +372,16 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       return res.status(409).json({ success: false, error: 'Cannot extend a cancelled booking.' });
     }
 
+    const normalizedStatus = String(booking.booking_status || '').toUpperCase().replace(/[- ]/g, '_');
+    if (normalizedStatus !== 'IN_PROGRESS') {
+      return res.status(409).json({ success: false, error: 'Only an in-progress session can be extended.' });
+    }
+
+    const requestedExtensionMinutes = Number(extensionMinutes);
+    if (!Number.isInteger(requestedExtensionMinutes) || requestedExtensionMinutes <= 0) {
+      return res.status(400).json({ success: false, error: 'Extension minutes must be a positive whole number.' });
+    }
+
     const facilityId = booking.physical_facility_id || booking.facility_id;
     let scheduledStart = booking.scheduled_start_at;
     let scheduledEnd = booking.scheduled_end_at;
@@ -347,7 +392,7 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     }
 
     const currentEndDate = new Date(scheduledEnd);
-    const proposedEndDate = new Date(currentEndDate.getTime() + (Number(extensionMinutes) || 15) * 60000);
+    const proposedEndDate = new Date(currentEndDate.getTime() + requestedExtensionMinutes * 60000);
 
     // Conflict Check against NEXT bookings or blocks on the SAME physical resource
     const conflictResult = await findResourceConflicts(dbAsync, {
@@ -369,7 +414,7 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     // Validate extension rule parameters
     const extensionValidation = validateSessionExtension({
       currentScheduledEndAt: scheduledEnd,
-      extensionMinutes: Number(extensionMinutes) || 15,
+      extensionMinutes: requestedExtensionMinutes,
       isApprovedByStaff: true
     });
 
@@ -378,16 +423,9 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     }
 
     const operatorId = req.admin?.username || 'staff';
-    let session = await dbAsync.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
-
+    const session = await dbAsync.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
     if (!session) {
-      const sessionId = `ses_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      await dbAsync.run(
-        `INSERT INTO facility_sessions (id, booking_id, facility_id, scheduled_start_at, scheduled_end_at, session_status, operator_id)
-         VALUES (?, ?, ?, ?, ?, 'IN_PROGRESS', ?)`,
-        [sessionId, bookingId, facilityId, scheduledStart, scheduledEnd, operatorId]
-      );
-      session = await dbAsync.get('SELECT * FROM facility_sessions WHERE id = ?', [sessionId]);
+      return res.status(409).json({ success: false, error: 'No active ground session exists for this booking.' });
     }
 
     // Record adjustment entry
@@ -395,18 +433,12 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     await dbAsync.run(
       `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
        VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
-      [adjId, session.id, Number(extensionMinutes) || 15, isFree ? 1 : 0, Number(chargePaise) || 0, operatorId, reason || 'Staff Approved Extension']
+      [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, Number(chargePaise) || 0, operatorId, reason || 'Staff Approved Extension']
     );
 
-    // Update session scheduled end
-    await dbAsync.run(
-      `UPDATE facility_sessions
-       SET scheduled_end_at = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [proposedEndDate.toISOString(), session.id]
-    );
-
-    // Update booking scheduled end and time slot
+    // The session keeps its contractual scheduled end; the booking interval
+    // carries the current occupied end and the adjustment is the immutable
+    // audit record. This avoids counting the same extension twice.
     await dbAsync.run(
       `UPDATE bookings
        SET scheduled_end_at = ?
@@ -417,7 +449,7 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     res.json({
       success: true,
       bookingId,
-      extensionMinutes: Number(extensionMinutes) || 15,
+      extensionMinutes: requestedExtensionMinutes,
       newScheduledEndAt: proposedEndDate.toISOString(),
       isFree: Boolean(isFree),
       chargePaise: Number(chargePaise) || 0,

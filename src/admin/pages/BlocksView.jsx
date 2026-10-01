@@ -14,6 +14,20 @@ import {
   X
 } from 'lucide-react';
 
+const VENUE_TIME_ZONE = 'Asia/Kolkata';
+
+const venueDate = (now = new Date()) => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: VENUE_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now).filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+
+// The date/time fields are venue civil time. Never let the administrator's
+// device timezone silently change a Patan facility block.
+const venueDateTimeToIso = (date, time) => new Date(`${date}T${time}:00+05:30`).toISOString();
+
 export default function BlocksView({ showToast }) {
   const { can } = useAdminAuth();
   const [blocks, setBlocks] = useState([]);
@@ -23,7 +37,7 @@ export default function BlocksView({ showToast }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = venueDate();
   const [newBlock, setNewBlock] = useState({
     facilityId: 'fac_box_cricket_1',
     startDate: todayStr,
@@ -59,8 +73,8 @@ export default function BlocksView({ showToast }) {
     e.preventDefault();
     setFormError('');
 
-    const startISO = new Date(`${newBlock.startDate}T${newBlock.startTime}:00`).toISOString();
-    const endISO = new Date(`${newBlock.endDate}T${newBlock.endTime}:00`).toISOString();
+    const startISO = venueDateTimeToIso(newBlock.startDate, newBlock.startTime);
+    const endISO = venueDateTimeToIso(newBlock.endDate, newBlock.endTime);
 
     if (new Date(endISO) <= new Date(startISO)) {
       setFormError('End time must be strictly after start time.');
@@ -193,7 +207,7 @@ export default function BlocksView({ showToast }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Clock size={13} color="var(--brand-orange, #F97316)" />
                   <span>
-                    {new Date(blk.start_at).toLocaleString()} ➔ {new Date(blk.end_at).toLocaleString()}
+                    {new Date(blk.start_at).toLocaleString('en-IN', { timeZone: VENUE_TIME_ZONE })} ➔ {new Date(blk.end_at).toLocaleString('en-IN', { timeZone: VENUE_TIME_ZONE })}
                   </span>
                 </div>
               </div>

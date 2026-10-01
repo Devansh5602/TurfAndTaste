@@ -43,6 +43,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (
       allowedOrigins.includes(origin) ||
+      /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin) ||
       /^https:\/\/turf-and-taste.*\.vercel\.app$/.test(origin)
     ) {
       return callback(null, true);

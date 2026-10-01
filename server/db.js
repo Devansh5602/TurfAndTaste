@@ -31,7 +31,11 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL;
+// The test runner deliberately uses an isolated SQLite database. dotenv may
+// populate an empty DATABASE_URL from a developer .env file, so use an
+// explicit test-mode boundary rather than relying on an empty value surviving
+// dotenv loading.
+const databaseUrl = process.env.TURF_TEST_MODE === '1' ? '' : process.env.DATABASE_URL;
 
 let isPostgres = false;
 let pgPool = null;

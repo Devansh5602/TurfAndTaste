@@ -151,7 +151,7 @@ router.get('/timings', async (req, res) => {
  * PUT /api/timings
  * Update Arena Timings
  */
-router.put('/timings', authenticateAdminToken, async (req, res) => {
+router.put('/timings', authenticateAdminToken, requirePermission('pricing.manage'), async (req, res) => {
   try {
     const { arenaOpen, arenaClose, floodlightStart, slotIntervalMins, notes } = req.body;
     if (!arenaOpen || !arenaClose || !floodlightStart) {

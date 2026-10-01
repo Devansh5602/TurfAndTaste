@@ -85,7 +85,7 @@ const getFacility = (identifier, includeInactive = false) => dbAsync.get(
    1. SECTION & CATEGORY CMS
    ============================================================ */
 
-router.get('/sections', async (_req, res) => {
+router.get('/sections', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
   try {
     const rows = await dbAsync.all('SELECT * FROM sections ORDER BY display_order ASC, display_name ASC');
     res.json({ success: true, count: rows.length, sections: rows });
@@ -148,7 +148,7 @@ router.put('/sections/:id', authenticateAdminToken, requirePermission('facility.
    2. PHYSICAL FACILITY CMS
    ============================================================ */
 
-router.get('/physical', async (_req, res) => {
+router.get('/physical', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
   try {
     const facilities = await dbAsync.all(`
       SELECT pf.*, s.display_name AS section_name
@@ -298,7 +298,7 @@ router.put('/physical/:id', authenticateAdminToken, requirePermission('facility.
    3. SERVICES & ADD-ONS CMS
    ============================================================ */
 
-router.get('/services', async (_req, res) => {
+router.get('/services', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
   try {
     const services = await dbAsync.all('SELECT * FROM services ORDER BY name ASC');
     res.json({ success: true, count: services.length, services });
@@ -329,7 +329,7 @@ router.post('/services', authenticateAdminToken, requirePermission('facility.cre
   }
 });
 
-router.get('/add-ons', async (_req, res) => {
+router.get('/add-ons', authenticateAdminToken, requirePermission('facility.read'), async (_req, res) => {
   try {
     const addOns = await dbAsync.all('SELECT * FROM add_ons ORDER BY name ASC');
     res.json({ success: true, count: addOns.length, addOns });

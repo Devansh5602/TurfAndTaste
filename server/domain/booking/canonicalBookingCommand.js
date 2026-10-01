@@ -188,23 +188,35 @@ export async function checkCanonicalConflicts(db, options) {
     }
   }
 
-  // 3. Approved session extensions extending active facility sessions (fail-closed)
+  // 3. Approved extensions. `facility_sessions.scheduled_end_at` preserves
+  // the original scheduled interval; the booking interval is advanced by the
+  // session route after an approved extension. Older records only have the
+  // adjustment row, so calculate one effective end without ever adding the
+  // adjustment to an already-advanced booking end.
   const sessionsWithExt = await db.all(
     `SELECT fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+            b.scheduled_end_at AS booking_scheduled_end_at, b.booking_status,
             COALESCE(SUM(sa.minutes), 0) as extension_minutes
      FROM facility_sessions fs
      LEFT JOIN session_adjustments sa ON sa.session_id = fs.id AND sa.adjustment_type = 'EXTENSION'
-     WHERE fs.facility_id = ? AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
-     GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at`,
+     JOIN bookings b ON b.id = fs.booking_id
+     WHERE fs.facility_id = ?
+       AND fs.session_status NOT IN ('CANCELLED', 'COMPLETED')
+       AND b.booking_status NOT IN ('Cancelled', 'CANCELLED', 'EXPIRED')
+     GROUP BY fs.id, fs.booking_id, fs.facility_id, fs.scheduled_start_at, fs.scheduled_end_at,
+              b.scheduled_end_at, b.booking_status`,
     [resolvedFacilityId]
   );
 
   for (const s of sessionsWithExt) {
     if (excludeBookingId && (s.booking_id === excludeBookingId || s.id === excludeBookingId)) continue;
-    const extMinutes = parseInt(s.extension_minutes, 10) || 0;
-    if (extMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
+    const extensionMinutes = Number(s.extension_minutes) || 0;
+    if (extensionMinutes > 0 && s.scheduled_start_at && s.scheduled_end_at) {
       const baseInterval = normalizeBookingInterval({ startAt: s.scheduled_start_at, endAt: s.scheduled_end_at });
-      const extendedEnd = new Date(baseInterval.endAt.getTime() + extMinutes * 60000);
+      const bookingEnd = s.booking_scheduled_end_at ? new Date(s.booking_scheduled_end_at) : null;
+      const extendedEnd = bookingEnd && bookingEnd.getTime() > baseInterval.endAt.getTime()
+        ? bookingEnd
+        : new Date(baseInterval.endAt.getTime() + extensionMinutes * 60000);
       const extendedInterval = { startAt: baseInterval.startAt, endAt: extendedEnd };
       if (intervalsOverlap(reqInterval, extendedInterval)) {
         conflicts.push({
@@ -570,4 +582,3 @@ export async function getCanonicalResourceAvailability(db, options) {
     slots
   };
 }
-

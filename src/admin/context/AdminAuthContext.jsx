@@ -82,7 +82,6 @@ export function AdminAuthProvider({ children }) {
 
   const can = (permissionKey) => {
     if (!admin) return false;
-    if (admin.role === 'super_admin') return true;
     return hasPermission(admin.permissions || [], permissionKey);
   };
 

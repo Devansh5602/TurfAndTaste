@@ -22,6 +22,7 @@ const env = {
   // explicitly before it loads dotenv.
   SQLITE_DB_PATH: tempDbPath,
   DATABASE_URL: '',
+  TURF_TEST_MODE: '1',
   DEFAULT_ADMIN_USERNAME: 'test-admin',
   DEFAULT_ADMIN_PASSWORD: 'TurfTasteTestOnly-NotProduction',
   JWT_SECRET: 'turf-taste-test-only-jwt-secret'

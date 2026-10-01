@@ -288,7 +288,7 @@ export default function SessionsView({ showToast }) {
               </button>
             )}
 
-            {can('booking.extend') && selectedSession.bookingStatus !== 'Cancelled' && (
+            {can('booking.extend') && (selectedSession.bookingStatus === 'In Progress' || selectedSession.sessionStatus === 'IN_PROGRESS') && (
               <button
                 id="btn-action-extend"
                 className="admin-btn"
@@ -303,7 +303,7 @@ export default function SessionsView({ showToast }) {
               </button>
             )}
 
-            {can('booking.update') && (
+            {can('booking.update') && (selectedSession.bookingStatus === 'Checked-in' || selectedSession.bookingStatus === 'In Progress' || selectedSession.sessionStatus === 'CHECKED_IN' || selectedSession.sessionStatus === 'IN_PROGRESS') && (
               <button
                 id="btn-action-delay"
                 className="admin-btn secondary"

@@ -381,7 +381,7 @@ export const api = {
 
   // Physical Inventory & Sections CMS
   getSections: async () => {
-    const res = await fetch(`${API_BASE_URL}/facilities/sections`);
+    const res = await fetch(`${API_BASE_URL}/facilities/sections`, { headers: getAuthHeaders() });
     return await res.json();
   },
   saveSection: async (section, isCreate = false) => {
@@ -394,7 +394,7 @@ export const api = {
     return await res.json();
   },
   getPhysicalFacilities: async () => {
-    const res = await fetch(`${API_BASE_URL}/facilities/physical`);
+    const res = await fetch(`${API_BASE_URL}/facilities/physical`, { headers: getAuthHeaders() });
     return await res.json();
   },
   savePhysicalFacility: async (facility, isCreate = false) => {
@@ -407,7 +407,7 @@ export const api = {
     return await res.json();
   },
   getServices: async () => {
-    const res = await fetch(`${API_BASE_URL}/facilities/services`);
+    const res = await fetch(`${API_BASE_URL}/facilities/services`, { headers: getAuthHeaders() });
     return await res.json();
   },
   saveService: async (service) => {
@@ -419,7 +419,7 @@ export const api = {
     return await res.json();
   },
   getAddOns: async () => {
-    const res = await fetch(`${API_BASE_URL}/facilities/add-ons`);
+    const res = await fetch(`${API_BASE_URL}/facilities/add-ons`, { headers: getAuthHeaders() });
     return await res.json();
   },
   saveAddOn: async (addOn) => {

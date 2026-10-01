@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import dbAsync from '../server/db.js';
 import { initDatabase } from '../server/db.js';
 import { hasPermission, loadUserPermissions, STANDARD_PERMISSIONS } from '../server/domain/rbac/rbacEngine.js';
-import { createCanonicalBooking } from '../server/domain/booking/canonicalBookingCommand.js';
+import { checkCanonicalConflicts, createCanonicalBooking } from '../server/domain/booking/canonicalBookingCommand.js';
 import { findResourceConflicts } from '../server/domain/booking/conflictEngine.js';
 import { validateSessionExtension, computeSessionMetrics } from '../server/domain/session/sessionOperations.js';
 import { canTransitionBookingStatus } from '../server/domain/booking/bookingStateMachine.js';
@@ -304,6 +304,47 @@ describe('Admin Platform Phase 1 Test Suite', () => {
   // 7. GROUND SESSIONS & 15-MINUTE EXTENSIONS
   // ============================================================
   describe('Ground Session Operations & 15-Minute Extensions', () => {
+
+    it('preserves legal session lifecycle boundaries and rejects bypasses', () => {
+      assert.equal(canTransitionBookingStatus('Confirmed', 'Checked-in').valid, true);
+      assert.equal(canTransitionBookingStatus('Checked-in', 'In Progress').valid, true);
+      assert.equal(canTransitionBookingStatus('In Progress', 'Completed').valid, true);
+      assert.equal(canTransitionBookingStatus('Confirmed', 'In Progress').valid, false);
+      assert.equal(canTransitionBookingStatus('Confirmed', 'Completed').valid, false);
+      assert.equal(canTransitionBookingStatus('Completed', 'Checked-in').valid, false);
+    });
+
+    it('does not double-count a saved extension as additional resource occupancy', async () => {
+      const bookingId = `TT-EXT-OCC-${Date.now()}`;
+      await createCanonicalBooking(dbAsync, {
+        id: bookingId,
+        actor: { type: 'STAFF', username: 'staff_counter' },
+        source: 'STAFF_WALKIN',
+        customer: { name: 'Extension Occupancy Test', phone: '9876512345' },
+        physicalFacilityId: 'fac_green_net_1',
+        date: '2026-10-30',
+        timeSlot: '06:00 PM – 07:00 PM',
+        durationHours: 1,
+        payment: { type: 'full', totalAmountPaise: 80000, paymentStatus: 'Paid', paymentId: `counter-${bookingId}` }
+      });
+
+      const extendedEnd = '2026-10-30T13:45:00.000Z'; // 7:15 PM Asia/Kolkata
+      const session = await dbAsync.get('SELECT id FROM facility_sessions WHERE booking_id = ?', [bookingId]);
+      await dbAsync.run("UPDATE bookings SET booking_status = 'In Progress', scheduled_end_at = ? WHERE id = ?", [extendedEnd, bookingId]);
+      await dbAsync.run("UPDATE facility_sessions SET session_status = 'IN_PROGRESS' WHERE id = ?", [session.id]);
+      await dbAsync.run(
+        "INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by) VALUES (?, ?, 'EXTENSION', 15, 1, 0, 'staff_counter')",
+        [`adj-${bookingId}`, session.id]
+      );
+
+      const afterSavedExtension = await checkCanonicalConflicts(dbAsync, {
+        physicalFacilityId: 'fac_green_net_1',
+        startAt: '2026-10-30T13:50:00.000Z',
+        endAt: '2026-10-30T14:50:00.000Z'
+      });
+
+      assert.equal(afterSavedExtension.hasConflict, false, 'a 15-minute extension must not be counted twice');
+    });
 
     it('validates 15-minute increments and requires staff approval', () => {
       const endAt = '2026-10-30T14:00:00.000Z';
