@@ -230,14 +230,20 @@ export async function updateDiningOrderStatus(db, orderId, targetStatus, actorOr
     const permissions = actor.permissions || (actor.role ? (await import('../rbac/rbacEngine.js')).DEFAULT_ROLE_PERMISSIONS[actor.role] : []);
     const { hasPermission } = await import('../rbac/rbacEngine.js');
     if (!hasPermission(permissions, 'dining.order.manage') && !hasPermission(permissions, 'dining.order.update')) {
-      throw new Error('Forbidden: Updating dining order status requires staff authorization (dining.order.manage).');
+      const err = new Error('Forbidden: Updating dining order status requires staff authorization (dining.order.manage).');
+      err.httpStatus = 403;
+      err.code = 'FORBIDDEN_PERMISSION';
+      throw err;
     }
 
     // Stall-scoped check: if actor is stall_staff, must have assigned stall and match order.stall_id
     const actorStallId = actor.stallId || actor.stall_id;
     if (actor.role === 'stall_staff') {
       if (!actorStallId || !order.stall_id || order.stall_id !== actorStallId) {
-        throw new Error('Forbidden: You can only manage orders for your assigned stall.');
+        const err = new Error('Forbidden: You can only manage orders for your assigned stall.');
+        err.httpStatus = 403;
+        err.code = 'FORBIDDEN_STALL_SCOPE';
+        throw err;
       }
     }
   }
