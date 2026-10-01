@@ -104,20 +104,4 @@ export async function up(contextOrDb) {
       }
     }
   }
-
-  // Seed Ball-Shooting Machine default add-on tariff on Green Net (₹200/hr)
-  if (isPostgres) {
-    await db.run(
-      `INSERT INTO add_on_prices (id, add_on_id, facility_id, rate_paise_per_hour, is_active)
-       VALUES (?, ?, ?, ?, TRUE)
-       ON CONFLICT (id) DO NOTHING`,
-      ['aop_shooting_machine', 'addon_shooting_machine', 'fac_green_net_1', 20000]
-    );
-  } else {
-    await db.run(
-      `INSERT OR IGNORE INTO add_on_prices (id, add_on_id, facility_id, rate_paise_per_hour, is_active)
-       VALUES (?, ?, ?, ?, 1)`,
-      ['aop_shooting_machine', 'addon_shooting_machine', 'fac_green_net_1', 20000]
-    );
-  }
 }
