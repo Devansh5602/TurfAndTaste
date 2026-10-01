@@ -22,6 +22,7 @@ import { id as stage05OperationalizationMigrationId, up as applyStage05Operation
 import { id as stage06HardeningMigrationId, up as applyStage06HardeningMigration } from './migrations/016_stage06_hardening.js';
 import { id as stage07RemediationMigrationId, up as applyStage07RemediationMigration } from './migrations/017_stage07_remediation.js';
 import { id as stage08ReconciliationMigrationId, up as applyStage08ReconciliationMigration } from './migrations/018_stage08_reconciliation_and_rbac.js';
+import { id as stage09ReconciliationRepairMigrationId, up as applyStage09ReconciliationRepairMigration } from './migrations/019_stage09_reconciliation_repair.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,6 +102,7 @@ const runVersionedMigrations = async () => {
     { id: stage06HardeningMigrationId, up: applyStage06HardeningMigration },
     { id: stage07RemediationMigrationId, up: applyStage07RemediationMigration },
     { id: stage08ReconciliationMigrationId, up: applyStage08ReconciliationMigration },
+    { id: stage09ReconciliationRepairMigrationId, up: applyStage09ReconciliationRepairMigration },
   ];
 
   for (const migration of migrations) {
@@ -114,9 +116,36 @@ const runVersionedMigrations = async () => {
       const client = await pgPool.connect();
       try {
         await client.query('BEGIN');
+        const txAdapter = {
+          isPostgres: () => true,
+          query: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            return client.query(pgSql, params);
+          },
+          get: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            const res = await client.query(pgSql, params);
+            return res.rows[0] || null;
+          },
+          all: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            const res = await client.query(pgSql, params);
+            return res.rows || [];
+          },
+          run: async (sql, params = []) => {
+            let i = 0;
+            const pgSql = sql.replace(/\?/g, () => `$${++i}`);
+            return client.query(pgSql, params);
+          }
+        };
         await migration.up({
-          isPostgres,
-          exec: async (sql) => client.query(sql)
+          isPostgres: true,
+          exec: async (sql) => client.query(sql),
+          db: txAdapter,
+          client: txAdapter
         });
         await client.query('INSERT INTO schema_migrations (id) VALUES ($1)', [migration.id]);
         await client.query('COMMIT');
@@ -129,9 +158,38 @@ const runVersionedMigrations = async () => {
     } else {
       sqliteDb.exec('BEGIN IMMEDIATE');
       try {
+        const txAdapter = {
+          isPostgres: () => false,
+          query: async (sql, params = []) => {
+            const isSelect = /^\s*(SELECT|PRAGMA)/i.test(sql);
+            const stmt = sqliteDb.prepare(sql);
+            if (isSelect) {
+              return { rows: stmt.all(...params) };
+            }
+            const info = stmt.run(...params);
+            return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+          },
+          get: async (sql, params = []) => {
+            return sqliteDb.prepare(sql).get(...params) || null;
+          },
+          all: async (sql, params = []) => {
+            return sqliteDb.prepare(sql).all(...params) || [];
+          },
+          run: async (sql, params = []) => {
+            const isSelect = /^\s*(SELECT|PRAGMA)/i.test(sql);
+            const stmt = sqliteDb.prepare(sql);
+            if (isSelect) {
+              return { rows: stmt.all(...params) };
+            }
+            const info = stmt.run(...params);
+            return { rows: [], rowCount: info.changes, lastInsertRowid: info.lastInsertRowid };
+          }
+        };
         await migration.up({
-          isPostgres,
-          exec: async (sql) => sqliteDb.exec(sql)
+          isPostgres: false,
+          exec: async (sql) => sqliteDb.exec(sql),
+          db: txAdapter,
+          client: txAdapter
         });
         sqliteDb.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(migration.id);
         sqliteDb.exec('COMMIT');

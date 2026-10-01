@@ -11,7 +11,7 @@ import { reconcileAllTimestamps } from '../domain/time/timestampAudit.js';
 
 export const id = '018_stage08_reconciliation_and_rbac';
 
-export async function up({ isPostgres, exec }) {
+export async function up({ isPostgres, exec, db }) {
   if (isPostgres) {
     // 1. PostgreSQL Schema Hardening
     await exec(`
@@ -88,11 +88,8 @@ export async function up({ isPostgres, exec }) {
     `);
   }
 
-  // 3. Reconcile all historical timestamps and establish operational quarantine
-  const { default: dbAsync } = await import('../db.js');
-  try {
-    await reconcileAllTimestamps(dbAsync);
-  } catch (e) {
-    console.warn('[Migration 018] Timestamp reconciliation notice:', e.message);
+  // 3. Reconcile all historical timestamps and establish operational quarantine within active migration transaction
+  if (db) {
+    await reconcileAllTimestamps(db);
   }
 }
