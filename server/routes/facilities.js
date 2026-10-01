@@ -408,7 +408,9 @@ router.post('/blocks', authenticateAdminToken, requirePermission('facility.block
     await dbAsync.withTransaction(async (client) => {
       // Advisory lock on the physical resource (PostgreSQL only; SQLite relies on BEGIN IMMEDIATE)
       if (client.isPostgres) {
-        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`block_lock_${facilityId}`]);
+        // All occupancy writers use the canonical resource key so a block
+        // cannot race booking finalization for the same physical resource.
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${facilityId}`]);
       }
 
       // Re-check conflicts inside the transaction
@@ -418,10 +420,10 @@ router.post('/blocks', authenticateAdminToken, requirePermission('facility.block
         endAt: end.toISOString()
       });
 
-      const bookingConflicts = conflictResult.conflicts.filter(c => c.conflictType === 'BOOKING');
-      if (bookingConflicts.length > 0) {
-        const err = new Error(`Cannot create block: ${bookingConflicts.length} active customer booking(s) overlap with this interval.`);
-        err.conflicts = bookingConflicts;
+      if (conflictResult.hasConflict) {
+        const firstConflict = conflictResult.conflicts[0];
+        const err = new Error(`Cannot create block: overlapping ${String(firstConflict.conflictType || 'resource').toLowerCase()} occupancy exists on this physical resource.`);
+        err.conflicts = conflictResult.conflicts;
         err.httpStatus = 409;
         throw err;
       }

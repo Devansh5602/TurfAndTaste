@@ -75,8 +75,11 @@ export async function createCanonicalPaymentHold(db, input) {
   const holdToken = `hold_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
   // Concurrency lock on physical facility if on PostgreSQL
-  if (db.isPostgres && db.isPostgres()) {
-    await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`hold_lock_${resolvedFacilityId}`]);
+  const usesPostgres = typeof db.isPostgres === 'function'
+    ? db.isPostgres()
+    : Boolean(db.isPostgres);
+  if (usesPostgres) {
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${resolvedFacilityId}`]);
   }
 
   // Check conflicts
@@ -355,7 +358,10 @@ export async function createCanonicalBooking(db, input, context = {}) {
 
   // 7. Transactional Overlap Concurrency Protection
   // If PostgreSQL, use pg_advisory_xact_lock to serialize writes on the same physical facility
-  if (db.isPostgres && db.isPostgres()) {
+  const usesPostgres = typeof db.isPostgres === 'function'
+    ? db.isPostgres()
+    : Boolean(db.isPostgres);
+  if (usesPostgres) {
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${resolvedFacilityId}`]);
   }
 

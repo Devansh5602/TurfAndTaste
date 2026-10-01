@@ -261,8 +261,8 @@ router.get('/slots', async (req, res) => {
 /**
  * GET /api/bookings/admin-quote
  * Server-authoritative pricing quote for Admin walk-in bookings.
- * Must be called before submitting a walk-in booking; the returned quoteToken
- * is the ONLY accepted authority for the amount on the server.
+ * Provides display-time pricing for a walk-in. Booking creation independently
+ * recalculates the same server-authoritative amount before persistence.
  */
 router.get('/admin-quote', authenticateAdminToken, requirePermission('booking.create_walkin'), async (req, res) => {
   try {
@@ -293,7 +293,7 @@ router.get('/admin-quote', authenticateAdminToken, requirePermission('booking.cr
  */
 router.post('/hold', async (req, res) => {
   try {
-    const result = await createCanonicalPaymentHold(dbAsync, req.body);
+    const result = await dbAsync.withTransaction((client) => createCanonicalPaymentHold(client, req.body));
     res.status(201).json(result);
   } catch (err) {
     res.status(409).json({ success: false, error: err.message });
@@ -389,7 +389,10 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
     // Execute Canonical Booking Command
     let result;
     try {
-      result = await createCanonicalBooking(dbAsync, {
+      // The canonical command performs its physical-resource conflict check
+      // inside this same transaction, sharing the booking_lock_<facilityId>
+      // key with blocks, extensions, and payment finalization.
+      result = await dbAsync.withTransaction((client) => createCanonicalBooking(client, {
         id: payload.id,
         actor: isAdminReservation ? { type: 'STAFF', username: req.admin.username } : { type: 'CUSTOMER', username: 'guest' },
         source: isAdminReservation ? 'STAFF_WALKIN' : 'CUSTOMER_APP',
@@ -424,7 +427,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
           paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
         },
         holdToken: payload.holdToken || null
-      });
+      }));
 
     } catch (cmdErr) {
       const errMsg = cmdErr.message || 'Booking creation failed.';

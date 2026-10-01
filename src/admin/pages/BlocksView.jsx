@@ -34,6 +34,7 @@ export default function BlocksView({ showToast }) {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingReleaseBlock, setPendingReleaseBlock] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -117,16 +118,25 @@ export default function BlocksView({ showToast }) {
   };
 
   const handleDeleteBlock = async (blockId) => {
-    if (!window.confirm(`Are you sure you want to release block ${blockId}?`)) return;
     try {
       const res = await api.deleteFacilityBlock(blockId);
       if (res?.success) {
         if (showToast) showToast('Facility block removed. Slot released.');
         await loadData();
+        return true;
       }
     } catch (err) {
       if (showToast) showToast(err.message || 'Failed to delete block.', 'error');
     }
+    return false;
+  };
+
+  const confirmReleaseBlock = async () => {
+    if (!pendingReleaseBlock) return;
+    setIsSubmitting(true);
+    const released = await handleDeleteBlock(pendingReleaseBlock.id);
+    if (released) setPendingReleaseBlock(null);
+    setIsSubmitting(false);
   };
 
   return (
@@ -195,7 +205,7 @@ export default function BlocksView({ showToast }) {
                     id={`btn-delete-block-${blk.id}`}
                     className="admin-btn danger"
                     style={{ minHeight: '32px', padding: '4px 10px', fontSize: '0.75rem' }}
-                    onClick={() => handleDeleteBlock(blk.id)}
+                    onClick={() => setPendingReleaseBlock(blk)}
                   >
                     <Trash2 size={13} />
                     <span>Release</span>
@@ -219,6 +229,28 @@ export default function BlocksView({ showToast }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {pendingReleaseBlock && (
+        <div className="admin-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="release-block-title">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 id="release-block-title">Release facility block?</h3>
+              <button className="admin-modal-close" onClick={() => setPendingReleaseBlock(null)} disabled={isSubmitting} aria-label="Close release confirmation">
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ margin: '0 0 16px', color: '#CBD5E1', fontSize: '0.86rem', lineHeight: 1.5 }}>
+              This will make <strong>{pendingReleaseBlock.facility_name || 'this facility'}</strong> available again for the blocked interval.
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" className="admin-btn secondary" style={{ flex: 1 }} onClick={() => setPendingReleaseBlock(null)} disabled={isSubmitting}>Keep Block</button>
+              <button id="btn-confirm-release-block" type="button" className="admin-btn danger" style={{ flex: 1 }} onClick={confirmReleaseBlock} disabled={isSubmitting}>
+                {isSubmitting ? 'Releasing…' : 'Release Block'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

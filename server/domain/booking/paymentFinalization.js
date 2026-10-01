@@ -173,7 +173,7 @@ export async function finalizeBookingFromPayment(db, params) {
       // Per-facility advisory lock scoped to this transaction
       await tx.query(
         `SELECT pg_advisory_xact_lock(hashtext($1))`,
-        [`finalize_lock_${resolvedFacilityId}`]
+        [`booking_lock_${resolvedFacilityId}`]
       );
       // Lock payment_orders row FOR UPDATE
       const lockRow = await tx.query(

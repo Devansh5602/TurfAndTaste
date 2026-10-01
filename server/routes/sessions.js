@@ -365,63 +365,64 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     const { bookingId, extensionMinutes = 15, isFree = false, chargePaise = 0, reason = '' } = req.body;
     if (!bookingId) return res.status(400).json({ success: false, error: 'bookingId is required.' });
 
-    const booking = await dbAsync.get('SELECT * FROM bookings WHERE id = ?', [bookingId]);
-    if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
-
-    if (booking.booking_status === 'Cancelled') {
-      return res.status(409).json({ success: false, error: 'Cannot extend a cancelled booking.' });
-    }
-
-    const normalizedStatus = String(booking.booking_status || '').toUpperCase().replace(/[- ]/g, '_');
-    if (normalizedStatus !== 'IN_PROGRESS') {
-      return res.status(409).json({ success: false, error: 'Only an in-progress session can be extended.' });
-    }
-
     const requestedExtensionMinutes = Number(extensionMinutes);
     if (!Number.isInteger(requestedExtensionMinutes) || requestedExtensionMinutes <= 0) {
       return res.status(400).json({ success: false, error: 'Extension minutes must be a positive whole number.' });
     }
 
-    const facilityId = booking.physical_facility_id || booking.facility_id;
-    let scheduledStart = booking.scheduled_start_at;
-    let scheduledEnd = booking.scheduled_end_at;
-    if (!scheduledStart || !scheduledEnd) {
-      const norm = normalizeBookingInterval({ date: booking.date, timeSlot: booking.time_slot });
-      scheduledStart = norm.startAt.toISOString();
-      scheduledEnd = norm.endAt.toISOString();
-    }
-
-    const currentEndDate = new Date(scheduledEnd);
-    const proposedEndDate = new Date(currentEndDate.getTime() + requestedExtensionMinutes * 60000);
-
-    // Validate extension rule parameters before entering transaction
-    const extensionValidation = validateSessionExtension({
-      currentScheduledEndAt: scheduledEnd,
-      extensionMinutes: requestedExtensionMinutes,
-      isApprovedByStaff: true
-    });
-
-    if (!extensionValidation.valid) {
-      return res.status(400).json({ success: false, error: extensionValidation.error });
-    }
-
+    // Resolve the lock key before the transaction, then reload all mutable
+    // booking/session state *inside* the locked transaction below.
+    const bookingForLock = await dbAsync.get('SELECT physical_facility_id, facility_id FROM bookings WHERE id = ?', [bookingId]);
+    if (!bookingForLock) return res.status(404).json({ success: false, error: 'Booking not found.' });
+    const facilityId = bookingForLock.physical_facility_id || bookingForLock.facility_id;
     const operatorId = req.admin?.username || 'staff';
-    const session = await dbAsync.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
-    if (!session) {
-      return res.status(409).json({ success: false, error: 'No active ground session exists for this booking.' });
-    }
-
-    // Conflict check + all writes inside a single serialized transaction with
-    // physical-resource lock. Prevents concurrent extensions from both passing
-    // the read before either write commits.
-    let conflictResult;
-    await dbAsync.withTransaction(async (client) => {
+    const extensionResult = await dbAsync.withTransaction(async (client) => {
       if (client.isPostgres) {
-        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`extend_lock_${facilityId}`]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${facilityId}`]);
       }
 
+      const booking = await client.get('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      if (!booking) {
+        const err = new Error('Booking not found.');
+        err.httpStatus = 404;
+        throw err;
+      }
+      if ((booking.physical_facility_id || booking.facility_id) !== facilityId) {
+        const err = new Error('Booking resource changed while approving the extension. Please retry.');
+        err.httpStatus = 409;
+        throw err;
+      }
+      const normalizedStatus = String(booking.booking_status || '').toUpperCase().replace(/[- ]/g, '_');
+      if (normalizedStatus !== 'IN_PROGRESS') {
+        const err = new Error('Only an in-progress session can be extended.');
+        err.httpStatus = 409;
+        throw err;
+      }
+      let scheduledEnd = booking.scheduled_end_at;
+      if (!scheduledEnd) {
+        scheduledEnd = normalizeBookingInterval({ date: booking.date, timeSlot: booking.time_slot }).endAt.toISOString();
+      }
+      const extensionValidation = validateSessionExtension({
+        currentScheduledEndAt: scheduledEnd,
+        extensionMinutes: requestedExtensionMinutes,
+        isApprovedByStaff: true
+      });
+      if (!extensionValidation.valid) {
+        const err = new Error(extensionValidation.error);
+        err.httpStatus = 400;
+        throw err;
+      }
+      const session = await client.get('SELECT * FROM facility_sessions WHERE booking_id = ?', [bookingId]);
+      if (!session) {
+        const err = new Error('No active ground session exists for this booking.');
+        err.httpStatus = 409;
+        throw err;
+      }
+      const currentEndDate = new Date(scheduledEnd);
+      const proposedEndDate = new Date(currentEndDate.getTime() + requestedExtensionMinutes * 60000);
+
       // Re-check conflicts inside the transaction
-      conflictResult = await findResourceConflicts(client, {
+      const conflictResult = await findResourceConflicts(client, {
         facilityId,
         startAt: currentEndDate.toISOString(),
         endAt: proposedEndDate.toISOString(),
@@ -453,21 +454,22 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
         `UPDATE bookings SET scheduled_end_at = ? WHERE id = ?`,
         [proposedEndDate.toISOString(), bookingId]
       );
+      return { proposedEndDate };
     });
 
     res.json({
       success: true,
       bookingId,
       extensionMinutes: requestedExtensionMinutes,
-      newScheduledEndAt: proposedEndDate.toISOString(),
+      newScheduledEndAt: extensionResult.proposedEndDate.toISOString(),
       isFree: Boolean(isFree),
       chargePaise: Number(chargePaise) || 0,
       approvedBy: operatorId,
-      message: `Session extended by ${extensionMinutes} minutes until ${proposedEndDate.toLocaleTimeString()}.`
+      message: `Session extended by ${requestedExtensionMinutes} minutes until ${extensionResult.proposedEndDate.toLocaleTimeString()}.`
     });
   } catch (err) {
-    if (err.httpStatus === 409) {
-      return res.status(409).json({ success: false, error: err.message, conflicts: err.conflicts });
+    if (err.httpStatus) {
+      return res.status(err.httpStatus).json({ success: false, error: err.message, conflicts: err.conflicts });
     }
     console.error('[Session Extension Error]:', err);
     res.status(500).json({ success: false, error: err.message });
