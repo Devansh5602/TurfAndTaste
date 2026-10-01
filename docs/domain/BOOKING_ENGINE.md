@@ -52,9 +52,17 @@ $$\max(S_1, S_2) < \min(E_1, E_2) \iff S_1 < E_2 \land S_2 < E_1$$
 
 ### Occupancy Sources Evaluated:
 1. Confirmed bookings (`status = 'Confirmed'`, `status = 'Checked In'`, `status = 'In Progress'`).
-2. Active approved session extensions.
+2. Active approved session extensions (advancing effective interval boundary).
 3. Facility maintenance and event blocks (`facility_blocks`).
 4. Active payment hold sessions (with temporary TTL).
+
+### 2.1 Unified Slot Availability (`/api/bookings/slots`):
+- Operates directly on the canonical physical resource ID (`fac_box_cricket_1`, `fac_green_net_1`, etc.).
+- Normalizes all slots to Asia/Kolkata half-open intervals $[S, E)$ with UTC ISO instant evaluation.
+- Overlapping active facility blocks flag the slot as `maintenance` with `maintenanceReason`.
+- Unblocking immediately restores slot to `available` only when no other confirmed booking, hold, or extension occupies the interval.
+- Cross-midnight intervals (e.g. 23:00 to 01:00) cleanly bridge the calendar date boundary.
+- Green Net blocks cascade to both standard net practice and Ball-Shooting Machine sessions because both share physical resource `fac_green_net_1`.
 
 ---
 

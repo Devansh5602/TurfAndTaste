@@ -4,45 +4,37 @@
 2026-10-01
 
 ## Stage
-**Admin Platform Implementation Phase 1**
+**Admin Platform Implementation Phase 1.2 — Final Domain Integration Fixes**
 
 ## Branch
 `feature/turf-and-taste-admin-platform` (created from verified foundation `1ffb5a0` on `feature/customer-mobile-curated`)
 
 ---
 
-## Phase 1 Completed Scope
+## Phase 1.2 Resolved Blockers
 
-All Phase 1 operational modules have been implemented according to authoritative specifications:
-1. **Admin Shell & Authentication:**
-   - Standalone mobile-first Admin shell (`src/admin/AdminApp.jsx`) with Clubhouse Ivory dark design tokens.
-   - Dedicated operational bottom navigation (`src/admin/components/AdminNav.jsx`) with RBAC permission filtering.
-   - Session authentication with JWT verification and real-time permission mapping (`src/admin/context/AdminAuthContext.jsx`).
-2. **Operations Dashboard:**
-   - Real-time operational metrics: Today's bookings, active ground sessions, physical inventory status, and active maintenance blocks (`src/admin/pages/DashboardView.jsx`).
-   - 24/7 Physical Resource Status matrix for the Patan campus.
-   - Quick operational action CTAs.
-3. **Facility & Section Management:**
-   - Physical facility management for Box Cricket Turfs 1 & 2, Pickleball Courts 1 & 2, Skating Rink, and Cricket Green Net (`src/admin/pages/FacilitiesView.jsx`).
-   - Ball-Shooting Machine modeled strictly as an add-on on `fac_green_net_1` (occupies same physical resource, not an invented separate venue).
-   - Custom display name configuration and auto-naming support.
-4. **Availability & Facility Blocks:**
-   - 24/7 sports availability as standard baseline.
-   - Exception block creation and management with real-time collision detection against existing confirmed bookings (`src/admin/pages/BlocksView.jsx`).
-5. **Pricing & Tariffs Engine:**
-   - Multi-tier facility pricing: Day rates, Night floodlit rates, Floodlight start hour, Weekend surge percentages, Token deposit rules, and pro-rated extension rates (`src/admin/pages/PricingView.jsx`).
-6. **Booking Management & Terminal Cancellation:**
-   - Full booking list, search by player/phone/ID, facility & status filters, detailed reservation inspector (`src/admin/pages/BookingsView.jsx`).
-   - Permanent cancellation enforcement: 0% refund notice, immediate inventory release, terminal state prevention of Cancelled ➔ Confirmed.
-7. **Walk-In Counter Booking:**
-   - Counter wizard connected to canonical booking engine (`src/admin/pages/WalkInView.jsx`).
-   - Immediate booking lead-time bypass for staff.
-   - Strict payment policy: Inside 1-hour threshold requires FULL payment; >= 1 hour allows token deposit.
-8. **Ground QR Check-In & Session Operations:**
-   - Booking pass scanner/lookup by ID, QR, phone, or name (`src/admin/pages/SessionsView.jsx`).
-   - Stepwise session lifecycle: Confirmed ➔ Checked In ➔ In Progress ➔ Completed.
-   - Scheduled vs actual start/end timestamps logged independently (`server/routes/sessions.js`).
-   - 15-Minute session extensions with next-booking conflict checking and staff authorization.
+All three domain blockers identified in Codex review have been resolved and verified with automated test suites:
+
+1. **Configurable Server-Authoritative Pricing Engine (Migration 020):**
+   - Implemented schema in `server/migrations/020_pricing_rules.js` backing the documented precedence hierarchy:
+     `[1] special_date_prices` ➔ `[2] pricing_rules` (PACKAGE) ➔ `[3] pricing_rules` (BASE_RATE: DAY, NIGHT, WEEKEND_DAY, WEEKEND_NIGHT) ➔ `[4] add_on_prices` ➔ `[5] pricing_tiers` (legacy fallback).
+   - Paired with `server/domain/pricing/pricingResolver.js` for interval-boundary splitting across floodlight start (pro-rating day and night segments independently), multi-hour package evaluation, and add-on surcharges (e.g. Shooting Machine on Green Net).
+   - All amounts resolved in integer paise; display formatting is client-only.
+   - Preserves walk-in pricing authority and <1h full-payment rule.
+
+2. **Server-Authoritative Session Extension Pricing:**
+   - `POST /api/sessions/extend` calculates extension charges server-side using `resolveExtensionPricing` within the resource-locked transaction.
+   - Client-submitted `chargePaise` is strictly ignored; client price manipulation cannot override server rules.
+   - Staff may explicitly grant free extensions, persisting `is_free = 1` and `charge_paise = 0`.
+   - Supports any valid multiple of 15 minutes (15, 30, 45, 60, 75, 90+).
+
+3. **Canonical Slot Availability (`/api/bookings/slots`):**
+   - Migrated from legacy `blocked_slots` and ad-hoc string comparisons to canonical physical resource occupancies (`loadCanonicalOccupancies`).
+   - Evaluates confirmed bookings, active `facility_blocks`, approved session extensions, and active `payment_holds`.
+   - Uses physical resource identity (`fac_box_cricket_1`, `fac_green_net_1`, etc.).
+   - Blocking `fac_green_net_1` cascades availability state to both standard Net Practice and Ball-Shooting Machine sessions.
+   - Unblocking immediately restores slot to `available` only when no other occupancy covers the interval.
+   - Supports cross-midnight block intervals (e.g. 23:00 to 01:00) across calendar date boundaries.
 
 ---
 
@@ -56,8 +48,9 @@ All Phase 1 operational modules have been implemented according to authoritative
 | stage08-release-gate | **19/19** | 0 |
 | stage09-release-gate | **10/10** | 0 |
 | admin-phase1 | **13/13** | 0 |
+| admin-phase12-integration | **21/21** | 0 |
 | customer-mobile-regression | **43/43** | 0 |
-| **Total Tests** | **159/159** | **0** |
+| **Total Tests** | **186/186** | **0** |
 | Production build (Vite) | ✅ Passing (dist generated) | — |
 
 ---

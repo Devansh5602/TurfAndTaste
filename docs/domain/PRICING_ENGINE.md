@@ -68,5 +68,18 @@ The CMS enables administrators to configure package rates:
 
 ## 5. Session Extension & Adjustment Tariffs
 
-- **Extension Rate:** Configured as a pro-rated 15-minute tariff based on the active session's hourly rate period (Day or Night).
-- **Discretionary Adjustments:** Admin/Staff can waive extension fees (Free Extension) or apply standard extension charges at checkout.
+- **Extension Rate:** Configured as a pro-rated 15-minute tariff based on the active session's hourly rate period (Day or Night) via `pricing_rules` (`rule_type = 'EXTENSION_RATE'`) or pro-rated `BASE_RATE`.
+- **Server Authority:** Staff approval determines whether an extension is free or chargeable; the charge amount is calculated strictly by the server and persisted in `session_adjustments`. Client-submitted monetary values are ignored.
+- **Discretionary Adjustments:** Admin/Staff can waive extension fees (Free Extension, persisting `is_free = 1` and `charge_paise = 0`) or apply standard server-calculated extension charges.
+
+---
+
+## 6. Canonical Schema & Precedence Implementation (Migration 020)
+
+- **Database Tables:**
+  - `pricing_rules`: Stores base rates, package deals, and extension tariffs per facility and period type (`DAY`, `NIGHT`, `WEEKEND_DAY`, `WEEKEND_NIGHT`, `PACKAGE`).
+  - `special_date_prices`: Stores calendar-date specific overrides (`calendar_date`, `is_replacement`, `rate_paise_per_hour`).
+  - `add_on_prices`: Stores hourly and flat tariffs per add-on (`add_on_id`, `rate_paise_per_hour`, `rate_paise_flat`).
+- **Resolver Engine:**
+  - `server/domain/pricing/pricingResolver.js`: Exposes `resolvePricing`, `resolveExtensionPricing`, and `resolveAdminWalkInPricing`.
+  - Implements interval-boundary splitting across floodlight transitions, multi-hour package evaluation, and transparent rule-application logs.
