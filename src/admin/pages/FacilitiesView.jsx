@@ -94,10 +94,10 @@ export default function FacilitiesView({ showToast }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
             Facility & Section CMS
           </h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Physical Ground Inventory • Patan, Gujarat
           </span>
         </div>
@@ -145,10 +145,10 @@ export default function FacilitiesView({ showToast }) {
             <div key={fac.id} className="admin-card" style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
                     {fac.customName || fac.defaultName}
                   </h3>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)', fontFamily: 'monospace' }}>
                     ID: {fac.id} • Code: {fac.code}
                   </div>
                 </div>
@@ -163,16 +163,16 @@ export default function FacilitiesView({ showToast }) {
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.82rem', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                <div>Section: <strong style={{ color: '#F8FAFC' }}>{fac.sectionName || 'Sports Arena'}</strong></div>
-                <div>Capacity: <strong style={{ color: '#F8FAFC' }}>{fac.capacity} Players</strong></div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                <div>Section: <strong style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{fac.sectionName || 'Sports Arena'}</strong></div>
+                <div>Capacity: <strong style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{fac.capacity} Players</strong></div>
                 
                 {fac.services && fac.services.length > 0 && (
-                  <div>Primary Sport: <span style={{ color: 'var(--brand-green, #4ADE80)' }}>{fac.services.map(s => s.name).join(', ')}</span></div>
+                  <div>Primary Sport: <span style={{ color: 'var(--admin-forest, #0F3D2E)', fontWeight: 600 }}>{fac.services.map(s => s.name).join(', ')}</span></div>
                 )}
 
                 {fac.addOns && fac.addOns.length > 0 && (
-                  <div style={{ background: 'rgba(249, 115, 22, 0.08)', padding: '6px 8px', borderRadius: '6px', color: 'var(--brand-orange, #F97316)', fontSize: '0.78rem' }}>
+                  <div style={{ background: 'rgba(217, 119, 6, 0.08)', padding: '6px 8px', borderRadius: '6px', color: '#D97706', fontSize: '0.78rem' }}>
                     <strong>Attached Add-On:</strong> {fac.addOns.map(a => a.name).join(', ')} (Single Resource Attachment)
                   </div>
                 )}
@@ -200,14 +200,14 @@ export default function FacilitiesView({ showToast }) {
           {sections.map((sec) => (
             <div key={sec.id} className="admin-card" style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
                   {sec.display_name}
                 </h3>
                 <span className="admin-status-badge confirmed">
                   {sec.status || 'Active'}
                 </span>
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                 Code: {sec.code} • Type: {sec.section_type} • Order: {sec.display_order}
               </div>
             </div>
@@ -219,10 +219,10 @@ export default function FacilitiesView({ showToast }) {
       {activeTab === 'addons' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div className="admin-card">
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 8px 0', color: 'var(--brand-orange, #F97316)' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 8px 0', color: '#D97706' }}>
               Ball-Shooting Machine Add-On Model
             </h3>
-            <p style={{ margin: 0, fontSize: '0.82rem', color: '#CBD5E1' }}>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)' }}>
               The Ball-Shooting Machine is an optional paid add-on on the single Cricket Green Net facility (<code>fac_green_net_1</code>). It occupies the same physical resource, maintaining conflict safety.
             </p>
           </div>
@@ -230,15 +230,15 @@ export default function FacilitiesView({ showToast }) {
           {addOns.map((add) => (
             <div key={add.id} className="admin-card" style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
                   {add.name}
                 </h3>
                 <span className="admin-status-badge confirmed">Add-On</span>
               </div>
-              <div style={{ fontSize: '0.82rem', color: '#CBD5E1', marginBottom: '4px' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px' }}>
                 {add.description}
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)', fontFamily: 'monospace' }}>
                 ID: {add.id} • Attached to: Cricket Green Net 1
               </div>
             </div>

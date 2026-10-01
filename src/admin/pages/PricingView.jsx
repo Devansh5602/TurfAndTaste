@@ -18,6 +18,7 @@ import {
 export default function PricingView({ showToast }) {
   const { can } = useAdminAuth();
   const [pricingList, setPricingList] = useState([]);
+  const [addOns, setAddOns] = useState([]);
   const [timings, setTimings] = useState({
     arenaOpen: '06:00 AM',
     arenaClose: '06:00 AM',
@@ -26,6 +27,7 @@ export default function PricingView({ showToast }) {
   });
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     loadPricingData();
@@ -33,21 +35,33 @@ export default function PricingView({ showToast }) {
 
   const loadPricingData = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const [pricingRes, timingsRes] = await Promise.all([
-        api.getPricing().catch(() => ({ pricing: [] })),
+        api.getAdminPricing(),
         api.getTimings().catch(() => ({ timings: {} }))
       ]);
 
       setPricingList(pricingRes?.pricing || []);
+      setAddOns(pricingRes?.addOns || []);
       if (timingsRes?.timings) {
         setTimings(timingsRes.timings);
       }
     } catch (err) {
-      console.error('Failed to load pricing:', err);
+      setPricingList([]);
+      setAddOns([]);
+      setLoadError(err.message || 'Canonical pricing could not be loaded.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const hasUnconfiguredAddOn = addOns.some((item) => !String(item.hourlyRate || '').trim());
+
+  const handleAddOnFieldChange = (addOnId, value) => {
+    setAddOns((previous) => previous.map((item) => (
+      item.addOnId === addOnId ? { ...item, hourlyRate: value } : item
+    )));
   };
 
   const handlePriceFieldChange = (facilityId, field, value) => {
@@ -62,7 +76,7 @@ export default function PricingView({ showToast }) {
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
-      const res = await api.savePricing(pricingList);
+      const res = await api.saveAdminPricing({ facilities: pricingList, addOns });
       if (res?.success) {
         if (showToast) showToast('Pricing rates and tariffs published successfully!');
         await loadPricingData();
@@ -80,10 +94,10 @@ export default function PricingView({ showToast }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
             Pricing & Tariffs Engine
           </h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Dynamic multi-tier rates, floodlights & weekend surge
           </span>
         </div>
@@ -104,7 +118,7 @@ export default function PricingView({ showToast }) {
               className="admin-btn"
               style={{ minHeight: '36px', padding: '6px 16px', fontSize: '0.82rem' }}
               onClick={handleSaveAll}
-              disabled={isSaving}
+              disabled={isSaving || loading || Boolean(loadError) || pricingList.length === 0 || hasUnconfiguredAddOn}
             >
               <Save size={15} />
               <span>{isSaving ? 'Publishing...' : 'Save & Publish Rates'}</span>
@@ -113,15 +127,22 @@ export default function PricingView({ showToast }) {
         </div>
       </div>
 
+      {loadError && (
+        <div className="admin-card" role="alert" style={{ borderColor: 'rgba(217, 45, 32, 0.45)', color: '#D92D20' }}>
+          <strong>Pricing configuration is unavailable.</strong>
+          <div style={{ marginTop: '4px', fontSize: '0.8rem' }}>{loadError}</div>
+        </div>
+      )}
+
       {/* Global Tariff Rules Banner */}
-      <div className="admin-card" style={{ background: 'rgba(74, 222, 128, 0.05)', borderColor: 'rgba(74, 222, 128, 0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--brand-green, #4ADE80)', fontWeight: 700, fontSize: '0.9rem' }}>
+      <div className="admin-card" style={{ background: 'rgba(15, 61, 46, 0.06)', borderColor: 'rgba(15, 61, 46, 0.18)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: 'var(--admin-forest, #0F3D2E)', fontWeight: 700, fontSize: '0.9rem' }}>
           <Clock size={16} />
           <span>Floodlight Transition & Operations</span>
         </div>
-        <div style={{ fontSize: '0.82rem', color: '#CBD5E1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+        <div style={{ fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
           <div>Floodlights Active: <strong>{timings.floodlightStart || '06:00 PM'} onwards</strong></div>
-          <div>Sports Availability: <strong style={{ color: 'var(--brand-green, #4ADE80)' }}>24/7 Continuous</strong></div>
+          <div>Sports Availability: <strong style={{ color: 'var(--admin-forest, #0F3D2E)' }}>24/7 Continuous</strong></div>
           <div>Extension Rate: <strong>Pro-rated 15m increments</strong></div>
         </div>
       </div>
@@ -132,10 +153,10 @@ export default function PricingView({ showToast }) {
           <div key={tier.facilityId} className="admin-card" style={{ marginBottom: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#F8FAFC' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
                   {tier.facilityName || tier.facilityId}
                 </h3>
-                <span style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)', fontFamily: 'monospace' }}>
                   Resource ID: {tier.facilityId}
                 </span>
               </div>
@@ -183,7 +204,7 @@ export default function PricingView({ showToast }) {
                   className="admin-input"
                   min="0"
                   max="100"
-                  value={tier.weekendSurge || 15}
+                  value={tier.weekendSurge ?? 0}
                   onChange={(e) => handlePriceFieldChange(tier.facilityId, 'weekendSurge', Number(e.target.value))}
                   disabled={!can('pricing.manage')}
                 />
@@ -207,6 +228,43 @@ export default function PricingView({ showToast }) {
           </div>
         ))}
       </div>
+
+      {addOns.length > 0 && (
+        <div className="admin-card" style={{ marginTop: '14px' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 4px', color: 'var(--admin-text-main, #1A1C1A)' }}>
+            Facility Add-Ons
+          </h3>
+          <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
+            Add-ons share the physical facility’s availability and are not separate bookable grounds.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
+            {addOns.map((addOn) => (
+              <div key={addOn.addOnId}>
+                <label htmlFor={`pricing-addon-${addOn.addOnId}`} style={{ display: 'block', fontSize: '0.75rem', color: '#94A3B8', marginBottom: '4px' }}>
+                  {addOn.addOnName} / Hour
+                </label>
+                <input
+                  id={`pricing-addon-${addOn.addOnId}`}
+                  type="text"
+                  className="admin-input"
+                  placeholder="Configure rate"
+                  value={addOn.hourlyRate}
+                  onChange={(event) => handleAddOnFieldChange(addOn.addOnId, event.target.value)}
+                  disabled={!can('pricing.manage')}
+                />
+                <span style={{ display: 'block', marginTop: '4px', fontSize: '0.7rem', color: '#64748B' }}>
+                  Attached to {addOn.facilityId}
+                </span>
+                {!String(addOn.hourlyRate || '').trim() && (
+                  <span role="status" style={{ display: 'block', marginTop: '4px', fontSize: '0.72rem', color: '#FBBF24' }}>
+                    Set an authoritative rate before publishing.
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

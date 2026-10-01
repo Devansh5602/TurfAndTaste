@@ -1,280 +1,318 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAdminAuth } from '../context/AdminAuthContext';
-import { 
-  Calendar, 
-  Activity, 
-  ShieldCheck, 
-  Ban, 
-  UserPlus, 
-  QrCode, 
-  Clock, 
-  CheckCircle, 
-  AlertTriangle, 
-  RefreshCw 
+import {
+  PlusCircle,
+  Lock,
+  BookOpen,
+  RefreshCw,
+  Activity,
+  ShieldCheck,
+  Zap,
+  Building2,
+  Phone,
+  ChevronRight,
+  Clock,
+  Calendar,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 
-export default function DashboardView({ onNavigate }) {
+export default function DashboardView({ onNavigate, showToast }) {
   const { admin } = useAdminAuth();
   const [loading, setLoading] = useState(true);
   const [todayBookings, setTodayBookings] = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [blocks, setBlocks] = useState([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedSport, setSelectedSport] = useState('all');
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const [bookingsRes, sessionsRes, facRes, blocksRes] = await Promise.all([
+        api.getBookings({ date: todayStr }).catch(() => ({ bookings: [] })),
+        api.getTodaySessions(todayStr).catch(() => ({ sessions: [] })),
+        api.getPhysicalFacilities().catch(() => ({ facilities: [] })),
+        api.getFacilityBlocks().catch(() => ({ blocks: [] }))
+      ]);
+
+      setTodayBookings(bookingsRes?.bookings || []);
+      setTodaySessions(sessionsRes?.sessions || []);
+      setFacilities(facRes?.facilities || []);
+      setBlocks(blocksRes?.blocks || []);
+    } catch (err) {
+      if (showToast) showToast('Failed to load dashboard metrics', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        const [bookingsRes, sessionsRes, facRes, blocksRes] = await Promise.all([
-          api.getBookings({ date: todayStr }).catch(() => ({ bookings: [] })),
-          api.getTodaySessions(todayStr).catch(() => ({ sessions: [] })),
-          api.getPhysicalFacilities().catch(() => ({ facilities: [] })),
-          api.getFacilityBlocks().catch(() => ({ blocks: [] }))
-        ]);
-
-        if (!cancelled) {
-          setTodayBookings(bookingsRes?.bookings || []);
-          setTodaySessions(sessionsRes?.sessions || []);
-          setFacilities(facRes?.facilities || []);
-          setBlocks(blocksRes?.blocks || []);
-        }
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
     fetchDashboardData();
-    return () => { cancelled = true; };
-  }, [refreshKey, todayStr]);
+  }, [todayStr]);
 
-  const activeSessionsCount = todaySessions.filter(s => s.sessionStatus === 'IN_PROGRESS' || s.sessionStatus === 'In Progress').length;
-  const checkedInCount = todaySessions.filter(s => s.sessionStatus === 'CHECKED_IN' || s.sessionStatus === 'Checked-in').length;
+  const confirmedTodayCount = todayBookings.filter(b =>
+    b.status === 'Confirmed' || b.status === 'Checked-in' || b.status === 'In Progress'
+  ).length;
+
+  const totalSettledToday = todayBookings
+    .filter(b => b.paymentStatus === 'Paid' || b.paymentStatus === 'Partial' || b.paymentStatus === 'Settled')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
   const activeBlocksCount = blocks.filter(b => b.status === 'active').length;
+  const operationalVenuesCount = Math.max(0, (facilities.length || 6) - activeBlocksCount);
+
+  // Filter facilities by sport discipline
+  const filteredFacilities = facilities.filter(fac => {
+    if (selectedSport === 'all') return true;
+    const cat = String(fac.sectionId || fac.id || '').toLowerCase();
+    if (selectedSport === 'cricket') return cat.includes('cricket');
+    if (selectedSport === 'pickleball') return cat.includes('pickleball');
+    if (selectedSport === 'skating') return cat.includes('skating');
+    return true;
+  });
 
   return (
-    <div>
-      {/* Top Welcome / Status bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '16px',
-        flexWrap: 'wrap',
-        gap: '8px'
-      }}>
+    <div className="admin-page-container">
+      {/* Header */}
+      <div className="admin-page-header">
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
-            Operations Desk
-          </h2>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
-            Single Campus • Patan, Gujarat • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
-          </div>
+          <span className="admin-eyebrow">CLUBHOUSE OPERATIONS</span>
+          <h2 className="admin-page-title">Pitch Master Control</h2>
+          <p className="admin-page-subtitle">Patan Campus • 24/7 Operations Desk • Real-time status</p>
         </div>
-
         <button
-          onClick={() => setRefreshKey(k => k + 1)}
           className="admin-btn secondary"
-          style={{ minHeight: '36px', padding: '6px 12px', fontSize: '0.78rem' }}
+          onClick={fetchDashboardData}
           disabled={loading}
-          aria-label="Refresh Dashboard"
+          aria-label="Auto-sync Dashboard"
         >
           <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          <span>Refresh</span>
+          <span>Auto-sync</span>
+        </button>
+      </div>
+
+      {/* 3 Quick Action Cards Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+        <button
+          id="admin-quick-walkin"
+          onClick={() => onNavigate('walkin')}
+          className="admin-quick-action-tile primary"
+        >
+          <PlusCircle size={20} />
+          <span>+ Quick Booking</span>
+        </button>
+
+        <button
+          id="admin-quick-lockout"
+          onClick={() => onNavigate('blocks')}
+          className="admin-quick-action-tile danger"
+        >
+          <Lock size={20} />
+          <span>Instant Lockout</span>
+        </button>
+
+        <button
+          id="admin-quick-manifest"
+          onClick={() => onNavigate('bookings')}
+          className="admin-quick-action-tile success"
+        >
+          <BookOpen size={20} />
+          <span>Daily Manifest</span>
         </button>
       </div>
 
       {/* Operational Metrics Grid */}
       <div className="admin-metrics-grid">
         <div className="admin-metric-card">
-          <span className="admin-metric-label">Today's Bookings</span>
-          <span className="admin-metric-value">{todayBookings.length}</span>
+          <span className="admin-metric-label">Today Bookings</span>
+          <span className="admin-metric-value">{confirmedTodayCount} Confirmed</span>
+          <span className="admin-metric-sub green">
+            {todayBookings.length} total rostered
+          </span>
+        </div>
+
+        <div className="admin-metric-card">
+          <span className="admin-metric-label">Gateway Sync</span>
+          <span className="admin-metric-value">100% Settled</span>
           <span className="admin-metric-sub">
-            {todayBookings.filter(b => b.status === 'Confirmed' || b.status === 'Checked-in' || b.status === 'In Progress').length} Active / Scheduled
+            ₹{totalSettledToday.toLocaleString('en-IN')} via Razorpay & Desk
           </span>
         </div>
 
         <div className="admin-metric-card">
-          <span className="admin-metric-label">Active on Ground</span>
-          <span className="admin-metric-value" style={{ color: 'var(--brand-green, #4ADE80)' }}>
-            {activeSessionsCount}
-          </span>
-          <span className="admin-metric-sub">
-            {checkedInCount} Checked In Waiting
-          </span>
+          <span className="admin-metric-label">Active Venues</span>
+          <span className="admin-metric-value">{operationalVenuesCount} / {facilities.length || 6}</span>
+          <span className="admin-metric-sub green">• Fully Operational 24/7</span>
         </div>
 
         <div className="admin-metric-card">
-          <span className="admin-metric-label">Physical Inventory</span>
-          <span className="admin-metric-value">{facilities.length || 6}</span>
-          <span className="admin-metric-sub">2 Turfs • 2 Courts • 1 Rink • 1 Net</span>
-        </div>
-
-        <div className="admin-metric-card">
-          <span className="admin-metric-label">Active Blocks</span>
-          <span className="admin-metric-value" style={{ color: activeBlocksCount > 0 ? '#FB923C' : '#94A3B8' }}>
-            {activeBlocksCount}
-          </span>
-          <span className="admin-metric-sub">Maintenance / Events</span>
+          <span className="admin-metric-label">Peak Floodlit</span>
+          <span className="admin-metric-value">18:30 – 23:00</span>
+          <span className="admin-metric-sub">Night tariff automated</span>
         </div>
       </div>
 
-      {/* Fast Operational Action CTAs */}
-      <div className="admin-quick-actions">
+      {/* Sport Discipline Filter Pills */}
+      <div className="admin-filter-pills" role="tablist">
         <button
-          id="cta-walkin-booking"
-          className="admin-quick-btn"
-          onClick={() => onNavigate('walkin')}
+          className={`admin-filter-pill ${selectedSport === 'all' ? 'active' : ''}`}
+          onClick={() => setSelectedSport('all')}
         >
-          <UserPlus size={20} color="var(--brand-green, #4ADE80)" />
-          <span>Walk-In Booking</span>
+          All ({facilities.length || 6})
         </button>
-
         <button
-          id="cta-qr-checkin"
-          className="admin-quick-btn"
-          onClick={() => onNavigate('sessions')}
+          className={`admin-filter-pill ${selectedSport === 'cricket' ? 'active' : ''}`}
+          onClick={() => setSelectedSport('cricket')}
         >
-          <QrCode size={20} color="var(--brand-green, #4ADE80)" />
-          <span>Ground Check-In</span>
+          Box Cricket
         </button>
-
         <button
-          id="cta-create-block"
-          className="admin-quick-btn orange"
-          onClick={() => onNavigate('blocks')}
+          className={`admin-filter-pill ${selectedSport === 'pickleball' ? 'active' : ''}`}
+          onClick={() => setSelectedSport('pickleball')}
         >
-          <Ban size={20} color="var(--brand-orange, #F97316)" />
-          <span>Facility Block</span>
+          Pickleball
+        </button>
+        <button
+          className={`admin-filter-pill ${selectedSport === 'skating' ? 'active' : ''}`}
+          onClick={() => setSelectedSport('skating')}
+        >
+          Skating Rink
         </button>
       </div>
 
-      {/* Facility Availability Matrix */}
-      <div className="admin-card">
-        <div className="admin-card-header">
-          <h2>
-            <Activity size={18} color="var(--brand-green, #4ADE80)" />
-            <span>24/7 Physical Resource Status</span>
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--brand-green, #4ADE80)', fontWeight: 600 }}>
-            Live Patan Grounds
-          </span>
+      {/* Live Ground Status List */}
+      <div className="admin-feed-section">
+        <div className="admin-feed-header">
+          <span className="admin-feed-title">Live Ground Status</span>
+          <span className="admin-feed-badge">• Real-time schedule</span>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-          gap: '10px'
-        }}>
-          {facilities.map(fac => {
-            const isBlocked = blocks.some(b => b.facility_id === fac.id && b.status === 'active');
-            const hasActiveSession = todaySessions.some(s => s.facilityId === fac.id && (s.sessionStatus === 'IN_PROGRESS' || s.sessionStatus === 'In Progress'));
-            
-            let statusBadge = { label: 'AVAILABLE 24/7', color: 'var(--brand-green, #4ADE80)', bg: 'rgba(74, 222, 128, 0.1)' };
-            if (isBlocked) {
-              statusBadge = { label: 'BLOCKED', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.15)' };
-            } else if (hasActiveSession) {
-              statusBadge = { label: 'IN PROGRESS', color: '#FBBF24', bg: 'rgba(245, 158, 11, 0.15)' };
-            }
-
-            return (
-              <div
-                key={fac.id}
-                style={{
-                  background: 'var(--bg-surface-elevated, #111A14)',
-                  border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
-                  borderRadius: '12px',
-                  padding: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px'
-                }}
-              >
-                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#F8FAFC' }}>
-                  {fac.customName || fac.defaultName}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace' }}>
-                  {fac.id}
-                </div>
-                {fac.addOns && fac.addOns.length > 0 && (
-                  <div style={{ fontSize: '0.7rem', color: 'var(--brand-orange, #F97316)' }}>
-                    + {fac.addOns.map(a => a.name).join(', ')}
-                  </div>
-                )}
-                <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
-                  <span style={{
-                    display: 'inline-block',
-                    fontSize: '0.68rem',
-                    fontWeight: 800,
-                    padding: '3px 6px',
-                    borderRadius: '4px',
-                    background: statusBadge.bg,
-                    color: statusBadge.color,
-                    letterSpacing: '0.04em'
-                  }}>
-                    {statusBadge.label}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Today's Schedule Overview */}
-      <div className="admin-card">
-        <div className="admin-card-header">
-          <h2>
-            <Clock size={18} color="var(--brand-green, #4ADE80)" />
-            <span>Today's Sessions ({todayBookings.length})</span>
-          </h2>
-          <button
-            className="admin-btn secondary"
-            style={{ minHeight: '30px', padding: '4px 10px', fontSize: '0.75rem' }}
-            onClick={() => onNavigate('bookings')}
-          >
-            View All Bookings
-          </button>
-        </div>
-
-        {todayBookings.length === 0 ? (
-          <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748B', fontSize: '0.85rem' }}>
-            No reservations scheduled for today. Ready for Walk-Ins.
+        {loading ? (
+          <div className="admin-empty-state">
+            <RefreshCw size={24} className="spin" style={{ margin: '0 auto 8px' }} />
+            <p>Loading live facility telemetry...</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {todayBookings.slice(0, 5).map(booking => (
-              <div
-                key={booking.id}
-                style={{
-                  background: 'var(--bg-surface-elevated, #111A14)',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.06))'
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#F8FAFC' }}>
-                    {booking.customerName}
+          <div className="admin-records-list">
+            {filteredFacilities.map((fac) => {
+              const activeBlock = blocks.find(b => b.facility_id === fac.id && b.status === 'active');
+              const activeSession = todaySessions.find(s => s.facilityId === fac.id && (s.sessionStatus === 'IN_PROGRESS' || s.sessionStatus === 'In Progress'));
+              const activeBooking = todayBookings.find(b => b.facilityId === fac.id && (b.status === 'Confirmed' || b.status === 'Checked-in' || b.status === 'In Progress'));
+
+              const isBlocked = Boolean(activeBlock);
+              const isInSession = Boolean(activeSession);
+              const isReserved = Boolean(activeBooking);
+
+              let statusLabel = 'Available 24/7';
+              let statusBadgeClass = 'confirmed';
+
+              if (isBlocked) {
+                statusLabel = 'Sweeping / Maintenance';
+                statusBadgeClass = 'pending';
+              } else if (isInSession) {
+                statusLabel = '• Active / On Ground';
+                statusBadgeClass = 'active';
+              } else if (isReserved) {
+                statusLabel = 'Upcoming Reserved';
+                statusBadgeClass = 'confirmed';
+              }
+
+              return (
+                <div key={fac.id} className="admin-card admin-ground-card">
+                  <div className="admin-ground-top">
+                    <div>
+                      <span className="admin-ground-category">
+                        {fac.sectionId ? fac.sectionId.replace(/_/g, ' ').toUpperCase() : 'SPORTS VENUE'}
+                      </span>
+                      <h3 className="admin-ground-name">{fac.customName || fac.defaultName || fac.name}</h3>
+                    </div>
+
+                    <span className={`admin-status-badge ${statusBadgeClass}`}>
+                      {statusLabel}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                    {booking.facilityName} • {booking.time}
+
+                  {/* Operational Window Bar */}
+                  <div className="admin-ground-window-bar">
+                    <Clock size={13} style={{ marginRight: '5px' }} />
+                    {isInSession ? (
+                      <span>Current Session In-Progress</span>
+                    ) : isReserved ? (
+                      <span>Next Booking: {activeBooking.time}</span>
+                    ) : isBlocked ? (
+                      <span>Locked: {activeBlock.reason || 'Operational Block'}</span>
+                    ) : (
+                      <span>Open for Instant Reservation (24/7 Available)</span>
+                    )}
+                  </div>
+
+                  {/* Customer / Patron Context if Booked */}
+                  {activeBooking && (
+                    <div className="admin-ground-patron-row">
+                      <div className="admin-patron-info">
+                        <div className="admin-avatar-mini">
+                          {(activeBooking.customerName || 'P')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="admin-patron-name">{activeBooking.customerName}</span>
+                          <span className="admin-patron-ref">BK #{activeBooking.id}</span>
+                        </div>
+                      </div>
+
+                      {activeBooking.customerPhone && (
+                        <a
+                          href={`tel:${activeBooking.customerPhone}`}
+                          className="admin-header-icon-btn"
+                          title="Call Patron"
+                        >
+                          <Phone size={13} />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer CTAs */}
+                  <div className="admin-ground-footer">
+                    {isInSession ? (
+                      <button
+                        className="admin-btn primary compact"
+                        onClick={() => onNavigate('sessions')}
+                      >
+                        <span>Manage Session</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    ) : isReserved ? (
+                      <button
+                        className="admin-btn primary compact"
+                        onClick={() => onNavigate('sessions')}
+                      >
+                        <CheckCircle2 size={13} />
+                        <span>Pre-Check In</span>
+                      </button>
+                    ) : isBlocked ? (
+                      <button
+                        className="admin-btn secondary compact"
+                        onClick={() => onNavigate('blocks')}
+                      >
+                        <span>Release Lockout</span>
+                      </button>
+                    ) : (
+                      <button
+                        className="admin-btn secondary compact"
+                        onClick={() => onNavigate('walkin')}
+                      >
+                        <span>Reserve Court</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
-                <span className={`admin-status-badge ${booking.status?.toLowerCase().replace(/\s+/g, '-')}`}>
-                  {booking.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

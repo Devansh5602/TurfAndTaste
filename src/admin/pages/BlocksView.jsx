@@ -143,10 +143,10 @@ export default function BlocksView({ showToast }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
             Availability & Facility Blocks
           </h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Sports operate 24/7 by default • Manage exception blocks
           </span>
         </div>
@@ -176,11 +176,11 @@ export default function BlocksView({ showToast }) {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--admin-text-muted, #5A645E)' }}>
           Loading facility blocks...
         </div>
       ) : blocks.length === 0 ? (
-        <div className="admin-card" style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+        <div className="admin-card" style={{ textAlign: 'center', padding: '30px', color: 'var(--admin-text-muted, #5A645E)' }}>
           All sports facilities are currently 100% available with zero active blocks.
         </div>
       ) : (
@@ -189,12 +189,12 @@ export default function BlocksView({ showToast }) {
             <div key={blk.id} className="admin-card" style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Ban size={18} color="#EF4444" />
+                  <Ban size={18} color="#D92D20" />
                   <div>
-                    <strong style={{ color: '#F8FAFC', fontSize: '0.95rem' }}>
+                    <strong style={{ color: 'var(--admin-text-main, #1A1C1A)', fontSize: '0.95rem' }}>
                       {blk.facility_name || blk.facility_id}
                     </strong>
-                    <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)', fontFamily: 'monospace' }}>
                       {blk.id} • Reason: {blk.reason_code}
                     </div>
                   </div>
@@ -213,9 +213,9 @@ export default function BlocksView({ showToast }) {
                 )}
               </div>
 
-              <div style={{ fontSize: '0.82rem', color: '#CBD5E1', margin: '6px 0' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)', margin: '6px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Clock size={13} color="var(--brand-orange, #F97316)" />
+                  <Clock size={13} color="#D97706" />
                   <span>
                     {new Date(blk.start_at).toLocaleString('en-IN', { timeZone: VENUE_TIME_ZONE })} ➔ {new Date(blk.end_at).toLocaleString('en-IN', { timeZone: VENUE_TIME_ZONE })}
                   </span>
@@ -223,7 +223,7 @@ export default function BlocksView({ showToast }) {
               </div>
 
               {blk.customer_message && (
-                <div style={{ fontSize: '0.78rem', color: '#94A3B8', background: 'rgba(255,255,255,0.03)', padding: '6px 8px', borderRadius: '6px' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', background: 'var(--admin-surface-subtle, #F3F1ED)', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--admin-border, #EAE8E4)' }}>
                   Customer Note: "{blk.customer_message}"
                 </div>
               )}
@@ -241,7 +241,7 @@ export default function BlocksView({ showToast }) {
                 <X size={20} />
               </button>
             </div>
-            <p style={{ margin: '0 0 16px', color: '#CBD5E1', fontSize: '0.86rem', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 16px', color: 'var(--admin-text-main, #1A1C1A)', fontSize: '0.86rem', lineHeight: 1.5 }}>
               This will make <strong>{pendingReleaseBlock.facility_name || 'this facility'}</strong> available again for the blocked interval.
             </p>
             <div style={{ display: 'flex', gap: '8px' }}>

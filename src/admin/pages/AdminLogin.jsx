@@ -38,16 +38,16 @@ export default function AdminLogin() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '20px',
-      background: 'radial-gradient(circle at top, #112015 0%, #050807 80%)'
+      background: 'var(--admin-bg, #FAF9F6)'
     }}>
       <div style={{
         width: '100%',
         maxWidth: '420px',
-        background: 'var(--bg-surface-elevated, #111A14)',
-        border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))',
-        borderRadius: 'var(--radius-card, 20px)',
-        padding: '28px 24px',
-        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.7)'
+        background: 'var(--admin-surface, #FFFFFF)',
+        border: '1px solid var(--admin-border, #EAE8E4)',
+        borderRadius: 'var(--admin-radius-lg, 20px)',
+        padding: '32px 24px',
+        boxShadow: '0 12px 32px rgba(15, 61, 46, 0.08)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
@@ -57,17 +57,17 @@ export default function AdminLogin() {
             width: '56px',
             height: '56px',
             borderRadius: '16px',
-            background: 'rgba(74, 222, 128, 0.12)',
-            border: '1px solid rgba(74, 222, 128, 0.3)',
-            color: 'var(--brand-green, #4ADE80)',
+            background: 'rgba(15, 61, 46, 0.08)',
+            border: '1px solid rgba(15, 61, 46, 0.18)',
+            color: 'var(--admin-forest, #0F3D2E)',
             marginBottom: '12px'
           }}>
             <Shield size={28} />
           </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 4px 0', color: '#F8FAFC' }}>
+          <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--admin-text-main, #1A1C1A)' }}>
             Turf & Taste Management
           </h1>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Single Property Operations • Patan, Gujarat
           </p>
         </div>
@@ -92,11 +92,11 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)', marginBottom: '6px', fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-main, #1A1C1A)', marginBottom: '6px', fontWeight: 600 }}>
               Management Username
             </label>
             <div style={{ position: 'relative' }}>
-              <User size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: '#64748B' }} />
+              <User size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: 'var(--admin-text-muted, #5A645E)' }} />
               <input
                 id="admin-login-username"
                 type="text"
@@ -111,11 +111,11 @@ export default function AdminLogin() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)', marginBottom: '6px', fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-main, #1A1C1A)', marginBottom: '6px', fontWeight: 600 }}>
               Master Password
             </label>
             <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: '#64748B' }} />
+              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: 'var(--admin-text-muted, #5A645E)' }} />
               <input
                 id="admin-login-password"
                 type={showPassword ? 'text' : 'password'}

@@ -99,10 +99,10 @@ export default function BookingsView({ showToast }) {
       {/* Header & Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
             Booking Management
           </h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Total {bookings.length} reservations found
           </span>
         </div>
@@ -211,8 +211,8 @@ export default function BookingsView({ showToast }) {
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.78rem', color: '#CBD5E1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Clock size={13} color="var(--brand-green, #4ADE80)" />
+              <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={13} color="var(--admin-forest, #0F3D2E)" />
                 <span>{b.facilityName || b.facilityId} • {b.date} • {b.time}</span>
               </div>
 
@@ -258,85 +258,85 @@ export default function BookingsView({ showToast }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-              <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px' }}>
-                <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Booking ID</div>
-                <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--brand-green, #4ADE80)', fontSize: '1.05rem' }}>
+              <div style={{ background: 'var(--admin-surface-subtle, #F3F1ED)', padding: '10px', borderRadius: '8px', border: '1px solid var(--admin-border, #EAE8E4)' }}>
+                <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Booking ID</div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--admin-forest, #0F3D2E)', fontSize: '1.05rem' }}>
                   {selectedBooking.id}
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Customer Name</div>
-                  <div style={{ fontWeight: 600 }}>{selectedBooking.customerName}</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Customer Name</div>
+                  <div style={{ fontWeight: 600, color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.customerName}</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Contact Phone</div>
-                  <div>{selectedBooking.customerPhone}</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Contact Phone</div>
+                  <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.customerPhone}</div>
                 </div>
               </div>
 
               <div>
-                <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Physical Facility & Section</div>
-                <div style={{ fontWeight: 600 }}>{selectedBooking.facilityName || selectedBooking.facilityId} (Patan Campus)</div>
+                <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Physical Facility & Section</div>
+                <div style={{ fontWeight: 600, color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.facilityName || selectedBooking.facilityId} (Patan Campus)</div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Scheduled Date</div>
-                  <div>{selectedBooking.date}</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Scheduled Date</div>
+                  <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.date}</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Time Slot</div>
-                  <div>{selectedBooking.time}</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Time Slot</div>
+                  <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.time}</div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Amount Paid</div>
-                  <div style={{ fontWeight: 700, color: 'var(--brand-green, #4ADE80)' }}>{selectedBooking.amount}</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Amount Paid</div>
+                  <div style={{ fontWeight: 700, color: 'var(--admin-forest, #0F3D2E)' }}>{selectedBooking.amount}</div>
                 </div>
                 <div>
-                  <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Payment Status</div>
-                  <div>{selectedBooking.paymentStatus || 'Paid'} ({selectedBooking.paymentType})</div>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Payment Status</div>
+                  <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{selectedBooking.paymentStatus || 'Paid'} ({selectedBooking.paymentType})</div>
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <div style={{ color: '#94A3B8', fontSize: '0.75rem', marginBottom: '4px' }}>Pricing Breakdown (Snapshot)</div>
+              <div style={{ background: 'var(--admin-surface-subtle, #F3F1ED)', padding: '10px', borderRadius: '8px', border: '1px solid var(--admin-border, #EAE8E4)' }}>
+                <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem', marginBottom: '4px', fontWeight: 600 }}>Pricing Breakdown (Snapshot)</div>
                 {selectedBooking.pricingSnapshot?.breakdown ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94A3B8' }}>Base Tariff:</span>
-                      <span>₹{(selectedBooking.pricingSnapshot.breakdown.baseAmountPaise / 100).toFixed(0)}</span>
+                      <span style={{ color: 'var(--admin-text-muted, #5A645E)' }}>Base Tariff:</span>
+                      <span style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>₹{(selectedBooking.pricingSnapshot.breakdown.baseAmountPaise / 100).toFixed(0)}</span>
                     </div>
                     {selectedBooking.pricingSnapshot.breakdown.packageUsed && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38BDF8' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284C7' }}>
                         <span>Package Discount:</span>
                         <span>-₹{(selectedBooking.pricingSnapshot.breakdown.packageDiscountPaise / 100).toFixed(0)}</span>
                       </div>
                     )}
                     {selectedBooking.pricingSnapshot.breakdown.addOnAmountPaise > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FBBF24' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#B45309' }}>
                         <span>Add-Ons:</span>
                         <span>+₹{(selectedBooking.pricingSnapshot.breakdown.addOnAmountPaise / 100).toFixed(0)}</span>
                       </div>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '3px', marginTop: '2px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid var(--admin-border, #EAE8E4)', paddingTop: '4px', marginTop: '2px' }}>
                       <span>Total Canonical:</span>
-                      <span style={{ color: 'var(--brand-green, #4ADE80)' }}>₹{(selectedBooking.pricingSnapshot.totalAmountPaise / 100).toFixed(0)}</span>
+                      <span style={{ color: 'var(--admin-forest, #0F3D2E)' }}>₹{(selectedBooking.pricingSnapshot.totalAmountPaise / 100).toFixed(0)}</span>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                  <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem', fontStyle: 'italic' }}>
                     Historical record (immutable breakdown unavailable)
                   </div>
                 )}
               </div>
 
               <div>
-                <div style={{ color: '#94A3B8', fontSize: '0.75rem' }}>Current Status</div>
+                <div style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.75rem' }}>Current Status</div>
                 <span className={`admin-status-badge ${selectedBooking.status?.toLowerCase().replace(/\s+/g, '-')}`} style={{ display: 'inline-block', marginTop: '4px' }}>
                   {selectedBooking.status}
                 </span>
@@ -379,12 +379,12 @@ export default function BookingsView({ showToast }) {
               </button>
             </div>
 
-            <div style={{ fontSize: '0.85rem', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-main, #1A1C1A)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <p style={{ margin: 0 }}>
                 Are you sure you want to cancel reservation <strong>{selectedBooking.id}</strong> for <strong>{selectedBooking.customerName}</strong>?
               </p>
 
-              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '10px', borderRadius: '8px', color: '#FCA5A5', fontSize: '0.8rem' }}>
+              <div style={{ background: 'rgba(217, 45, 32, 0.08)', border: '1px solid rgba(217, 45, 32, 0.25)', padding: '10px', borderRadius: '8px', color: '#D92D20', fontSize: '0.8rem' }}>
                 <strong>Policy Notice:</strong>
                 <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
                   <li>Cancellation is <strong>PERMANENT</strong> and immediately frees the slot for other players.</li>

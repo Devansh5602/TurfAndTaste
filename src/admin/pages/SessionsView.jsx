@@ -183,10 +183,10 @@ export default function SessionsView({ showToast }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
             QR Check-In & Ground Desk
           </h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
             Scan passes, start sessions & manage 15-minute extensions
           </span>
         </div>
@@ -227,23 +227,23 @@ export default function SessionsView({ showToast }) {
 
       {/* Selected / Search Result Session Inspector */}
       {selectedSession && (
-        <div className="admin-card" style={{ borderColor: 'var(--brand-green, #4ADE80)', background: 'var(--bg-surface-elevated, #111A14)' }}>
+        <div className="admin-card" style={{ borderColor: 'var(--admin-forest, #0F3D2E)', background: 'var(--admin-surface, #FFFFFF)' }}>
           <div className="admin-card-header">
             <div>
               <span className="admin-ref-code" style={{ fontSize: '1.1rem' }}>{selectedSession.id}</span>
-              <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>{selectedSession.customerName} • {selectedSession.customerPhone}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted, #5A645E)' }}>{selectedSession.customerName} • {selectedSession.customerPhone}</div>
             </div>
             <button className="admin-modal-close" onClick={() => setSelectedSession(null)}>
               <X size={18} />
             </button>
           </div>
 
-          <div style={{ fontSize: '0.85rem', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-main, #1A1C1A)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
             <div>Resource: <strong>{selectedSession.facilityName || selectedSession.facilityId}</strong></div>
             <div>Scheduled: <strong>{selectedSession.date} • {selectedSession.timeSlot || selectedSession.time}</strong></div>
             
             {selectedSession.actualStartAt && (
-              <div style={{ color: 'var(--brand-green, #4ADE80)' }}>
+              <div style={{ color: 'var(--admin-forest, #0F3D2E)', fontWeight: 600 }}>
                 Actual Start: {new Date(selectedSession.actualStartAt).toLocaleTimeString()}
                 {selectedSession.delayMinutes > 0 && ` (${selectedSession.delayMinutes}m delay recorded)`}
               </div>
@@ -390,12 +390,12 @@ export default function SessionsView({ showToast }) {
             )}
 
             <form onSubmit={handleApplyExtension} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ fontSize: '0.82rem', color: '#CBD5E1' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--admin-text-main, #1A1C1A)' }}>
                 Extending session for <strong>{selectedSession.customerName}</strong> on <strong>{selectedSession.facilityName || selectedSession.facilityId}</strong>.
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#94A3B8', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '4px', fontWeight: 600 }}>
                   Extension Duration (15-min increments)
                 </label>
                 <div style={{ display: 'flex', gap: '6px' }}>

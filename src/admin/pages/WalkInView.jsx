@@ -229,39 +229,39 @@ export default function WalkInView({ onNavigate, showToast }) {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'var(--brand-green, #4ADE80)',
+          color: 'var(--admin-forest, #0F3D2E)',
           marginBottom: '14px'
         }}>
           <CheckCircle size={32} />
         </div>
 
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 6px 0', color: '#F8FAFC' }}>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--admin-text-main, #1A1C1A)' }}>
           Walk-In Confirmed!
         </h2>
-        <div style={{ fontSize: '0.85rem', color: '#94A3B8', marginBottom: '16px' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '16px' }}>
           Counter reservation created on canonical booking engine.
         </div>
 
-        <div style={{ background: 'var(--bg-surface-elevated, #111A14)', border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))', borderRadius: '12px', padding: '14px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+        <div style={{ background: 'var(--admin-surface-subtle, #F3F1ED)', border: '1px solid var(--admin-border, #EAE8E4)', borderRadius: '12px', padding: '14px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
           <div>
-            <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Booking Reference</span>
-            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--brand-green, #4ADE80)', fontSize: '1.1rem' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>Booking Reference</span>
+            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--admin-forest, #0F3D2E)', fontSize: '1.1rem' }}>
               {successBooking.id}
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.82rem' }}>
             <div>
-              <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Player Name</span>
-              <div>{successBooking.customerName}</div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>Player Name</span>
+              <div style={{ color: 'var(--admin-text-main, #1A1C1A)', fontWeight: 600 }}>{successBooking.customerName}</div>
             </div>
             <div>
-              <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Phone</span>
-              <div>{successBooking.customerPhone}</div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>Phone</span>
+              <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{successBooking.customerPhone}</div>
             </div>
           </div>
           <div style={{ fontSize: '0.82rem' }}>
-            <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Time & Facility</span>
-            <div>{successBooking.facilityName || successBooking.facilityId} • {successBooking.date} • {successBooking.time}</div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>Time & Facility</span>
+            <div style={{ color: 'var(--admin-text-main, #1A1C1A)' }}>{successBooking.facilityName || successBooking.facilityId} • {successBooking.date} • {successBooking.time}</div>
           </div>
         </div>
 
@@ -298,10 +298,10 @@ export default function WalkInView({ onNavigate, showToast }) {
   return (
     <div>
       <div style={{ marginBottom: '16px' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#F8FAFC' }}>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--admin-text-main, #1A1C1A)' }}>
           Walk-In Counter Booking
         </h2>
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94A3B8)' }}>
+        <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
           Instant reservation for counter players in Patan
         </span>
       </div>
@@ -361,12 +361,12 @@ export default function WalkInView({ onNavigate, showToast }) {
               alignItems: 'center',
               gap: '10px',
               padding: '10px 12px',
-              background: 'rgba(249, 115, 22, 0.08)',
-              border: '1px solid rgba(249, 115, 22, 0.25)',
+              background: 'rgba(217, 119, 6, 0.08)',
+              border: '1px solid rgba(217, 119, 6, 0.25)',
               borderRadius: '8px',
               cursor: 'pointer',
               fontSize: '0.82rem',
-              color: '#F8FAFC'
+              color: 'var(--admin-text-main, #1A1C1A)'
             }}>
               <input
                 id="walkin-shooting-machine-toggle"
@@ -376,7 +376,7 @@ export default function WalkInView({ onNavigate, showToast }) {
               />
               <div>
                 <strong>Attach Ball-Shooting Machine Add-On</strong>
-                <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                   Occupies the same Green Net resource with automated bowling machine active
                 </div>
               </div>
@@ -496,8 +496,8 @@ export default function WalkInView({ onNavigate, showToast }) {
             </div>
           )}
 
-          <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '8px', fontSize: '0.82rem', color: '#CBD5E1' }}>
-            <span style={{ color: '#94A3B8' }}>Calculated Interval:</span> <strong>{getSelectedSlot()}</strong>
+          <div style={{ marginTop: '12px', padding: '10px', background: 'var(--admin-surface-subtle, #F3F1ED)', border: '1px solid var(--admin-border, #EAE8E4)', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--admin-text-main, #1A1C1A)' }}>
+            <span style={{ color: 'var(--admin-text-muted, #5A645E)' }}>Calculated Interval:</span> <strong>{getSelectedSlot()}</strong>
           </div>
         </div>
 
@@ -600,39 +600,39 @@ export default function WalkInView({ onNavigate, showToast }) {
             const effectivePaymentType = within1h ? 'full' : formData.paymentType;
             const charged = effectivePaymentType === 'full' ? serverQuote.totalAmountPaise : serverQuote.depositAmountPaise;
             return (
-              <div style={{ background: 'rgba(74, 222, 128, 0.07)', border: '1px solid rgba(74, 222, 128, 0.2)', borderRadius: '8px', padding: '12px', fontSize: '0.82rem', marginBottom: '8px' }}>
-                <div style={{ fontSize: '0.7rem', color: '#94A3B8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Server-Resolved Quote</div>
+              <div style={{ background: 'rgba(15, 61, 46, 0.06)', border: '1px solid rgba(15, 61, 46, 0.18)', borderRadius: '8px', padding: '12px', fontSize: '0.82rem', marginBottom: '8px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-muted, #5A645E)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 }}>Server-Resolved Quote</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
                   <div>
-                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Session Type</span>
-                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>{serverQuote.isNight ? 'Floodlit (Night)' : 'Day Session'}</div>
+                    <span style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.72rem' }}>Session Type</span>
+                    <div style={{ fontWeight: 600, color: 'var(--admin-text-main, #1A1C1A)' }}>{serverQuote.isNight ? 'Floodlit (Night)' : 'Day Session'}</div>
                   </div>
                   <div>
-                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Rate / Hour</span>
-                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>&#8377;{serverQuote.surgedRatePer1h}</div>
+                    <span style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.72rem' }}>Rate / Hour</span>
+                    <div style={{ fontWeight: 600, color: 'var(--admin-text-main, #1A1C1A)' }}>&#8377;{serverQuote.surgedRatePer1h}</div>
                   </div>
                   {serverQuote.isWeekend && (
                     <div>
-                      <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Weekend Surge</span>
-                      <div style={{ fontWeight: 600, color: '#FBBF24' }}>+{serverQuote.weekendSurgePercent}%</div>
+                      <span style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.72rem' }}>Weekend Surge</span>
+                      <div style={{ fontWeight: 600, color: '#D97706' }}>+{serverQuote.weekendSurgePercent}%</div>
                     </div>
                   )}
                   <div>
-                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Duration</span>
-                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>{serverQuote.durationHours}h</div>
+                    <span style={{ color: 'var(--admin-text-muted, #5A645E)', fontSize: '0.72rem' }}>Duration</span>
+                    <div style={{ fontWeight: 600, color: 'var(--admin-text-main, #1A1C1A)' }}>{serverQuote.durationHours}h</div>
                   </div>
                 </div>
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.78rem', color: '#CBD5E1' }}>
+                <div style={{ borderTop: '1px solid var(--admin-border, #EAE8E4)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted, #5A645E)' }}>
                     {effectivePaymentType === 'full' ? 'Total to Collect' : 'Deposit to Collect'}
                   </span>
-                  <strong style={{ fontSize: '1.1rem', color: 'var(--brand-green, #4ADE80)' }}>&#8377;{(charged / 100).toFixed(0)}</strong>
+                  <strong style={{ fontSize: '1.1rem', color: 'var(--admin-forest, #0F3D2E)' }}>&#8377;{(charged / 100).toFixed(0)}</strong>
                 </div>
               </div>
             );
           })()}
 
-          <div style={{ fontSize: '0.85rem', color: '#CBD5E1', display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-main, #1A1C1A)', display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--admin-border, #EAE8E4)' }}>
             <span>Counter Collection Mode:</span>
             <strong>Cash / Ground UPI Scanner</strong>
           </div>
