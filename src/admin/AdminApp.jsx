@@ -9,8 +9,24 @@ import FacilitiesView from './pages/FacilitiesView';
 import BlocksView from './pages/BlocksView';
 import PricingView from './pages/PricingView';
 import SessionsView from './pages/SessionsView';
+import PaymentsView from './pages/PaymentsView';
+import CustomersView from './pages/CustomersView';
+import InquiriesView from './pages/InquiriesView';
+import ReviewsView from './pages/ReviewsView';
+import EventsView from './pages/EventsView';
+import NoticesView from './pages/NoticesView';
+import DiningView from './pages/DiningView';
+import RolesView from './pages/RolesView';
+import MaintenanceView from './pages/MaintenanceView';
 import './styles/admin.css';
-import { Shield, LogOut, User } from 'lucide-react';
+import {
+  Building2,
+  LogOut,
+  User,
+  Bell,
+  ArrowLeft,
+  ShieldCheck
+} from 'lucide-react';
 
 function AdminShell() {
   const { admin, isAuthenticated, isAuthChecking, logout } = useAdminAuth();
@@ -24,8 +40,11 @@ function AdminShell() {
 
   if (isAuthChecking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050807', color: '#94A3B8' }}>
-        Verifying administrator authorization...
+      <div className="admin-loading-screen">
+        <div className="admin-avatar-circle large" style={{ margin: '0 auto 16px' }}>
+          T&T
+        </div>
+        <p>Verifying clubhouse credentials...</p>
       </div>
     );
   }
@@ -33,6 +52,8 @@ function AdminShell() {
   if (!isAuthenticated) {
     return <AdminLogin />;
   }
+
+  const isSubView = activeTab !== 'dashboard';
 
   return (
     <div className="admin-platform-shell">
@@ -43,45 +64,81 @@ function AdminShell() {
         </div>
       )}
 
-      {/* Top Operations Header */}
+      {/* Authoritative Top Clubhouse Operations Header */}
       <header className="admin-header">
         <div className="admin-header-content">
-          <div className="admin-brand-badge">
-            <span className="admin-logo-pill">Ops</span>
-            <div className="admin-title-wrap">
-              <h1>Turf & Taste Desk</h1>
-              <span>Patan Campus • 24/7</span>
+          <div className="admin-header-left">
+            {isSubView ? (
+              <button
+                className="admin-header-back-btn"
+                onClick={() => setActiveTab('dashboard')}
+                aria-label="Back to Dashboard"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            ) : null}
+
+            <div className="admin-location-pill">
+              <Building2 size={13} color="#0F3D2E" />
+              <span>Patan Campus (HQ)</span>
+            </div>
+
+            <div className="admin-status-pill-live">
+              <span className="live-dot" />
+              <span>LIVE</span>
             </div>
           </div>
 
-          <div className="admin-user-menu">
+          <div className="admin-header-right">
+            <button
+              className="admin-header-icon-btn"
+              onClick={() => setActiveTab('notices')}
+              title="Notices Broadcast"
+              aria-label="Notices"
+            >
+              <Bell size={16} />
+            </button>
+
             <div className="admin-user-pill">
-              <User size={13} color="var(--brand-green, #4ADE80)" />
-              <span><strong>{admin?.username || 'Staff'}</strong> ({admin?.role})</span>
+              <div className="admin-avatar-tiny">
+                {(admin?.username || 'S')[0].toUpperCase()}
+              </div>
+              <span className="admin-user-name">
+                {admin?.username || 'Staff'}
+              </span>
             </div>
 
             <button
               id="admin-btn-logout"
-              className="admin-logout-btn"
+              className="admin-header-icon-btn logout"
               onClick={logout}
               title="Sign Out"
               aria-label="Sign out"
             >
-              <LogOut size={14} />
+              <LogOut size={15} />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Operational Views */}
+      {/* Main Operational Container */}
       <main className="admin-main-container">
         {activeTab === 'dashboard' && <DashboardView onNavigate={setActiveTab} showToast={showToast} />}
-        {activeTab === 'bookings' && <BookingsView showToast={showToast} />}
+        {activeTab === 'bookings' && <BookingsView onNavigate={setActiveTab} showToast={showToast} />}
         {activeTab === 'walkin' && <WalkInView onNavigate={setActiveTab} showToast={showToast} />}
-        {activeTab === 'facilities' && <FacilitiesView showToast={showToast} />}
+        {activeTab === 'facilities' && <FacilitiesView onNavigate={setActiveTab} showToast={showToast} />}
         {activeTab === 'blocks' && <BlocksView showToast={showToast} />}
         {activeTab === 'pricing' && <PricingView showToast={showToast} />}
-        {activeTab === 'sessions' && <SessionsView showToast={showToast} />}
+        {activeTab === 'sessions' && <SessionsView onNavigate={setActiveTab} showToast={showToast} />}
+        {activeTab === 'payments' && <PaymentsView showToast={showToast} />}
+        {activeTab === 'customers' && <CustomersView showToast={showToast} />}
+        {activeTab === 'inquiries' && <InquiriesView showToast={showToast} />}
+        {activeTab === 'reviews' && <ReviewsView showToast={showToast} />}
+        {activeTab === 'events' && <EventsView showToast={showToast} />}
+        {activeTab === 'notices' && <NoticesView showToast={showToast} />}
+        {activeTab === 'dining' && <DiningView showToast={showToast} />}
+        {activeTab === 'roles' && <RolesView showToast={showToast} />}
+        {activeTab === 'maintenance' && <MaintenanceView showToast={showToast} />}
       </main>
 
       {/* Fixed Bottom Operational Navigation */}
