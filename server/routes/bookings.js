@@ -5,7 +5,7 @@ import { verifyQuoteToken } from '../utils/quoteToken.js';
 import { dayOfWeekForVenueDate, normalizeScheduleClose, slotHasStarted, venueNow } from '../utils/venueTime.js';
 import { canAccessBookingHistory, resolveBookingHistoryLookup } from '../domain/guest/guestPrivacy.js';
 import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachine.js';
-import { normalizeBookingInterval, intervalsOverlap } from '../domain/time/bookingInterval.js';
+import { normalizeBookingInterval, intervalsOverlap, formatToISTString } from '../domain/time/bookingInterval.js';
 import { validateLeadTime } from '../domain/booking/bookingRules.js';
 import { requirePermission } from '../domain/rbac/rbacEngine.js';
 import { resolveAdminWalkInPricing } from '../domain/pricing/pricingResolver.js';
@@ -94,6 +94,7 @@ router.get('/', authenticateAdminToken, requirePermission('booking.read'), async
       paymentStatus: b.payment_status,
       status: b.booking_status,
       paymentId: b.payment_id,
+      pricingSnapshot: b.pricing_snapshot ? JSON.parse(b.pricing_snapshot) : null,
       createdAt: b.created_at
     }));
 
@@ -449,6 +450,7 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
           paymentStatus: isAdminReservation ? (payload.paymentStatus || 'Paid') : 'Pending verification',
           paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
         },
+        pricingSnapshot: walkInPricing || verifiedQuote?.pricingSnapshot || verifiedQuote || null,
         holdToken: payload.holdToken || null
       }));
 
@@ -501,6 +503,121 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('[Create Booking Error]:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/bookings/blocked-slots
+ * Get list of currently blocked slots
+ */
+router.get('/blocked-slots', authenticateAdminToken, requirePermission('booking.read'), async (req, res) => {
+  try {
+    const { facilityId } = req.query;
+    let query = "SELECT id, facility_id, start_at, end_at, reason_code, internal_note FROM facility_blocks WHERE status = 'active'";
+    const params = [];
+    if (facilityId) {
+      const canonicalFacility = resolveCanonicalFacility(facilityId);
+      query += ' AND facility_id = ?';
+      params.push(canonicalFacility ? canonicalFacility.id : facilityId);
+    }
+    query += ' ORDER BY start_at DESC';
+    const blocks = await dbAsync.all(query, params);
+    const blockedSlots = blocks.map(b => {
+      const start = new Date(b.start_at);
+      const end = new Date(b.end_at);
+      const istDate = formatToISTString(start).slice(0, 10);
+      const fmtTime = (d) => {
+        const h = (d.getUTCHours() + 5 + Math.floor((d.getUTCMinutes() + 30) / 60)) % 24;
+        const m = (d.getUTCMinutes() + 30) % 60;
+        const p = h >= 12 ? 'PM' : 'AM';
+        const dh = h % 12 || 12;
+        return `${String(dh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${p}`;
+      };
+      return {
+        id: b.id,
+        facility_id: b.facility_id,
+        date: istDate,
+        time_slot: `${fmtTime(start)} – ${fmtTime(end)}`,
+        reason: b.internal_note || b.reason_code || 'Maintenance'
+      };
+    });
+    res.json({ success: true, blockedSlots });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/bookings/block-slot
+ * Admin blocks a slot via canonical facility_blocks
+ */
+router.post('/block-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
+  try {
+    const { facilityId, date, timeSlot, reason } = req.body;
+    if (!facilityId || !date || !timeSlot) {
+      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
+    }
+
+    const canonicalFacility = resolveCanonicalFacility(facilityId);
+    const physicalFacilityId = canonicalFacility ? canonicalFacility.id : facilityId;
+    const interval = normalizeBookingInterval({ date, timeSlot });
+    const blockId = `blk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const createdBy = req.admin?.username || 'admin';
+
+    await dbAsync.withTransaction(async (client) => {
+      if (client.isPostgres) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking_lock_${physicalFacilityId}`]);
+      }
+
+      const conflictCheck = await checkCanonicalConflicts(client, {
+        physicalFacilityId,
+        startAt: interval.startAt,
+        endAt: interval.endAt
+      });
+
+      if (conflictCheck.hasConflict) {
+        const err = new Error(`Cannot create block: conflicting occupancy exists on ${physicalFacilityId}.`);
+        err.httpStatus = 409;
+        throw err;
+      }
+
+      await client.run(
+        `INSERT INTO facility_blocks (id, facility_id, start_at, end_at, reason_code, internal_note, customer_message, created_by, status)
+         VALUES (?, ?, ?, ?, 'MAINTENANCE', ?, ?, ?, 'active')`,
+        [blockId, physicalFacilityId, interval.startAt.toISOString(), interval.endAt.toISOString(), reason || 'Maintenance', reason || 'Facility Maintenance Block', createdBy]
+      );
+    });
+
+    res.json({ success: true, blockId, message: `Slot ${timeSlot} on ${date} successfully blocked.` });
+  } catch (err) {
+    if (err.httpStatus) return res.status(err.httpStatus).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/bookings/unblock-slot
+ * Admin releases a blocked slot via canonical facility_blocks
+ */
+router.delete('/unblock-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
+  try {
+    const { facilityId, date, timeSlot } = req.body;
+    if (!facilityId || !date || !timeSlot) {
+      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
+    }
+
+    const canonicalFacility = resolveCanonicalFacility(facilityId);
+    const physicalFacilityId = canonicalFacility ? canonicalFacility.id : facilityId;
+    const interval = normalizeBookingInterval({ date, timeSlot });
+
+    await dbAsync.run(
+      "DELETE FROM facility_blocks WHERE facility_id = ? AND start_at = ? AND end_at = ?",
+      [physicalFacilityId, interval.startAt.toISOString(), interval.endAt.toISOString()]
+    );
+
+    res.json({ success: true, message: `Slot ${timeSlot} on ${date} unblocked and released.` });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -596,79 +713,6 @@ router.delete('/:id', authenticateAdminToken, async (req, res) => {
     );
 
     res.json({ success: true, bookingId: id, status: 'Cancelled', message: 'Booking cancelled and inventory released; historical record preserved.' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * GET /api/bookings/blocked-slots
- * Get list of currently blocked slots
- */
-router.get('/blocked-slots', authenticateAdminToken, requirePermission('booking.read'), async (req, res) => {
-  try {
-    const { facilityId, date } = req.query;
-    let query = 'SELECT * FROM blocked_slots WHERE 1=1';
-    const params = [];
-    if (facilityId) {
-      query += ' AND facility_id = ?';
-      params.push(facilityId);
-    }
-    if (date) {
-      query += ' AND date = ?';
-      params.push(date);
-    }
-    query += ' ORDER BY date DESC, time_slot ASC';
-    const blocked = await dbAsync.all(query, params);
-    res.json({ success: true, blockedSlots: blocked });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * POST /api/bookings/block-slot
- * Admin blocks a slot for maintenance or private tournament
- */
-router.post('/block-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
-  try {
-    const { facilityId, date, timeSlot, reason } = req.body;
-    if (!facilityId || !date || !timeSlot) {
-      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
-    }
-
-    await dbAsync.run(
-      `INSERT INTO blocked_slots (facility_id, date, time_slot, reason, blocked_by)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (facility_id, date, time_slot) DO UPDATE
-       SET reason = EXCLUDED.reason`,
-      [facilityId, date, timeSlot, reason || 'Maintenance', req.admin?.username || 'admin']
-    );
-
-    res.json({ success: true, message: `Slot ${timeSlot} on ${date} successfully blocked.` });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * DELETE /api/bookings/unblock-slot
- * Admin releases a blocked slot
- */
-router.delete('/unblock-slot', authenticateAdminToken, requirePermission('facility.block'), async (req, res) => {
-
-  try {
-    const { facilityId, date, timeSlot } = req.body;
-    if (!facilityId || !date || !timeSlot) {
-      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required' });
-    }
-
-    await dbAsync.run(
-      'DELETE FROM blocked_slots WHERE facility_id = ? AND date = ? AND time_slot = ?',
-      [facilityId, date, timeSlot]
-    );
-
-    res.json({ success: true, message: `Slot ${timeSlot} on ${date} unblocked and released.` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

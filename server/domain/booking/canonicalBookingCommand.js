@@ -280,30 +280,6 @@ export async function loadCanonicalOccupancies(db, physicalFacilityId, now = new
     }
   } catch (_e) {}
 
-  // 5. Legacy blocked_slots (backwards-compatibility fallback)
-  try {
-    const legacyBlocks = await db.all(
-      `SELECT id, facility_id, date, time_slot, reason
-       FROM blocked_slots
-       WHERE facility_id = ?`,
-      [resolvedFacilityId]
-    );
-    for (const lb of legacyBlocks) {
-      try {
-        const lbInterval = normalizeBookingInterval({ date: lb.date, timeSlot: lb.time_slot });
-        occupancies.push({
-          id: `legacy_block_${lb.id || lb.time_slot}`,
-          type: 'BLOCK',
-          facilityId: resolvedFacilityId,
-          startAt: lbInterval.startAt,
-          endAt: lbInterval.endAt,
-          status: 'ACTIVE',
-          reason: lb.reason || 'Facility Maintenance Block'
-        });
-      } catch (_e) {}
-    }
-  } catch (_e) {}
-
   return { resolvedFacilityId, occupancies };
 }
 
@@ -487,6 +463,15 @@ export async function createCanonicalBooking(db, input, context = {}) {
   };
   const legacyTimeSlot = `${formatSlotTime(normInterval.startAt)} – ${formatSlotTime(normInterval.endAt)}`;
 
+  const pricingSnapshot = input.pricingSnapshot || (payment.pricingSnapshot ? payment.pricingSnapshot : null) || {
+    totalAmountPaise: totalPaise,
+    depositAmountPaise: depositPaise,
+    paymentType: payment.type || 'FULL',
+    source: isStaff ? 'STAFF_WALKIN' : 'CUSTOMER_APP',
+    calculatedAt: new Date().toISOString(),
+  };
+  const pricingSnapshotStr = typeof pricingSnapshot === 'string' ? pricingSnapshot : JSON.stringify(pricingSnapshot);
+
   // 9. Persist into Database
   const insertSql = `
     INSERT INTO bookings (
@@ -495,14 +480,16 @@ export async function createCanonicalBooking(db, input, context = {}) {
       duration, payment_type, amount_paid, payment_status,
       booking_status, payment_id, physical_facility_id,
       scheduled_start_at, scheduled_end_at, booking_type,
-      delivery_preference, total_amount_paise, deposit_amount_paise
+      delivery_preference, total_amount_paise, deposit_amount_paise,
+      pricing_snapshot
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?,
-      ?, ?, ?
+      ?, ?, ?,
+      ?
     )
   `;
 
@@ -528,7 +515,8 @@ export async function createCanonicalBooking(db, input, context = {}) {
     bookingMode,
     deliveryPreference,
     totalPaise,
-    depositPaise
+    depositPaise,
+    pricingSnapshotStr
   ];
 
   await db.run(insertSql, insertParams);
