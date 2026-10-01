@@ -365,6 +365,12 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
   try {
     const { bookingId, extensionMinutes = 15, isFree = false, reason = '' } = req.body;
     if (!bookingId) return res.status(400).json({ success: false, error: 'bookingId is required.' });
+    if (typeof isFree !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'isFree must be an explicit boolean.' });
+    }
+    if (isFree && !String(reason).trim()) {
+      return res.status(400).json({ success: false, error: 'A reason is required for a free extension.' });
+    }
 
     // Client-supplied chargePaise is intentionally not read here.
     // The server resolves the authoritative extension charge from pricing rules.
@@ -447,17 +453,17 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       // Record adjustment entry
       // chargePaise is server-resolved for paid extensions; zero for free extensions.
       // Client-submitted chargePaise values are NEVER trusted.
-      const resolvedCharge = Boolean(isFree) ? 0 : await resolveExtensionPricing(client, {
+      const resolvedCharge = isFree ? 0 : await resolveExtensionPricing(client, {
         facilityId,
         extensionStartAt: currentEndDate.toISOString(),
         extensionMinutes: requestedExtensionMinutes,
-      }).then(r => r.chargePaise).catch(() => 0);
+      }).then(r => r.chargePaise);
 
       const adjId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await client.run(
         `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
          VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
-        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, resolvedCharge, operatorId, reason || 'Staff Approved Extension']
+        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, resolvedCharge, operatorId, String(reason).trim() || 'Staff Approved Extension']
       );
 
       await client.run(
@@ -472,7 +478,7 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       bookingId,
       extensionMinutes: requestedExtensionMinutes,
       newScheduledEndAt: extensionResult.proposedEndDate.toISOString(),
-      isFree: Boolean(isFree),
+      isFree,
       // Server-resolved charge persisted in session_adjustments
       resolvedChargePaise: extensionResult.resolvedCharge,
       approvedBy: operatorId,

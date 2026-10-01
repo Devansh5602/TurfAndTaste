@@ -10,6 +10,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
@@ -181,6 +182,11 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       // Ball-Shooting Machine add-on on Green Net: ₹200/hr (20000 paise)
       // Seed Green Net base rate: ₹500/hr (50000 paise)
       await dbAsync.run(
+        `INSERT INTO add_on_prices (id, add_on_id, facility_id, rate_paise_per_hour, is_active)
+         VALUES ('test_aop_shooting_machine', 'addon_shooting_machine', 'fac_green_net_1', 20000, 1)
+         ON CONFLICT (id) DO UPDATE SET rate_paise_per_hour = 20000, is_active = 1`
+      );
+      await dbAsync.run(
         `INSERT INTO pricing_rules (id, facility_id, rule_type, period_type, rate_paise_per_hour, is_active)
          VALUES ('pr_gn1_day', 'fac_green_net_1', 'BASE_RATE', 'DAY', 50000, 1)
          ON CONFLICT (id) DO UPDATE SET rate_paise_per_hour = 50000, is_active = 1`
@@ -198,6 +204,45 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       assert.equal(quote.breakdown.baseAmountPaise, 100000);
       assert.equal(quote.breakdown.addOnAmountPaise, 40000);
       assert.equal(quote.totalAmountPaise, 140000, 'Base rate + add-on surcharge must total 140000 paise');
+    });
+
+    it('selects service-specific and facility-specific rules deterministically', async () => {
+      await dbAsync.run(
+        `INSERT INTO pricing_rules (id, facility_id, service_id, rule_type, period_type, rate_paise_per_hour, is_active)
+         VALUES ('zz_generic_day', 'fac_skating_1', NULL, 'BASE_RATE', 'DAY', 30000, 1),
+                ('aa_service_day', 'fac_skating_1', 'svc_skating', 'BASE_RATE', 'DAY', 45000, 1)`
+      );
+      await dbAsync.run(
+        `INSERT INTO add_on_prices (id, add_on_id, facility_id, rate_paise_flat, is_active)
+         VALUES ('aa_generic_addon', 'test_addon', NULL, 5000, 1),
+                ('zz_facility_addon', 'test_addon', 'fac_skating_1', 7000, 1)`
+      );
+
+      const quote = await resolvePricing(dbAsync, {
+        facilityId: 'fac_skating_1',
+        serviceId: 'svc_skating',
+        addOnIds: ['test_addon'],
+        date: '2026-10-13',
+        timeSlot: '10:00 AM – 11:00 AM',
+      });
+
+      assert.equal(quote.breakdown.baseAmountPaise, 45000);
+      assert.equal(quote.breakdown.addOnAmountPaise, 7000);
+      assert.equal(quote.totalAmountPaise, 52000);
+    });
+
+    it('applies an explicitly configured special-date modifier after the selected base', async () => {
+      await dbAsync.run(
+        `INSERT INTO special_date_prices (id, facility_id, calendar_date, label, rate_paise_per_hour, is_replacement, is_active)
+         VALUES ('sdp_modifier_test', 'fac_box_cricket_1', '2026-11-09', 'Event surcharge', 10000, 0, 1)`
+      );
+      const quote = await resolvePricing(dbAsync, {
+        facilityId: 'fac_box_cricket_1',
+        date: '2026-11-09',
+        timeSlot: '10:00 AM – 11:00 AM',
+      });
+      assert.equal(quote.totalAmountPaise, 100000);
+      assert.ok(quote.appliedRules.some(rule => rule.type === 'SPECIAL_DATE_MODIFIER'));
     });
 
     it('resolveAdminWalkInPricing preserves backward-compatible display fields', async () => {
@@ -538,10 +583,8 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       const rules = await dbAsync.all('SELECT * FROM pricing_rules');
       assert.ok(rules.length > 0, 'Pricing rules must still exist');
 
-      const addOnPrices = await dbAsync.all('SELECT * FROM add_on_prices');
-      assert.ok(addOnPrices.length > 0, 'Add-on prices must still exist');
-      const machineAddon = addOnPrices.find(a => a.add_on_id === 'addon_shooting_machine');
-      assert.ok(machineAddon, 'Shooting machine add-on must be present');
+      const testAddOn = await dbAsync.get("SELECT * FROM add_on_prices WHERE id = 'test_aop_shooting_machine'");
+      assert.ok(testAddOn, 'Existing configured add-on prices must be preserved');
     });
   });
 
@@ -559,13 +602,10 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       app.use('/api/bookings', bookingRoutes);
       app.use('/api/sessions', sessionRoutes);
 
-      await new Promise(resolve => {
-        server = app.listen(0, '127.0.0.1', () => {
-          const addr = server.address();
-          baseUrl = `http://127.0.0.1:${addr.port}`;
-          resolve();
-        });
-      });
+      server = app.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      const addr = server.address();
+      baseUrl = `http://127.0.0.1:${addr.port}`;
 
       const admin = await dbAsync.get('SELECT * FROM admins WHERE id = 1');
       staffToken = jwt.sign(
@@ -649,6 +689,49 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
 
       // Cleanup
       await dbAsync.run('DELETE FROM facility_blocks WHERE id = ?', [blockId]);
+    });
+
+    it('POST /api/bookings ignores manipulated walk-in amounts and persists the server quote', async () => {
+      const date = '2026-12-15';
+      const timeSlot = '10:00 AM – 11:00 AM';
+      await dbAsync.run(
+        `INSERT INTO pricing_rules (id, facility_id, rule_type, period_type, rate_paise_per_hour, deposit_fixed_paise, is_active)
+         VALUES ('test_walkin_bc2_day', 'fac_box_cricket_2', 'BASE_RATE', 'DAY', 85000, 30000, 1)
+         ON CONFLICT (id) DO UPDATE SET rate_paise_per_hour = 85000, deposit_fixed_paise = 30000, is_active = 1`
+      );
+      const expected = await resolveAdminWalkInPricing(dbAsync, {
+        facilityId: 'fac_box_cricket_2',
+        date,
+        timeSlot,
+        durationHours: 1,
+        paymentType: 'full',
+      });
+
+      const res = await fetch(`${baseUrl}/api/bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${staffToken}`,
+        },
+        body: JSON.stringify({
+          facilityId: 'fac_box_cricket_2',
+          date,
+          time: timeSlot,
+          duration: 1,
+          customerName: 'Walk In Price Test',
+          customerPhone: '9876500011',
+          paymentType: 'full',
+          paymentStatus: 'Paid',
+          totalAmountPaise: 1,
+          amountPaid: 1,
+        }),
+      });
+
+      assert.equal(res.status, 201);
+      const data = await res.json();
+      const saved = await dbAsync.get('SELECT total_amount_paise FROM bookings WHERE id = ?', [data.bookingReference]);
+      assert.equal(saved.total_amount_paise, expected.totalAmountPaise);
+      assert.notEqual(saved.total_amount_paise, 1);
     });
 
     it('POST /api/sessions/extend ignores manipulated client amount and persists server price', async () => {
@@ -745,6 +828,28 @@ describe('Admin Phase 1.2 Integration: Final Domain Fixes', () => {
       assert.equal(adj.is_free, 1);
       assert.equal(adj.charge_paise, 0);
       assert.equal(adj.reason, 'Manager courtesy free buffer');
+      assert.equal(adj.approved_by, 'test-admin');
+      assert.ok(adj.created_at);
+    });
+
+    it('POST /api/sessions/extend rejects non-boolean free-extension coercion', async () => {
+      const res = await fetch(`${baseUrl}/api/sessions/extend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${staffToken}`,
+        },
+        body: JSON.stringify({
+          bookingId: 'TT-HTTP-EXTEND-PAID',
+          extensionMinutes: 15,
+          isFree: 'false',
+          reason: 'Must not coerce a string into a free extension',
+        }),
+      });
+
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.match(data.error, /explicit boolean/i);
     });
   });
 

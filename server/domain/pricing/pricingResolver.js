@@ -116,10 +116,14 @@ async function loadPricingRules(db, facilityId, serviceId) {
        WHERE facility_id = ?
          AND (service_id IS NULL OR service_id = ?)
          AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
-       ORDER BY service_id DESC`,
+       ORDER BY id ASC`,
       [facilityId, serviceId || '']
     );
-    return rows || [];
+    return (rows || []).sort((a, b) => {
+      const aSpecificity = a.service_id === serviceId ? 0 : 1;
+      const bSpecificity = b.service_id === serviceId ? 0 : 1;
+      return aSpecificity - bSpecificity || String(a.id).localeCompare(String(b.id));
+    });
   } catch {
     return [];
   }
@@ -130,16 +134,20 @@ async function loadPricingRules(db, facilityId, serviceId) {
  */
 async function loadSpecialDatePrice(db, facilityId, date, serviceId) {
   try {
-    const row = await db.get(
+    const rows = await db.all(
       `SELECT * FROM special_date_prices
        WHERE facility_id = ?
          AND calendar_date = ?
          AND (service_id IS NULL OR service_id = ?)
          AND is_active = ${db.isPostgres ? 'TRUE' : '1'}
-       LIMIT 1`,
+       ORDER BY id ASC`,
       [facilityId, date, serviceId || '']
     );
-    return row || null;
+    return (rows || []).sort((a, b) => {
+      const aSpecificity = a.service_id === serviceId ? 0 : 1;
+      const bSpecificity = b.service_id === serviceId ? 0 : 1;
+      return aSpecificity - bSpecificity || String(a.id).localeCompare(String(b.id));
+    })[0] || null;
   } catch {
     return null;
   }
@@ -173,7 +181,14 @@ async function loadAddOnPrices(db, facilityId, addOnIds) {
          AND is_active = ${db.isPostgres ? 'TRUE' : '1'}`,
       [...addOnIds, facilityId]
     );
-    return rows || [];
+    const selected = new Map();
+    for (const row of (rows || []).sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+      const current = selected.get(row.add_on_id);
+      const rowSpecific = row.facility_id === facilityId;
+      const currentSpecific = current?.facility_id === facilityId;
+      if (!current || (rowSpecific && !currentSpecific)) selected.set(row.add_on_id, row);
+    }
+    return [...selected.values()];
   } catch {
     return [];
   }
@@ -200,9 +215,11 @@ function findPackageRule(rules, totalHours) {
   );
   if (candidates.length === 0) return null;
   // Pick the package with the lowest configured total rate (most generous)
-  return candidates.reduce((best, c) =>
-    c.rate_paise_total < best.rate_paise_total ? c : best
-  );
+  return candidates.sort((a, b) =>
+    a.rate_paise_total - b.rate_paise_total
+      || (a.max_hours - a.min_hours) - (b.max_hours - b.min_hours)
+      || String(a.id).localeCompare(String(b.id))
+  )[0];
 }
 
 /**
@@ -318,7 +335,10 @@ export async function resolvePricing(db, opts) {
   let primaryRule = null;
 
   // ── [1] Special-date override (highest precedence) ─────────────────────────
-  if (specialDate && specialDate.rate_paise_per_hour > 0) {
+  const hasReplacementSpecialDate = Boolean(
+    specialDate && specialDate.rate_paise_per_hour > 0 && specialDate.is_replacement
+  );
+  if (hasReplacementSpecialDate) {
     const rate = specialDate.rate_paise_per_hour;
     baseAmountPaise = rate * hours;
     primaryRule = { type: 'SPECIAL_DATE', rate, label: specialDate.label || 'Special Date' };
@@ -332,7 +352,7 @@ export async function resolvePricing(db, opts) {
   }
 
   // ── [2] Package rule (replaces per-segment subtotal) ──────────────────────
-  if (!specialDate || !specialDate.is_replacement) {
+  if (!hasReplacementSpecialDate) {
     const packageRule = findPackageRule(rules, hours);
     if (packageRule) {
       const packageTotal = packageRule.rate_paise_total;
@@ -352,7 +372,7 @@ export async function resolvePricing(db, opts) {
 
   // ── [3] Segment-based hourly pricing ──────────────────────────────────────
   // Used when no special-date or package applies.
-  if (!specialDate && !packageUsed) {
+  if (!hasReplacementSpecialDate && !packageUsed) {
     if (startIST !== null && rules.length > 0) {
       // Price each segment (day/night, crossing boundary if needed)
       const segments = segmentByPeriod(startIST, hours * 60, isWeekend, floodlightStart);
@@ -405,6 +425,22 @@ export async function resolvePricing(db, opts) {
         primaryRule = { type: 'LEGACY_TIER', tier: legacyTier };
       }
     }
+  }
+
+  if (specialDate && !specialDate.is_replacement && specialDate.rate_paise_per_hour > 0) {
+    const modifierAmountPaise = specialDate.rate_paise_per_hour * hours;
+    baseAmountPaise += modifierAmountPaise;
+    appliedRules.push({
+      type: 'SPECIAL_DATE_MODIFIER',
+      label: specialDate.label || 'Special Date',
+      ratePerHour: specialDate.rate_paise_per_hour,
+      hours,
+      amountPaise: modifierAmountPaise,
+    });
+  }
+
+  if (baseAmountPaise <= 0) {
+    throw new Error(`No active pricing rule is configured for facility "${facilityId}".`);
   }
 
   // ── [4] Add-on surcharges ──────────────────────────────────────────────────
@@ -555,7 +591,7 @@ export async function resolveExtensionPricing(db, opts) {
     };
   }
 
-  return { chargePaise: 0, rateSource: 'NO_RULE', periodType, minutes: extensionMinutes };
+  throw new Error(`No active extension or base pricing rule is configured for facility "${facilityId}".`);
 }
 
 /**
