@@ -400,33 +400,44 @@ router.post('/blocks', authenticateAdminToken, requirePermission('facility.block
       return res.status(400).json({ success: false, error: 'endAt must be strictly after startAt.' });
     }
 
-    // Conflict check against existing confirmed bookings
-    const conflictResult = await findResourceConflicts(dbAsync, {
-      facilityId,
-      startAt: start.toISOString(),
-      endAt: end.toISOString()
-    });
-
-    const bookingConflicts = conflictResult.conflicts.filter(c => c.conflictType === 'BOOKING');
-    if (bookingConflicts.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: `Cannot create block: ${bookingConflicts.length} active customer booking(s) overlap with this interval.`,
-        conflicts: bookingConflicts
-      });
-    }
-
     const blockId = `blk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const createdBy = req.admin?.username || 'admin';
 
-    await dbAsync.run(
-      `INSERT INTO facility_blocks (id, facility_id, start_at, end_at, reason_code, internal_note, customer_message, created_by, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-      [blockId, facilityId, start.toISOString(), end.toISOString(), reasonCode, internalNote, customerMessage, createdBy]
-    );
+    // Conflict check + INSERT inside a single serialized transaction with
+    // physical-resource lock. Mirrors canonical booking finalization strategy.
+    await dbAsync.withTransaction(async (client) => {
+      // Advisory lock on the physical resource (PostgreSQL only; SQLite relies on BEGIN IMMEDIATE)
+      if (client.isPostgres) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`block_lock_${facilityId}`]);
+      }
+
+      // Re-check conflicts inside the transaction
+      const conflictResult = await findResourceConflicts(client, {
+        facilityId,
+        startAt: start.toISOString(),
+        endAt: end.toISOString()
+      });
+
+      const bookingConflicts = conflictResult.conflicts.filter(c => c.conflictType === 'BOOKING');
+      if (bookingConflicts.length > 0) {
+        const err = new Error(`Cannot create block: ${bookingConflicts.length} active customer booking(s) overlap with this interval.`);
+        err.conflicts = bookingConflicts;
+        err.httpStatus = 409;
+        throw err;
+      }
+
+      await client.run(
+        `INSERT INTO facility_blocks (id, facility_id, start_at, end_at, reason_code, internal_note, customer_message, created_by, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+        [blockId, facilityId, start.toISOString(), end.toISOString(), reasonCode, internalNote, customerMessage, createdBy]
+      );
+    });
 
     res.status(201).json({ success: true, blockId, message: `Block created for ${facilityId} from ${start.toISOString()} to ${end.toISOString()}.` });
   } catch (error) {
+    if (error.httpStatus === 409) {
+      return res.status(409).json({ success: false, error: error.message, conflicts: error.conflicts });
+    }
     console.error('[Create Block Error]:', error);
     res.status(500).json({ success: false, error: error.message });
   }

@@ -406,4 +406,141 @@ describe('Admin Platform Phase 1 Test Suite', () => {
       assert.equal(metrics.totalActualMinutes, 63);
     });
   });
+  // ============================================================
+  // 8. PHASE 1.1 HARDENING: SERVER-AUTHORITATIVE PRICING & TRANSACTION SAFETY
+  // ============================================================
+  describe('Phase 1.1 Hardening: Server Pricing & Transactional Concurrency', () => {
+
+    it('resolveAdminWalkInPricing returns server-authoritative paise amounts from DB tier', async () => {
+      const { resolveAdminWalkInPricing } = await import('../server/domain/pricing/pricingResolver.js');
+
+      // Ensure a pricing tier is present for fac_box_cricket_1
+      await dbAsync.run(
+        `INSERT INTO pricing_tiers (facility_id, facility_name, day_rate, night_rate, weekend_surge, deposit_pct, details_json, updated_at)
+         VALUES ('fac_box_cricket_1', 'Box Cricket Turf 1', 800, 1200, 0, 400, '{}', CURRENT_TIMESTAMP)
+         ON CONFLICT (facility_id) DO UPDATE SET
+           day_rate = 800, night_rate = 1200, weekend_surge = 0, deposit_pct = 400,
+           updated_at = CURRENT_TIMESTAMP`,
+        []
+      );
+
+      const quote = await resolveAdminWalkInPricing(dbAsync, {
+        facilityId: 'fac_box_cricket_1',
+        date: '2026-11-10',
+        timeSlot: '10:00 AM – 11:00 AM',
+        durationHours: 1,
+        paymentType: 'full',
+      });
+
+      assert.ok(quote.totalAmountPaise > 0, 'totalAmountPaise must be positive');
+      assert.ok(quote.depositAmountPaise > 0, 'depositAmountPaise must be positive');
+      assert.ok(quote.depositAmountPaise <= quote.totalAmountPaise, 'deposit must not exceed total');
+      assert.equal(typeof quote.isNight, 'boolean', 'isNight must be a boolean');
+      assert.equal(typeof quote.isWeekend, 'boolean', 'isWeekend must be a boolean');
+    });
+
+    it('resolveAdminWalkInPricing applies night rate for slots at/after floodlight start', async () => {
+      const { resolveAdminWalkInPricing } = await import('../server/domain/pricing/pricingResolver.js');
+
+      const dayQuote = await resolveAdminWalkInPricing(dbAsync, {
+        facilityId: 'fac_box_cricket_1',
+        date: '2026-11-10',
+        timeSlot: '10:00 AM – 11:00 AM',
+        durationHours: 1,
+        paymentType: 'full',
+      });
+
+      const nightQuote = await resolveAdminWalkInPricing(dbAsync, {
+        facilityId: 'fac_box_cricket_1',
+        date: '2026-11-10',
+        timeSlot: '07:00 PM – 08:00 PM',
+        durationHours: 1,
+        paymentType: 'full',
+      });
+
+      assert.equal(dayQuote.isNight, false, 'Morning slot must be Day rate');
+      assert.equal(nightQuote.isNight, true, 'Evening slot must be Night rate');
+      assert.ok(nightQuote.totalAmountPaise >= dayQuote.totalAmountPaise,
+        'Night rate must be >= day rate');
+    });
+
+    it('serialized block creation: second overlapping block on same resource is rejected atomically', async () => {
+      const startAt = '2026-11-15T05:00:00.000Z'; // 10:30 AM IST
+      const endAt   = '2026-11-15T07:00:00.000Z'; // 12:30 PM IST
+
+      // Create a booking that occupies this window
+      await createCanonicalBooking(dbAsync, {
+        id: 'TT-TXN-BLK-1',
+        actor: { type: 'CUSTOMER', username: 'guest' },
+        source: 'CUSTOMER_APP',
+        customer: { name: 'Concurrency Test', phone: '9876512222' },
+        physicalFacilityId: 'fac_pickleball_2',
+        date: '2026-11-15',
+        timeSlot: '10:00 AM – 12:00 PM',
+        durationHours: 2,
+        payment: { type: 'full', totalAmountPaise: 160000, paymentStatus: 'Paid', paymentId: 'pay-txn-blk' },
+      });
+
+      // A block creation targeting the same window must fail (booking conflict)
+      // 10:00 AM IST = 04:30 UTC, 12:00 PM IST = 06:30 UTC
+      const conflictResult = await findResourceConflicts(dbAsync, {
+        facilityId: 'fac_pickleball_2',
+        startAt: '2026-11-15T04:30:00.000Z', // 10:00 AM IST
+        endAt:   '2026-11-15T06:30:00.000Z', // 12:00 PM IST
+      });
+
+      assert.ok(conflictResult.hasConflict, 'Block creation must be rejected: booking occupies the interval');
+      const bookingConflicts = conflictResult.conflicts.filter(c => c.conflictType === 'BOOKING');
+      assert.ok(bookingConflicts.length > 0, 'Must have a BOOKING conflict type');
+    });
+
+    it('serialized extension: extension that would conflict with next booking is rejected', async () => {
+      const date = '2026-11-20';
+
+      // Booking A: 02:00 PM – 03:00 PM IST
+      await createCanonicalBooking(dbAsync, {
+        id: 'TT-EXT-A',
+        actor: { type: 'STAFF', username: 'staff' },
+        source: 'STAFF_WALKIN',
+        customer: { name: 'Extension A', phone: '9876511111' },
+        physicalFacilityId: 'fac_skating_1',
+        date,
+        timeSlot: '02:00 PM – 03:00 PM',
+        durationHours: 1,
+        payment: { type: 'full', totalAmountPaise: 80000, paymentStatus: 'Paid', paymentId: 'ext-a' },
+      });
+
+      // Booking B: 03:00 PM – 04:00 PM IST (immediately after A)
+      await createCanonicalBooking(dbAsync, {
+        id: 'TT-EXT-B',
+        actor: { type: 'STAFF', username: 'staff' },
+        source: 'STAFF_WALKIN',
+        customer: { name: 'Extension B', phone: '9876522222' },
+        physicalFacilityId: 'fac_skating_1',
+        date,
+        timeSlot: '03:00 PM – 04:00 PM',
+        durationHours: 1,
+        payment: { type: 'full', totalAmountPaise: 80000, paymentStatus: 'Paid', paymentId: 'ext-b' },
+      });
+
+      // Attempt to extend Booking A by 30 minutes into B's slot
+      // A's end is 03:00 PM IST = 09:30:00 UTC
+      const aEnd = '2026-11-20T09:30:00.000Z'; // 03:00 PM IST
+      const proposedEnd = new Date(new Date(aEnd).getTime() + 30 * 60000).toISOString();
+
+      const conflictResult = await findResourceConflicts(dbAsync, {
+        facilityId: 'fac_skating_1',
+        startAt: aEnd,
+        endAt: proposedEnd,
+        excludeBookingId: 'TT-EXT-A',
+      });
+
+      assert.ok(conflictResult.hasConflict, 'Extension into B must be rejected due to conflict');
+      assert.ok(
+        conflictResult.conflicts.some(c => c.conflictType === 'BOOKING'),
+        'Conflict must be a BOOKING type (next booking on same resource)'
+      );
+    });
+  });
+
 });

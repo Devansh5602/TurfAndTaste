@@ -19,6 +19,9 @@ export default function WalkInView({ onNavigate, showToast }) {
   const { admin } = useAdminAuth();
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [serverQuote, setServerQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState(null);
   const [successBooking, setSuccessBooking] = useState(null);
 
   // Walk-In Form State
@@ -38,7 +41,6 @@ export default function WalkInView({ onNavigate, showToast }) {
     customerEmail: '',
     teamName: '',
     paymentType: 'full', // 'full' | 'deposit'
-    amountPaidPaise: 80000,
     errorMessage: ''
   });
 
@@ -55,6 +57,7 @@ export default function WalkInView({ onNavigate, showToast }) {
     };
     fetchFacilities();
   }, []);
+
 
   // Helper to format 12-hour time string
   const getSelectedSlot = () => {
@@ -113,6 +116,42 @@ export default function WalkInView({ onNavigate, showToast }) {
     }
   };
 
+  // Auto-fetch server-authoritative pricing quote when booking details change
+  useEffect(() => {
+    const slot = getSelectedSlot();
+    const duration = formData.bookingMode === 'quick' ? formData.quickDuration : formData.customDurationHours;
+    if (!formData.facilityId || !formData.date || !slot) return;
+
+    let cancelled = false;
+    setQuoteLoading(true);
+    setServerQuote(null);
+    setQuoteError(null);
+
+    api.getAdminWalkInQuote({
+      facilityId: formData.facilityId,
+      date: formData.date,
+      timeSlot: slot,
+      durationHours: duration,
+      paymentType: within1h ? 'full' : formData.paymentType,
+    }).then((res) => {
+      if (cancelled) return;
+      if (res?.success && res.quote) {
+        setServerQuote(res.quote);
+      } else {
+        setQuoteError(res?.error || 'Unable to resolve pricing.');
+      }
+    }).catch((err) => {
+      if (!cancelled) setQuoteError(err.message);
+    }).finally(() => {
+      if (!cancelled) setQuoteLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.facilityId, formData.date, formData.bookingMode, formData.quickDuration,
+      formData.customStartHour, formData.customStartMinute, formData.customPeriod,
+      formData.customDurationHours, formData.paymentType]);
+
   const within1h = isWithinOneHour();
 
   const handleInputChange = (field, value) => {
@@ -148,6 +187,7 @@ export default function WalkInView({ onNavigate, showToast }) {
       physicalFacilityId: formData.facilityId,
       date: formData.date,
       time: selectedSlot,
+      timeSlot: selectedSlot,
       duration,
       bookingType: formData.bookingMode === 'quick' ? 'STANDARD_QUICK' : 'CUSTOM_HOURLY',
       customerName: formData.customerName.trim(),
@@ -156,7 +196,7 @@ export default function WalkInView({ onNavigate, showToast }) {
       teamName: formData.teamName.trim() || 'Counter Walk-In',
       addOnIds,
       paymentType: effectivePaymentType,
-      amount: effectivePaymentType === 'full' ? '₹800 (Full Payment)' : '₹400 (Token Deposit)',
+      // Server resolves the authoritative amount — do NOT send client-calculated amounts
       paymentStatus: 'Paid',
       paymentId: 'counter-cash-upi'
     };
@@ -534,7 +574,7 @@ export default function WalkInView({ onNavigate, showToast }) {
                 style={{ flex: 1, padding: '8px', textAlign: 'center' }}
                 onClick={() => handleInputChange('paymentType', 'full')}
               >
-                Full Payment (₹800)
+                Full Payment
               </button>
               <button
                 type="button"
@@ -543,10 +583,54 @@ export default function WalkInView({ onNavigate, showToast }) {
                 style={{ flex: 1, padding: '8px', textAlign: 'center' }}
                 onClick={() => handleInputChange('paymentType', 'deposit')}
               >
-                Token Deposit (₹400)
+                Token Deposit
               </button>
             </div>
           )}
+
+          {quoteLoading && (
+            <div style={{ fontSize: '0.82rem', color: '#94A3B8', padding: '8px 0' }}>Resolving server pricing…</div>
+          )}
+          {quoteError && !quoteLoading && (
+            <div style={{ fontSize: '0.82rem', color: '#FCA5A5', padding: '6px 10px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px', marginBottom: '8px' }}>
+              Pricing error: {quoteError}
+            </div>
+          )}
+          {serverQuote && !quoteLoading && (() => {
+            const effectivePaymentType = within1h ? 'full' : formData.paymentType;
+            const charged = effectivePaymentType === 'full' ? serverQuote.totalAmountPaise : serverQuote.depositAmountPaise;
+            return (
+              <div style={{ background: 'rgba(74, 222, 128, 0.07)', border: '1px solid rgba(74, 222, 128, 0.2)', borderRadius: '8px', padding: '12px', fontSize: '0.82rem', marginBottom: '8px' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94A3B8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Server-Resolved Quote</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                  <div>
+                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Session Type</span>
+                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>{serverQuote.isNight ? 'Floodlit (Night)' : 'Day Session'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Rate / Hour</span>
+                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>&#8377;{serverQuote.surgedRatePer1h}</div>
+                  </div>
+                  {serverQuote.isWeekend && (
+                    <div>
+                      <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Weekend Surge</span>
+                      <div style={{ fontWeight: 600, color: '#FBBF24' }}>+{serverQuote.weekendSurgePercent}%</div>
+                    </div>
+                  )}
+                  <div>
+                    <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>Duration</span>
+                    <div style={{ fontWeight: 600, color: '#F8FAFC' }}>{serverQuote.durationHours}h</div>
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#CBD5E1' }}>
+                    {effectivePaymentType === 'full' ? 'Total to Collect' : 'Deposit to Collect'}
+                  </span>
+                  <strong style={{ fontSize: '1.1rem', color: 'var(--brand-green, #4ADE80)' }}>&#8377;{(charged / 100).toFixed(0)}</strong>
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ fontSize: '0.85rem', color: '#CBD5E1', display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <span>Counter Collection Mode:</span>

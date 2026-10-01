@@ -8,6 +8,7 @@ import { canTransitionBookingStatus } from '../domain/booking/bookingStateMachin
 import { normalizeBookingInterval } from '../domain/time/bookingInterval.js';
 import { validateLeadTime } from '../domain/booking/bookingRules.js';
 import { requirePermission } from '../domain/rbac/rbacEngine.js';
+import { resolveAdminWalkInPricing } from '../domain/pricing/pricingResolver.js';
 import {
   createCanonicalBooking,
   createCanonicalPaymentHold,
@@ -258,6 +259,35 @@ router.get('/slots', async (req, res) => {
 });
 
 /**
+ * GET /api/bookings/admin-quote
+ * Server-authoritative pricing quote for Admin walk-in bookings.
+ * Must be called before submitting a walk-in booking; the returned quoteToken
+ * is the ONLY accepted authority for the amount on the server.
+ */
+router.get('/admin-quote', authenticateAdminToken, requirePermission('booking.create_walkin'), async (req, res) => {
+  try {
+    const { facilityId, date, timeSlot, durationHours, paymentType } = req.query;
+    if (!facilityId || !date || !timeSlot) {
+      return res.status(400).json({ success: false, error: 'facilityId, date, and timeSlot are required.' });
+    }
+    const facility = resolveCanonicalFacility(facilityId);
+    if (!facility) {
+      return res.status(400).json({ success: false, error: `Unknown facility "${facilityId}".` });
+    }
+    const quote = await resolveAdminWalkInPricing(dbAsync, {
+      facilityId: facility.id,
+      date,
+      timeSlot,
+      durationHours: Math.max(1, Number(durationHours) || 1),
+      paymentType: paymentType === 'deposit' ? 'deposit' : 'full',
+    });
+    res.json({ success: true, quote });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * POST /api/bookings/hold
  * Create temporary payment hold on physical facility
  */
@@ -340,6 +370,22 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       }
     }
 
+    // For Admin walk-ins: resolve server-authoritative pricing; reject client-supplied amounts.
+    let walkInPricing = null;
+    if (isAdminReservation) {
+      try {
+        walkInPricing = await resolveAdminWalkInPricing(dbAsync, {
+          facilityId,
+          date,
+          timeSlot,
+          durationHours: Number(duration) || 1,
+          paymentType,
+        });
+      } catch (priceErr) {
+        return res.status(400).json({ success: false, error: `Pricing resolution failed: ${priceErr.message}` });
+      }
+    }
+
     // Execute Canonical Booking Command
     let result;
     try {
@@ -367,8 +413,13 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
         // status is NOT forwarded from client — it is server-derived in canonicalBookingCommand
         payment: {
           type: paymentType,
-          totalAmountPaise: verifiedQuote ? verifiedQuote.total * 100 : (payload.amount ? Math.round(parseFloat(String(payload.amount).replace(/[^0-9.]/g, '')) * 100) : 0),
-          depositAmountPaise: verifiedQuote ? verifiedQuote.deposit * 100 : 0,
+          // Admin walk-in: use server-resolved authoritative amount; customer: use verified quote token
+          totalAmountPaise: walkInPricing
+            ? walkInPricing.totalAmountPaise
+            : (verifiedQuote ? verifiedQuote.total * 100 : 0),
+          depositAmountPaise: walkInPricing
+            ? walkInPricing.depositAmountPaise
+            : (verifiedQuote ? verifiedQuote.deposit * 100 : 0),
           paymentStatus: isAdminReservation ? (payload.paymentStatus || 'Paid') : 'Pending verification',
           paymentId: submittedPaymentId || (isAdminReservation ? 'counter-payment' : null)
         },
@@ -392,9 +443,11 @@ router.post('/', attachOptionalAdmin, async (req, res) => {
       }
     }
 
-    const amountPaid = verifiedQuote
-      ? `₹${paymentType === 'full' ? verifiedQuote.total : verifiedQuote.deposit} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`
-      : (payload.amount || (paymentType === 'full' ? 'Full payment recorded' : 'Token deposit recorded'));
+    const amountPaid = walkInPricing
+      ? `₹${(walkInPricing.chargedAmountPaise / 100).toFixed(0)} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'} — Server Resolved)`
+      : (verifiedQuote
+          ? `₹${paymentType === 'full' ? verifiedQuote.total : verifiedQuote.deposit} (${paymentType === 'full' ? 'Full Payment' : 'Token Deposit'})`
+          : (paymentType === 'full' ? 'Full payment recorded' : 'Token deposit recorded'));
 
     res.status(201).json({
       success: true,

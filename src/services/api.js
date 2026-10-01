@@ -501,6 +501,19 @@ export const api = {
     });
     return await res.json();
   },
+  getAdminWalkInQuote: async ({ facilityId, date, timeSlot, durationHours, paymentType }) => {
+    const params = new URLSearchParams({
+      facilityId,
+      date,
+      timeSlot,
+      durationHours: String(durationHours || 1),
+      paymentType: paymentType || 'full',
+    });
+    const res = await fetch(`${API_BASE_URL}/bookings/admin-quote?${params.toString()}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
   extendSession: async (payload) => {
     const res = await fetch(`${API_BASE_URL}/sessions/extend`, {
       method: 'POST',

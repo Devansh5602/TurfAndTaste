@@ -394,24 +394,7 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
     const currentEndDate = new Date(scheduledEnd);
     const proposedEndDate = new Date(currentEndDate.getTime() + requestedExtensionMinutes * 60000);
 
-    // Conflict Check against NEXT bookings or blocks on the SAME physical resource
-    const conflictResult = await findResourceConflicts(dbAsync, {
-      facilityId,
-      startAt: currentEndDate.toISOString(),
-      endAt: proposedEndDate.toISOString(),
-      excludeBookingId: bookingId
-    });
-
-    if (conflictResult.hasConflict) {
-      const firstConflict = conflictResult.conflicts[0];
-      return res.status(409).json({
-        success: false,
-        error: `Cannot extend session: Conflicting reservation or block (${firstConflict.conflictType}) detected starting at ${firstConflict.interval.startAt.toISOString()}.`,
-        conflicts: conflictResult.conflicts
-      });
-    }
-
-    // Validate extension rule parameters
+    // Validate extension rule parameters before entering transaction
     const extensionValidation = validateSessionExtension({
       currentScheduledEndAt: scheduledEnd,
       extensionMinutes: requestedExtensionMinutes,
@@ -428,23 +411,49 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       return res.status(409).json({ success: false, error: 'No active ground session exists for this booking.' });
     }
 
-    // Record adjustment entry
-    const adjId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    await dbAsync.run(
-      `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
-       VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
-      [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, Number(chargePaise) || 0, operatorId, reason || 'Staff Approved Extension']
-    );
+    // Conflict check + all writes inside a single serialized transaction with
+    // physical-resource lock. Prevents concurrent extensions from both passing
+    // the read before either write commits.
+    let conflictResult;
+    await dbAsync.withTransaction(async (client) => {
+      if (client.isPostgres) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`extend_lock_${facilityId}`]);
+      }
 
-    // The session keeps its contractual scheduled end; the booking interval
-    // carries the current occupied end and the adjustment is the immutable
-    // audit record. This avoids counting the same extension twice.
-    await dbAsync.run(
-      `UPDATE bookings
-       SET scheduled_end_at = ?
-       WHERE id = ?`,
-      [proposedEndDate.toISOString(), bookingId]
-    );
+      // Re-check conflicts inside the transaction
+      conflictResult = await findResourceConflicts(client, {
+        facilityId,
+        startAt: currentEndDate.toISOString(),
+        endAt: proposedEndDate.toISOString(),
+        excludeBookingId: bookingId
+      });
+
+      if (conflictResult.hasConflict) {
+        const firstConflict = conflictResult.conflicts[0];
+        const err = new Error(
+          `Cannot extend session: Conflicting reservation or block (${firstConflict.conflictType}) detected starting at ${firstConflict.interval?.startAt?.toISOString() ?? firstConflict.startAt}.`
+        );
+        err.conflicts = conflictResult.conflicts;
+        err.httpStatus = 409;
+        throw err;
+      }
+
+      // Record adjustment entry
+      const adjId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      await client.run(
+        `INSERT INTO session_adjustments (id, session_id, adjustment_type, minutes, is_free, charge_paise, approved_by, reason)
+         VALUES (?, ?, 'EXTENSION', ?, ?, ?, ?, ?)`,
+        [adjId, session.id, requestedExtensionMinutes, isFree ? 1 : 0, Number(chargePaise) || 0, operatorId, reason || 'Staff Approved Extension']
+      );
+
+      // The session keeps its contractual scheduled end; the booking interval
+      // carries the current occupied end and the adjustment is the immutable
+      // audit record. This avoids counting the same extension twice.
+      await client.run(
+        `UPDATE bookings SET scheduled_end_at = ? WHERE id = ?`,
+        [proposedEndDate.toISOString(), bookingId]
+      );
+    });
 
     res.json({
       success: true,
@@ -457,6 +466,9 @@ router.post('/extend', authenticateAdminToken, requirePermission('booking.extend
       message: `Session extended by ${extensionMinutes} minutes until ${proposedEndDate.toLocaleTimeString()}.`
     });
   } catch (err) {
+    if (err.httpStatus === 409) {
+      return res.status(409).json({ success: false, error: err.message, conflicts: err.conflicts });
+    }
     console.error('[Session Extension Error]:', err);
     res.status(500).json({ success: false, error: err.message });
   }
