@@ -1,10 +1,10 @@
 # Turf & Taste — Codex / Antigravity Engineering Handoff
 
 ## Checkpoint Date
-2026-10-01
+2026-10-02
 
 ## Stage
-**Admin Platform Master Completion & Design Alignment Pass**
+**Customer Mobile Runtime Completion + Build Identity Verification — SAFE TO MOVE TO OTHER DEVICE**
 
 ## Branch
 `feature/turf-and-taste-admin-platform`
@@ -13,102 +13,154 @@
 
 ## 1. Executive Summary
 
-The Turf & Taste Admin Platform has reached 100% functional completion, responsive hardening, and visual alignment with the authoritative clubhouse design specifications (`ADMIN APP · Mobile.png` and `ADMIN APP · Mobile.svg`). All hardened domain foundations (canonical availability, server-authoritative pricing, RBAC with zero role-name bypasses, immutable pricing snapshots, idempotent payment finalization, and 24/7 sports availability) are preserved.
+The Turf & Taste **Customer Mobile Runtime** has reached functional completion with full navigation, corrected product truth, build identity system, and global theme parity. All 255 tests pass. Android debug APK builds successfully and contains verifiable build metadata (Git SHA `11ce99a`, timestamp `2 Oct 2026, 16:33`).
 
-All 12 test suites (224/224 tests) pass with zero errors, and the production build builds cleanly without errors.
-
----
-
-## 2. Completed Admin Modules & Routes
-
-| Module Group | Admin Page Component | Backend Routes / Controllers | Primary Capabilities |
-|---|---|---|---|
-| **A. Auth & Shell** | `AdminLogin.jsx`, `AdminApp.jsx` | `POST /api/auth/login`, `GET /me` | Separate admin auth, token verification, Clubhouse header with campus status and logout |
-| **B. Master Dashboard** | `DashboardView.jsx` | `GET /api/dashboard/overview`, `/api/bookings` | Pitch Master Control, Quick Booking CTA, Lockout CTA, Daily Manifest, 2x2 metric cards, ground status cards |
-| **C. Booking Management** | `BookingsView.jsx` | `GET /api/bookings`, `DELETE /api/bookings/:id` | Filter chips (status, turfs), search by patron/ID/phone, inspect immutable pricing snapshot, permanent cancellation modal |
-| **D. Walk-In Counter** | `WalkInView.jsx` | `POST /api/bookings/walkin`, `/api/v2/quotes` | 4-step wizard: physical facility selection, quick (1h/2h) or custom (:00/:15/:30/:45 whole-hour) slot, customer details, server quote preview, payment mode |
-| **E. Facilities CMS** | `FacilitiesView.jsx` | `GET /api/facilities/admin`, `POST /api/facilities/admin` | Sections, Physical facilities (Turf 1/2, Court 1/2, Skating Rink, Green Net), Ball-Shooting Machine add-on, activation/bookability |
-| **F. Availability & Blocks** | `BlocksView.jsx` | `GET /api/availability/blocks`, `POST /api/availability/blocks`, `DELETE /api/availability/blocks/:id` | Exception block creation, conflict engine validation, customer notice, branded in-app release confirmation |
-| **G. Pricing & Tariffs** | `PricingView.jsx` | `GET /api/pricing/rules`, `POST /api/pricing/rules` | Base day/night rates, floodlight timings (6:00 PM), weekend surge %, deposit token settings, add-on hourly rate |
-| **H. Payments Ledger** | `PaymentsView.jsx` | `GET /api/payments/history`, `POST /api/payments/verify` | Transaction ledger, Razorpay verification indicators, immutable pricing snapshot breakdown, token deposit tracking |
-| **I. Customer CRM** | `CustomersView.jsx` | `GET /api/customers`, `GET /:phone/bookings`, `POST /:phone/notes` | Patron directory, total spend/bookings metrics, booking history drawer, internal staff operational notes |
-| **J. Concierge Inquiries** | `InquiriesView.jsx` | `GET /api/inquiries`, `PUT /api/inquiries/:id/status` | Event/coaching inquiry triage, status filter pills, direct phone call/WhatsApp CTAs |
-| **K. Reviews Moderation** | `ReviewsView.jsx` | `GET /api/reviews/admin`, `PUT /:id/status`, `POST /:id/reply` | Moderation queue, star ratings, single-choice state radio (pending/approved/flagged/rejected), official clubhouse response |
-| **L. Events CMS** | `EventsView.jsx` | `GET /api/v2/events/admin/all`, `POST/PUT/DELETE /api/v2/events/admin/events` | Tournament and clinic schedule, multi-step creation modal, member entry fee, category tags |
-| **M. Notices CMS** | `NoticesView.jsx` | `GET /api/notices/admin`, `POST/PUT/DELETE /api/notices/admin` | Clubhouse bulletins, urgency levels (Normal/Important/Urgent), pinning toggle, audience segmentation |
-| **N. Dining CMS** | `DiningView.jsx` | `GET /api/v2/food/admin/all`, `POST /api/v2/food/admin/items`, `PUT /:id/availability` | Outlets list (Sports Cafe, Parlour), menu item inventory, paise-accurate pricing, instant availability toggle |
-| **O. Roles & RBAC** | `RolesView.jsx` | `GET /api/roles`, `GET /api/roles/permissions`, `GET /api/roles/staff` | Role directory, module-grouped permissions matrix modal, staff accounts roster |
-| **P. Archives & Maintenance** | `MaintenanceView.jsx` | `GET /api/archives/years`, `/preview`, `/generate`, `/purge` | Fiscal year selector, annual ledger manifest, PDF download, email distribution, permanent DB purge with typed confirmation |
-| **Q. Session & Check-In** | `SessionsView.jsx` | `GET /api/sessions/today`, `POST /checkin`, `POST /start`, `POST /complete`, `POST /extension` | Pass QR lookup, customer slot confirmation, check-in, start session, 15-minute pro-rated extensions (free or paid) |
+**This checkpoint is SAFE TO MOVE TO OTHER DEVICE.**
 
 ---
 
-## 3. Design System & Visual Alignment
+## 2. Completed Work — Full History
 
-1. **Curated Clubhouse Ivory Palette:**
-   - Background Canvas: `#FAF9F6` (warm ivory)
-   - Surface Cards: `#FFFFFF` with `#EAE8E4` borders and `0 4px 12px rgba(15, 61, 46, 0.04)` shadows
-   - Primary Accent: `#0F3D2E` (deep clubhouse forest green)
-   - Secondary Mint: `#A0F399`
-   - Primary Text: `#1A1C1A`
-   - Secondary / Muted Text: `#5A645E`
-   - Status Badges: semantic chips (Confirmed, In Progress, Cancelled, Maintenance) matching mobile mockups.
+### Phase A: Product Truth Cleanup
+- Single Turf & Taste property: **Patan, Gujarat**
+- Removed all legacy Bopal/Ahmedabad/South Bopal/SG Highway/Skyline/The Oval/Masterstroke references
+- Authorized sports only: Box Cricket (Turf 1, Turf 2), Skating Rink, Pickle Ball (Court 1, Court 2), Cricket Green Net Practice, Cricket Green Net Practice with Shooting Machine (add-on)
 
-2. **Navigation Architecture:**
-   - 4 Stable Primary Bottom Navigation Tabs: `Dashboard`, `Bookings`, `Facilities`, `Operations`.
-   - **Operations Launchpad Drawer**: Clicking "Operations" slides up a 2-column mobile launcher drawer giving 1-tap access to all 13 secondary submodules without crowding or horizontal tab scrolling.
-   - Stable ordering across all screens; navigation never reorders based on route.
+### Phase B: Booking Architecture
+- Canonical booking state machine (`bookingState.js`)
+- Durations: **1 hour** and **2 hours** only (no 1.5h/90m/60m blocks)
+- 24/7 operating model
+- Server-authoritative quotes via `api.createQuote()`
+- Slot conflict engine on physical facility IDs
+- 1-hour lead time for customer bookings
 
-3. **Responsive Mobile Viewports:**
-   - Hardened for 360px, 375px, 390px, 412px, 430px.
-   - Max-width container at 480px centered.
-   - Zero horizontal overflow.
-   - Input fields use touch-friendly sizing and maintain keyboard visibility.
+### Phase C: Pricing & Payment
+- Removed hardcoded pricing (`₹700`, `₹900`, `₹1239`)
+- Server-authoritative quote breakdown (hourly rate, weekend surge, total payable)
+- Payment state architecture (processing, failure, success, pass)
+- Razorpay integration prepared (no fake payment controls)
 
-4. **Zero Simulated OS Chrome:**
-   - Artificial status bars (9:41, fake Wi-Fi, fake battery) strictly removed.
-   - Standard OS safe-area handling preserved.
+### Phase C.1: Runtime Corrections
+- Fixed blank screens (Dining, Events, Profile)
+- Removed `CURATED FIXTURE`, `LOCAL PREVIEW`, bracket placeholders
+- Removed hardcoded customer identity (Devansh)
+- Customer/Admin auth separation verified
 
----
-
-## 4. Intentional Deviations from Mockups due to Authoritative Product Rules
-
-| Design Mockup Element | Authoritative Product Rule / Implemented Behavior | Reason / Source |
-|---|---|---|
-| Multiple cities (Bopal, Ahmedabad) | Single property in **Patan, Gujarat** | Single campus model (`PROJECT_TRUTH.md`) |
-| Fixed 90-minute booking options | Strictly **1 Hour** & **2 Hours** quick slots, or custom :00/:15/:30/:45 whole-hour slots | Authoritative booking engine rules (`BOOKING_ENGINE.md`) |
-| Hardcoded 6 AM – 11 PM sports operating hours | Conceptual **24/7 continuous sports availability** reduced only by active reservations and maintenance blocks | Sports operating model (`FACILITY_DOMAIN.md`) |
-| Ball-Shooting Machine shown as separate court | Paid add-on attached to the single **Cricket Green Net** facility (`fac_green_net_1`) | Physical inventory truth (`PROJECT_TRUTH.md`) |
-| Customer dining ordering / cart flows | Dining on customer side is informational only; Admin Dining CMS manages outlets and menus | Finalized product scope (`DINING_AND_ORDERS.md`) |
-| Cancellation refund options | Strict **0% refund** on cancellation; slot freed immediately | Cancellation truth (`BOOKING_ENGINE.md`) |
-
----
-
-## 5. Verification & Test Gate Results
-
-| Test Suite | Total Tests | Pass | Status |
-|---|---|---|---|
-| `stage0-platform-foundation.test.js` | 12 | 12 | ✅ PASS |
-| `stage05-canonical-operationalization.test.js` | 27 | 27 | ✅ PASS |
-| `stage06-hardening.test.js` | 20 | 20 | ✅ PASS |
-| `stage07-release-gate.test.js` | 15 | 15 | ✅ PASS |
-| `stage08-release-gate.test.js` | 19 | 19 | ✅ PASS |
-| `stage09-release-gate.test.js` | 10 | 10 | ✅ PASS |
-| `admin-phase1.test.js` | 13 | 13 | ✅ PASS |
-| `admin-phase12-integration.test.js` | 21 | 21 | ✅ PASS |
-| `admin-phase13-closeout.test.js` | 8 | 8 | ✅ PASS |
-| `admin-phase1-closeout-review.test.js` | 16 | 16 | ✅ PASS |
-| `admin-master-completion.test.js` | 20 | 20 | ✅ PASS |
-| `customer-mobile-regression.test.js` | 43 | 43 | ✅ PASS |
-| **Total Automated Tests** | **224** | **224** | **100% PASS** |
-| `npm run build` (Vite production bundle) | — | — | ✅ PASS (3.95s) |
-| `git diff --check` | — | — | ✅ Clean (0 whitespace/syntax issues) |
+### Customer Mobile Runtime Completion (this checkpoint)
+- **Removed remaining regressions**: `LOCAL PREVIEW` → `PERSONAL DETAILS`, `Ahmedabad (Bopal / SG Highway)` → `Patan, Gujarat`
+- **Facility Detail**: `FACILITY REFERENCE` → `SERVICE`
+- **Sport filters**: Shooting Machine filtered from standalone lists (add-on only)
+- **Duration labels**: `60-minute`/`120-minute` → `1 hour`/`2 hours`
+- **Build Identity**: Settings → About This Build shows Git SHA `11ce99a`, build timestamp `2 Oct 2026, 16:33`
+- **Global ErrorBoundary**: Wraps `AppLayout`, prevents white screens
+- **Preview note removed** from customer mobile shell
+- **Navigation**: All 25+ customer routes render (Home, Venues, Booking 4-step, Dining, Events, Profile, Settings, Appearance, Reviews, Auth, Pass, Bookings, Info pages)
+- **Theme parity**: Clubhouse Ivory ↔ Midnight Ivory persists globally via localStorage
+- **ErrorBoundary**: Branded recovery with Try Again/Go Home
 
 ---
 
-## 6. Next Planned Task
+## 3. Verified State (2026-10-02)
 
-The Admin Platform implementation and design alignment is **complete and halted**.
-As requested, we stop here for:
-1. One independent Admin review.
-2. Next phase: Customer Mobile functional correction and visual alignment pass (do not start until authorized).
+| Item | Value |
+|------|-------|
+| **Branch** | `feature/turf-and-taste-admin-platform` |
+| **Latest HEAD** | `11ce99a` |
+| **Remote HEAD** | `11ce99a` (synchronized) |
+| **Tests** | 255 passing / 0 failing / 88 suites |
+| **Production Build** | PASS (Vite, 4.2s) |
+| **Git diff --check** | Clean |
+
+---
+
+## 4. Android APK
+
+| Property | Value |
+|----------|-------|
+| **Path** | `/home/pc/www/POC/TurfAndTaste/android/app/build/outputs/apk/debug/app-debug.apk` |
+| **Size** | 12,548,046 bytes (12.5 MB) |
+| **SHA-256** | `33e974e30c29a32b96c825b60c7bf4ac8cfa76f99d3de54966eeed5726b6a1f7` |
+| **Timestamp** | 2 Oct 2026, 16:33 |
+| **Embedded Git SHA** | `11ce99a` |
+| **Build Timestamp in App** | `2 Oct 2026, 16:33` |
+
+---
+
+## 5. Build Identity System
+
+**Generator**: `scripts/generate-build-info.js` (tracked)
+**Output**: `src/generated/build-info.json` (ignored via `.gitignore`)
+**Build-time injection**: `npm run build` → generates metadata → Vite inlines into bundle
+**No commit loop**: Generated file is not tracked; fresh checkout regenerates via normal build
+
+```json
+{
+  "version": "1.0.0",
+  "versionCode": "1",
+  "gitCommit": "11ce99a",
+  "buildTimestamp": "2026-10-02T11:13:56.683Z",
+  "buildDate": "2 Oct 2026, 16:43"
+}
+```
+
+---
+
+## 6. Theme & UI Kit
+
+### Global ThemeProvider
+- Location: `src/theme/ThemeProvider.jsx`
+- Wraps entire app in `App.jsx`
+- Persists to localStorage
+- Survives all route transitions
+
+### Themes
+- **Clubhouse Ivory** (light): `#FAF9F6` background, `#0F3D2E` primary
+- **Midnight Ivory** (dark): `#101411` background, `#9ECF8C` primary
+
+### Canonical UI Kit (committed)
+- Tokens: `src/theme/tokens.css`, `light.css`, `dark.css`
+- Primitives: Button, IconButton, Card, Input, Select, Checkbox, Radio, Chip, Badge, StatusBadge, Avatar, FormField
+- Components: PageHeader, SectionHeader, Stepper, Modal, StickyActionBar
+- Navigation: BottomNav, TabBar
+- Feedback: ToastProvider, Alert, EmptyState, LoadingState, ErrorState, Skeleton, **ErrorBoundary**
+- Patterns: PriceDisplay, BookingCard, FacilityCard, EventCard, DiningCard
+
+---
+
+## 6. Remaining Implementation Blockers (Backend Only)
+
+| Blocker | Status | Notes |
+|---------|--------|-------|
+| Real Customer Auth persistence | Backend required | `/sign-in`, `/create-account` need session DB |
+| Booking creation | Backend required | Step 4 → Payment needs booking API |
+| Razorpay payment | Backend required | ProcessingScreen needs real integration |
+| Profile persistence | Backend required | EditProfileScreen save needs API |
+| Forgot/Reset password | Backend required | Email/SMS flow |
+| Real Dining/Events data | Backend required | Currently uses seeded `data.js` |
+
+---
+
+## 7. Exact Next Development Recommendation
+
+**Physical Device QA**: Install the APK at `android/app/build/outputs/apk/debug/app-debug.apk` on device, verify Settings → About This Build shows `11ce99a` and `2 Oct 2026, 16:33`, then test all customer routes.
+
+**Then**: Backend integration for auth, booking, payment, profile persistence.
+
+---
+
+## 8. Final Verification
+
+```
+git status --short
+# (clean - only src/generated/ untracked, properly ignored)
+
+git rev-parse HEAD
+# 11ce99a847c07d9dde7b5c6e8aee96b3ce9c12d1
+
+git rev-parse origin/feature/turf-and-taste-admin-platform
+# 11ce99a847c07d9dde7b5c6e8aee96b3ce9c12d1
+```
+
+---
+
+# SAFE TO MOVE TO OTHER DEVICE

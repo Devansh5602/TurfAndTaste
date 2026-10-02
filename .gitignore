@@ -33,3 +33,6 @@ ios/App/App.xcworkspace/xcuserdata/
 # IDE
 .idea/
 *.iml
+
+# Build-time generated metadata
+src/generated/
