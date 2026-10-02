@@ -13,6 +13,7 @@ import {
 } from './bookingScheduler';
 import { useRouter } from '../../context/RouterContext';
 import { useTheme } from '../../theme';
+import { useCustomerAuth } from '../../auth/customer/CustomerAuthProvider';
 import './customerMobile.css';
 
 const steps = ['Sports & Venue', 'Schedule', 'Details', 'Pay'];
@@ -919,6 +920,7 @@ function BookingsScreen({ go }) {
 }
 
 function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
+  const { login, isAuthenticated } = useCustomerAuth();
   const [form, setForm] = useState({ name: '', phone: '', password: '', confirm: '', email: '' });
   const [submitted, setSubmitted] = useState(false);
   const isForgot = authScreen === 'forgot';
@@ -953,6 +955,8 @@ function SafeAuthScreen({ back, authScreen, setAuthScreen, go }) {
     if (isForgot) {
       setAuthScreen('reset');
     } else if (isReset || isExpired || authScreen === 'signin' || isCreate) {
+      const identifier = phoneDigits || form.email.trim();
+      login(identifier, form.name.trim() || null);
       go('profile');
     } else {
       setAuthScreen('signin');
@@ -1098,12 +1102,22 @@ function OfflineScreen({ go }) { return <StatePage icon={<WifiOff/>} title="Youâ
 function SystemErrorScreen({ back, go }) { return <div className="cm-page cm-centered cm-system-recovery"><Header actions={false}/><div className="cm-state-illustration"><CircleAlert/></div><p className="cm-overline">CUSTOMER APP RECOVERY</p><h1>Something went wrong.</h1><p>We could not complete that preview action. Your local fixture state has not been changed.</p><Button onClick={() => go('home')} icon={Home}>Go Home</Button><button className="cm-text-button" onClick={back}>Go Back</button></div>; }
 
 function SafeProfileScreen({ go, theme }) {
+  const { customer, isAuthenticated, logout } = useCustomerAuth();
   return <div className="cm-page cm-source-profile">
     <header className="cm-curated-top"><h1>Profile</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></div></header>
-    <div className="cm-profile-hero"><div className="cm-avatar"><UserRound size={25}/></div><div><span>LOCAL PREVIEW</span><h2>Guest profile</h2><p>No customer account is connected.</p></div></div>
-    <Button onClick={() => go('auth')} icon={LockKeyhole}>Sign in to save details</Button>
-    <SectionTitle title="Preview navigation"/>
-    <div className="cm-list-card"><button onClick={() => go('bookings')}><NotebookTabs/><span><strong>My Bookings</strong><small>View the curated pass and booking-history layouts</small></span><ChevronRight/></button><button onClick={() => go('edit-profile')}><UserRound/><span><strong>Personal &amp; Contact Details</strong><small>Local preview form â€” no customer record is saved</small></span><ChevronRight/></button><button onClick={() => go('reviews')}><Star/><span><strong>Verified Ratings &amp; Reviews</strong><small>Completed-booking feedback layout</small></span><ChevronRight/></button></div>
+    {isAuthenticated && customer ? (
+      <>
+        <div className="cm-profile-hero"><div className="cm-avatar"><UserRound size={25}/></div><div><span>MEMBER</span><h2>{customer.name || 'Member'}</h2><p>{customer.identifier}</p></div></div>
+        <Button onClick={() => { logout(); go('home'); }} icon={LockKeyhole}>Sign Out</Button>
+      </>
+    ) : (
+      <>
+        <div className="cm-profile-hero"><div className="cm-avatar"><UserRound size={25}/></div><div><span>GUEST</span><h2>Guest User</h2><p>Sign in to access your profile</p></div></div>
+        <Button onClick={() => go('auth')} icon={LockKeyhole}>Sign In</Button>
+      </>
+    )}
+    <SectionTitle title="Account &amp; Bookings"/>
+    <div className="cm-list-card"><button onClick={() => go('bookings')}><NotebookTabs/><span><strong>My Bookings</strong><small>Upcoming, past &amp; venue details</small></span><ChevronRight/></button><button onClick={() => go('edit-profile')}><UserRound/><span><strong>Personal &amp; Contact Details</strong><small>Name, registered mobile, &amp; email</small></span><ChevronRight/></button><button onClick={() => go('pass')}><CreditCard/><span><strong>Saved Payment Methods</strong><small>UPI IDs &amp; cards managed via Razorpay</small></span><ChevronRight/></button><button onClick={() => go('reviews')}><Star/><span><strong>My Sports Preferences</strong><small>Selected formats for quick match discovery</small></span><ChevronRight/></button></div>
     <SectionTitle title="Preferences"/>
     <div className="cm-list-card"><button onClick={() => go('settings')}><Settings/><span><strong>Appearance / Theme</strong><small>{theme === 'dark' ? 'Midnight Ivory' : 'Clubhouse Ivory'}</small></span><ChevronRight/></button><button onClick={() => go('info', { info: 'notices' })}><Bell/><span><strong>Updates &amp; Notices</strong><small>Clubhouse and venue announcements</small></span><ChevronRight/></button></div>
   </div>;
