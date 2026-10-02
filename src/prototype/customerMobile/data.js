@@ -21,8 +21,8 @@ export const prototypeEvents = [
 export const infoPages = {
   notices: { title: 'Updates & Notices', body: 'Check the latest facility advisories, special-hours notices and on-ground updates here.' },
   contact: { title: 'Contact & Inquiry', body: 'For venue questions, team bookings or help with a visit, reach the Turf & Taste team during operating hours.' },
-  rules: { title: 'Ground Rules & Guidelines', body: 'Arrive on time, use appropriate footwear, treat equipment and fellow players with care, and follow the venue team’s instructions.' },
+  rules: { title: 'Ground Rules & Guidelines', body: "Arrive on time, use appropriate footwear, treat equipment and fellow players with care, and follow the venue team's instructions." },
   about: { title: 'About Turf & Taste', body: 'Turf & Taste brings sport, community and simple food discovery together at one local clubhouse.' },
-  terms: { title: 'Terms', body: 'This prototype preserves the curated information-screen treatment without presenting legal or compliance claims.' },
-  privacy: { title: 'Privacy', body: 'This prototype uses local, non-production demonstration state only. It does not create a real customer account.' },
+  terms: { title: 'Terms', body: 'Standard terms of service apply for facility bookings and clubhouse access.' },
+  privacy: { title: 'Privacy', body: 'Your data is handled in accordance with applicable privacy regulations.' },
 };
