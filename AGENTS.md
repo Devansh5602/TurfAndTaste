@@ -42,7 +42,34 @@ Refer to the specialized project skills in `.agents/skills/` and `docs/ai/skills
 
 ---
 
-## 4. Mandatory Repository Cleanliness Rule
+## 4. UI Kit Rules for AI Agents
+
+All UI work MUST use the canonical shared UI kit. Read `docs/design/UI_KIT.md` before creating or modifying any visual component.
+
+1. **Use canonical UI primitives** before creating new screen-specific components.
+2. **Never hardcode brand colors** in page components — use semantic tokens.
+3. **Never invent new spacing/radius values** without adding them to tokens first.
+4. **Use semantic tokens**, not raw colors (e.g., `var(--color-brand-primary)` not `#0F3D2E`).
+5. **Customer and Admin must use the same shared visual primitives** where appropriate.
+6. **Do not override component styles per screen** when an existing variant exists.
+7. **All interactive controls must meet minimum 44px touch targets.**
+8. **All new components must support both Clubhouse Ivory and Midnight Ivory.**
+9. **No fake OS chrome** — no artificial status bars, battery, or notch.
+10. **Test at 360, 375, 390, 412, and 430px** viewports.
+11. **Product truth outranks visual mockups.**
+12. **Curated design reference outranks legacy screens.**
+13. **No prototype-only wording in production UI.**
+14. **Add a documented variant** instead of copying and editing styles locally.
+15. **Use CSS custom properties** for all color, spacing, radius, and shadow values.
+16. **Theme must be global** — never component-local state.
+17. **Persist theme preference** to localStorage.
+18. **Use safe-area insets** for all edge-to-edge layouts.
+19. **Zero native browser dialogs** — use branded modal sheets.
+20. **Display human-readable names** for resources, never raw internal IDs.
+
+---
+
+## 5. Mandatory Repository Cleanliness Rule
 
 Before EVERY commit and push, all AI agents (Antigravity, Codex, etc.) must:
 1. **Remove Debug & Dead Code:** Remove temporary `console.log` statements, print assertions, and abandoned helpers.
