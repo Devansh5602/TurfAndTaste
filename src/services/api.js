@@ -154,6 +154,15 @@ export const api = {
     return await res.json();
   },
 
+  createQuote: async (quotePayload) => {
+    const res = await fetch(`${API_BASE_URL}/v2/quotes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(quotePayload)
+    });
+    return await res.json();
+  },
+
   createBooking: async (bookingPayload) => {
     const res = await fetch(`${API_BASE_URL}/bookings`, {
       method: 'POST',

@@ -14,6 +14,8 @@ import {
 import { useRouter } from '../../context/RouterContext';
 import { useTheme } from '../../theme';
 import { useCustomerAuth } from '../../auth/customer/CustomerAuthProvider';
+import { useBookingState } from './bookingState';
+import { api } from '../../services/api';
 import './customerMobile.css';
 
 const steps = ['Sports & Venue', 'Schedule', 'Details', 'Pay'];
@@ -110,16 +112,38 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   const [screen, setScreen] = useState(normalizedInitialScreen);
   const [history, setHistory] = useState([]);
   const { theme, setTheme } = useTheme();
-  const [selectedFacility, setSelectedFacility] = useState(prototypeFacilities[0]);
+  const {
+    state: bookingState,
+    setFacility,
+    setDate,
+    setSlot,
+    setDuration,
+    setCustomerDetails,
+    setQuote,
+    setQuoteLoading,
+    setQuoteError,
+    setBooking,
+    setPaymentState,
+    resetBooking,
+    canProceedToSchedule,
+    canProceedToDetails,
+    canProceedToReview,
+    canSubmitPayment,
+  } = useBookingState();
+  const selectedFacility = bookingState.facility;
 
   // Dynamic booking state
   const bookingDays = useMemo(() => generateBookingDays(5), []);
-  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+  const selectedDateIndex = useMemo(() => {
+    if (!bookingState.date) return 0;
+    const idx = bookingDays.findIndex((d) => d.dateString === bookingState.date?.dateString);
+    return idx >= 0 ? idx : 0;
+  }, [bookingState.date, bookingDays]);
   const selectedDate = bookingDays[selectedDateIndex] || bookingDays[0];
-  const [selectedDuration, setSelectedDuration] = useState(1); // 1, 2 (canonical durations only)
-  const [selectedSlot, setSelectedSlot] = useState(null);
+  const selectedDuration = bookingState.duration || 1;
+  const selectedSlot = bookingState.slot;
   const [bookingStep, setBookingStep] = useState(initialBookingStep);
-  const [bookingDetails, setBookingDetails] = useState({ name: '', phone: '', email: '', note: '' });
+  const bookingDetails = bookingState.customerDetails;
 
   const [paymentFailure, setPaymentFailure] = useState(initialScreen === 'payment-failure');
   const [event, setEvent] = useState(prototypeEvents[0]);
@@ -129,8 +153,52 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   const [bookingMode, setBookingMode] = useState(initialScreen === 'events-loading' ? 'loading' : initialScreen === 'events-empty' ? 'empty' : 'normal');
   const [diningMode, setDiningMode] = useState(initialScreen === 'dining-loading' ? 'loading' : initialScreen === 'dining-unavailable' ? 'unavailable' : 'normal');
 
-  const pricing = useMemo(() => calculateBookingPricing(selectedFacility, selectedDuration), [selectedFacility, selectedDuration]);
+  const pricing = bookingState.quote;
   const selectedSlotLabel = selectedSlot ? formatSlotLabel(selectedSlot, selectedDuration) : '';
+
+  // Server-authoritative quote integration
+  useEffect(() => {
+    if (!selectedFacility || !selectedDate || !selectedSlot || !selectedDuration) {
+      return;
+    }
+
+    let cancelled = false;
+    setQuoteLoading(true);
+    setQuoteError(null);
+
+    const fetchQuote = async () => {
+      try {
+        const timeSlot = formatSlotLabel(selectedSlot, selectedDuration);
+        const res = await api.createQuote({
+          facilityId: selectedFacility.id,
+          date: selectedDate.dateString,
+          timeSlot,
+        });
+
+        if (cancelled) return;
+
+        if (res?.success && res?.quote) {
+          setQuote(res.quote);
+        } else {
+          setQuoteError(res?.error || 'Unable to calculate pricing. Please try again.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setQuoteError('Unable to reach pricing service. Please check your connection.');
+        }
+      } finally {
+        if (!cancelled) {
+          setQuoteLoading(false);
+        }
+      }
+    };
+
+    fetchQuote();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFacility, selectedDate, selectedSlot, selectedDuration, setQuote, setQuoteLoading, setQuoteError]);
 
   const routes = {
     home: '/', facilities: '/facilities', facility: '/facilities/detail',
@@ -177,23 +245,18 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
   };
 
   const handleFacilityChange = (facility) => {
-    setSelectedFacility(facility);
-    setSelectedSlot(null);
+    setFacility(facility);
   };
 
   const handleDateChange = (index) => {
-    setSelectedDateIndex(index);
-    setSelectedSlot(null);
+    const day = bookingDays[index];
+    if (day) {
+      setDate(day);
+    }
   };
 
   const handleDurationChange = (duration) => {
-    setSelectedDuration(duration);
-    if (selectedSlot) {
-      const { selectable } = getSlotState(selectedSlot, selectedDate.dateString, duration);
-      if (!selectable) {
-        setSelectedSlot(null);
-      }
-    }
+    setDuration(duration);
   };
 
   const isFocusedScreen = [
@@ -243,8 +306,8 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
         go={go}
       />
     );
-    if (screen === 'success') return <SuccessScreen go={go} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} />;
-    if (screen === 'pass') return <PassScreen go={go} back={back} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} />;
+    if (screen === 'success') return <SuccessScreen go={go} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} booking={bookingState.booking} />;
+    if (screen === 'pass') return <PassScreen go={go} back={back} selectedFacility={selectedFacility} selectedDate={selectedDate} selectedSlotLabel={selectedSlotLabel} bookingDetails={bookingDetails} booking={bookingState.booking} />;
     if (screen === 'bookings') return <BookingsScreen go={go} />;
     if (screen === 'auth') return <SafeAuthScreen back={back} authScreen={authScreen} setAuthScreen={setAuthScreen} go={go} />;
     if (screen === 'profile') return <SafeProfileScreen go={go} theme={theme} />;
@@ -468,6 +531,8 @@ function BookingScreen({
         selectedSlotLabel={selectedSlotLabel}
         bookingDetails={bookingDetails}
         pricing={pricing}
+        quoteLoading={bookingState.quoteLoading}
+        quoteError={bookingState.quoteError}
       />
     )}
 
@@ -718,18 +783,63 @@ function StepDetails({ selectedFacility, selectedDate, selectedSlotLabel, bookin
   </section>;
 }
 
-function StepReview({ selectedFacility, selectedDate, selectedDuration, selectedSlotLabel, bookingDetails, pricing }) {
+function StepReview({ selectedFacility, selectedDate, selectedDuration, selectedSlotLabel, bookingDetails, pricing, quoteLoading, quoteError }) {
+  if (quoteLoading) {
+    return <section className="cm-step">
+      <div className="cm-step-heading">
+        <p className="cm-overline">SECURE CHECKOUT</p>
+        <h2>Review &amp; Pay</h2>
+        <p>Calculating your booking quote...</p>
+      </div>
+      <div className="cm-booking-empty">
+        <Clock3 size={32}/>
+        <h3>Loading pricing</h3>
+        <p>Fetching server-authoritative rates for your selection.</p>
+      </div>
+    </section>;
+  }
+
+  if (quoteError) {
+    return <section className="cm-step">
+      <div className="cm-step-heading">
+        <p className="cm-overline">SECURE CHECKOUT</p>
+        <h2>Review &amp; Pay</h2>
+        <p>Unable to calculate pricing.</p>
+      </div>
+      <div className="cm-booking-empty">
+        <CircleAlert size={32}/>
+        <h3>Pricing unavailable</h3>
+        <p>{quoteError}</p>
+      </div>
+    </section>;
+  }
+
+  if (!pricing) {
+    return <section className="cm-step">
+      <div className="cm-step-heading">
+        <p className="cm-overline">SECURE CHECKOUT</p>
+        <h2>Review &amp; Pay</h2>
+        <p>Select a slot to see pricing.</p>
+      </div>
+      <div className="cm-booking-empty">
+        <Clock3 size={32}/>
+        <h3>No slot selected</h3>
+        <p>Please go back and select a time slot to see pricing.</p>
+      </div>
+    </section>;
+  }
+
   return <section className="cm-step">
     <div className="cm-step-heading">
       <p className="cm-overline">SECURE CHECKOUT</p>
       <h2>Review &amp; Pay</h2>
-      <p>Confirm your arena reservation and payment breakdown.</p>
+      <p>Confirm your reservation and payment breakdown.</p>
     </div>
 
     <div className="cm-review-card">
       <img src={selectedFacility.image} alt=""/>
       <div>
-        <span className="cm-status">Pitch hold guaranteed</span>
+        <span className="cm-status">Booking summary</span>
         <strong>{selectedFacility.venueName}</strong>
         <small><MapPin size={13}/> {selectedFacility.location}</small>
         <span><CalendarDays size={15}/> {selectedDate ? selectedDate.displayFull : 'Selected date'}</span>
@@ -744,30 +854,24 @@ function StepReview({ selectedFacility, selectedDate, selectedDuration, selected
 
     <div className="cm-price-breakdown">
       <div className="cm-breakdown-top">
-        <strong>Itemized Price Breakdown</strong>
-        <span>Verified Rate</span>
+        <strong>Price Breakdown</strong>
+        <span>Server-verified</span>
       </div>
       <div>
-        <span>Turf Base Rate ({selectedDuration} {selectedDuration === 1 ? 'hr' : 'hrs'})</span>
-        <strong>₹{pricing.preGstBase}</strong>
+        <span>Base Rate ({selectedDuration} {selectedDuration === 1 ? 'hr' : 'hrs'})</span>
+        <strong>₹{pricing.hourlyRate || '—'}</strong>
       </div>
-      <div>
-        <span>Clubhouse &amp; Facility Maintenance</span>
-        <strong>₹{pricing.maintenanceFee}</strong>
-      </div>
-      <div>
-        <span>Arena Floodlights &amp; Gear</span>
-        <strong>₹0.00</strong>
-      </div>
-      <div className="cm-payable">
-        <span>GST (18% Applied)</span>
-        <strong>₹{pricing.gstAmount}</strong>
-      </div>
+      {pricing.weekendSurgePercent > 0 && (
+        <div>
+          <span>Weekend Surge</span>
+          <strong>+{pricing.weekendSurgePercent}%</strong>
+        </div>
+      )}
       <div className="cm-payable">
         <span>Total Payable</span>
-        <strong>₹{pricing.totalPayable}</strong>
+        <strong>₹{pricing.total ?? '—'}</strong>
       </div>
-      <p><ShieldCheck size={16}/> Amount is locked and verified for this session.</p>
+      <p><ShieldCheck size={16}/> Amount is server-authoritative and verified for this session.</p>
     </div>
 
     <button className="cm-payment-row">
@@ -785,38 +889,33 @@ function ProcessingScreen({ back, failed, setFailed, selectedFacility, selectedD
   if (failed) return <div className="cm-page cm-payment-failed">
     <header className="cm-source-state-header">
       <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
-      <h1>Review &amp; Pay</h1>
+      <h1>Payment Failed</h1>
       <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
     </header>
-    <div className="cm-payment-transaction">
-      <span>TRANSACTION ON HOLD</span>
-      <b>07:13</b>
-    </div>
     <div className="cm-payment-error-icon"><CircleAlert/></div>
     <h1>Payment Could Not Be Processed</h1>
-    <p>Your bank or UPI app declined the transaction, or the session timed out. Don’t worry, your slot is held for the next <strong>07:13 minutes.</strong></p>
+    <p>Your bank or UPI app declined the transaction, or the session timed out.</p>
     <div className="cm-held-booking">
-      <div><span>RESERVED BOOKING</span><b>TTB-2026-9482</b><i>15m Hold Active</i></div>
+      <div><span>BOOKING NOT CONFIRMED</span></div>
       <img src={selectedFacility.image} alt=""/>
       <strong>{selectedFacility.venueName}</strong>
-      <small>HELD SESSION PREVIEW</small>
       <p><CalendarDays size={13}/> {selectedDate ? selectedDate.displayFull : 'Selected date'} · {selectedSlotLabel}</p>
-      <div><span>Total Payable</span><b>₹{pricing ? pricing.totalPayable : '900.00'}</b></div>
+      <div><span>Total Payable</span><b>₹{pricing?.total ?? '—'}</b></div>
     </div>
-    <p className="cm-payment-alert">PAYMENT STATUS NOTE<br/><strong>No money has been deducted from your account.</strong></p>
+    <p className="cm-payment-alert">No money has been deducted from your account.</p>
     <Button onClick={() => { setFailed(false); go('processing'); }} icon={ArrowRight}>Retry Payment</Button>
-    <button className="cm-text-button" onClick={() => go('booking')}>Review or change payment</button>
+    <button className="cm-text-button" onClick={() => go('booking')}>Review or change selection</button>
   </div>;
 
   return <div className="cm-page cm-payment-processing">
     <header className="cm-source-state-header">
       <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
-      <h1>Review &amp; Pay</h1>
+      <h1>Processing Payment</h1>
       <button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button>
     </header>
     <div className="cm-processing-backdrop">
       <p>{selectedFacility.venueName}</p>
-      <small>Secure Payment Gateway Simulation</small>
+      <small>Secure checkout</small>
       <div className="cm-processing-card">
         <div className="cm-processing-orbit"><div><LockKeyhole/><span>R</span></div></div>
         <p className="cm-overline">RAZORPAY SECURE CHECKOUT</p>
@@ -828,7 +927,7 @@ function ProcessingScreen({ back, failed, setFailed, selectedFacility, selectedD
   </div>;
 }
 
-function SuccessScreen({ go, selectedFacility, selectedDate, selectedSlotLabel }) {
+function SuccessScreen({ go, selectedFacility, selectedDate, selectedSlotLabel, booking }) {
   return <div className="cm-page cm-centered cm-success">
     <div className="cm-success-mark"><Check size={38} /></div>
     <p className="cm-overline">BOOKING CONFIRMED</p>
@@ -836,7 +935,7 @@ function SuccessScreen({ go, selectedFacility, selectedDate, selectedSlotLabel }
     <p>Your slot has been successfully reserved. Access pass and booking details are ready.</p>
     <div className="cm-confirmation-ref">
       <small>BOOKING REFERENCE</small>
-      <strong>Pending</strong>
+      <strong>{booking?.id || 'Processing...'}</strong>
       <span>{selectedFacility ? selectedFacility.name : 'Turf 1'} · {selectedDate ? selectedDate.displayShort : 'Tue 23'} · {selectedSlotLabel || '6:00 PM'}</span>
     </div>
     <Button onClick={() => go('pass')} icon={TicketCheck}>View Entry Pass</Button>
@@ -844,7 +943,7 @@ function SuccessScreen({ go, selectedFacility, selectedDate, selectedSlotLabel }
   </div>;
 }
 
-function PassScreen({ go, back, selectedFacility, selectedDate, selectedSlotLabel, bookingDetails }) {
+function PassScreen({ go, back, selectedFacility, selectedDate, selectedSlotLabel, bookingDetails, booking }) {
   return <div className="cm-page cm-pass cm-curated-pass">
     <header className="cm-source-state-header">
       <button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button>
@@ -864,7 +963,7 @@ function PassScreen({ go, back, selectedFacility, selectedDate, selectedSlotLabe
     </div>
     <div className="cm-pass-ticket">
       <span className="cm-pass-label">VALID MATCH PASS</span>
-      <p>REF: TTB-2026-9482</p>
+      <p>REF: {booking?.id || 'Pending'}</p>
       <h1>{selectedFacility ? selectedFacility.name : 'Box Cricket Match'}</h1>
       <div className="cm-pass-meta">
         <span><CalendarDays/> DATE<br/><b>{selectedDate ? selectedDate.displayFull : 'Tue, 23 Sep 2026'}</b></span>
@@ -875,10 +974,18 @@ function PassScreen({ go, back, selectedFacility, selectedDate, selectedSlotLabe
           Player: {bookingDetails.name.trim()} · +91 {bookingDetails.phone.replace(/\D/g, '')}
         </small>
       )}
-      <div className="cm-qr" aria-label="Digital entry QR code">
-        <i/><i/><i/><i/><i/><i/><i/><i/><i/>
-      </div>
-      <small>Scan this digital QR at the turnstile gate 10 minutes before your match start.</small>
+      {booking?.id ? (
+        <div className="cm-qr" aria-label="Digital entry QR code">
+          <i/><i/><i/><i/><i/><i/><i/><i/><i/>
+        </div>
+      ) : (
+        <div className="cm-booking-empty" style={{ padding: 'var(--space-4)' }}>
+          <Clock3 size={32}/>
+          <h3>QR Pending</h3>
+          <p>Your entry QR code will be generated once your booking is confirmed.</p>
+        </div>
+      )}
+      {booking?.id && <small>Scan this digital QR at the turnstile gate 10 minutes before your match start.</small>}
     </div>
     <Button onClick={() => go('bookings')} icon={NotebookTabs}>View My Reservations</Button>
   </div>;
