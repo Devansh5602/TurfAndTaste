@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RouterProvider, useRouter, Link } from './context/RouterContext';
+import { ThemeProvider } from './theme';
+import './theme/tokens.css';
+import './theme/light.css';
+import './theme/dark.css';
+import './styles/globals.css';
+import './styles/utilities.css';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
@@ -180,8 +186,10 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <RouterProvider>
-      <AppLayout />
-    </RouterProvider>
+    <ThemeProvider>
+      <RouterProvider>
+        <AppLayout />
+      </RouterProvider>
+    </ThemeProvider>
   );
 }

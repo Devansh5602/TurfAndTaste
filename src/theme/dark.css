@@ -1,0 +1,47 @@
+/* ============================================================
+   Turf & Taste — Midnight Ivory Theme
+   Dark theme: deep charcoal canvas, mint green primary
+   ============================================================ */
+
+[data-theme="dark"] {
+  --color-background: #101411;
+  --color-surface: #1B211D;
+  --color-surface-subtle: #232B25;
+  --color-surface-elevated: #2D3C2F;
+  --color-surface-input: #1B211D;
+
+  --color-text-primary: #F1EFE7;
+  --color-text-secondary: #B4B8AA;
+  --color-text-muted: #718177;
+
+  --color-primary: #9ECF8C;
+  --color-primary-hover: #B4E6A2;
+  --color-primary-light: #2D3C2F;
+  --color-accent: #A0F399;
+  --color-accent-subtle: #2D3C2F;
+
+  --color-success: #4ADE80;
+  --color-success-bg: #1A3A2A;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #3A2A1A;
+  --color-danger: #E58C7C;
+  --color-danger-bg: #3A1A1A;
+  --color-info: #60A5FA;
+  --color-info-bg: #1A2A3A;
+
+  --color-border: #3A4239;
+  --color-border-subtle: #2D3C2F;
+  --color-border-focus: #9ECF8C;
+
+  --color-disabled: #4A5249;
+  --color-disabled-bg: #232B25;
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-focus-ring: rgba(158, 207, 140, 0.2);
+  --color-skeleton-base: #2D3C2F;
+  --color-skeleton-highlight: #3A4239;
+
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.7);
+}

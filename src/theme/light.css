@@ -1,0 +1,48 @@
+/* ============================================================
+   Turf & Taste — Clubhouse Ivory Theme
+   Light theme: warm ivory canvas, deep forest green primary
+   ============================================================ */
+
+[data-theme="light"],
+:root:not([data-theme="dark"]) {
+  --color-background: #FAF9F6;
+  --color-surface: #FFFFFF;
+  --color-surface-subtle: #F3F1ED;
+  --color-surface-elevated: #FFFFFF;
+  --color-surface-input: #FFFFFF;
+
+  --color-text-primary: #1A1C1A;
+  --color-text-secondary: #5A645E;
+  --color-text-muted: #8D9490;
+
+  --color-primary: #0F3D2E;
+  --color-primary-hover: #1A5A44;
+  --color-primary-light: #E8F5E9;
+  --color-accent: #A0F399;
+  --color-accent-subtle: #EAF2E8;
+
+  --color-success: #15803D;
+  --color-success-bg: #DCFCE7;
+  --color-warning: #B45309;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #BA1A1A;
+  --color-danger-bg: #FCE8E6;
+  --color-info: #3B82F6;
+  --color-info-bg: #DBEAFE;
+
+  --color-border: #EAE8E4;
+  --color-border-subtle: #E2DFD8;
+  --color-border-focus: #0F3D2E;
+
+  --color-disabled: #C5C5C5;
+  --color-disabled-bg: #F5F5F5;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-focus-ring: rgba(15, 61, 46, 0.15);
+  --color-skeleton-base: #EAE8E4;
+  --color-skeleton-highlight: #F5F5F5;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
