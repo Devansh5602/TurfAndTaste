@@ -45,7 +45,7 @@ describe('Product Rule & Authorized Sports Verification', () => {
   });
 
   it('prototype facilities list contains only authorized disciplines', () => {
-    assert.equal(prototypeFacilities.length, 5);
+    assert.equal(prototypeFacilities.length, 7);
     for (const fac of prototypeFacilities) {
       assert.ok(AUTHORIZED_SPORTS.includes(fac.service), `Unauthorized facility service: ${fac.service}`);
     }
