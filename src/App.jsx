@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RouterProvider, useRouter, Link } from './context/RouterContext';
 import { ThemeProvider } from './theme';
 import { CustomerAuthProvider } from './auth';
+import { ErrorBoundary } from './ui/feedback';
 import './theme/tokens.css';
 import './theme/light.css';
 import './theme/dark.css';
@@ -190,7 +191,9 @@ export default function App() {
     <ThemeProvider>
       <CustomerAuthProvider>
         <RouterProvider>
-          <AppLayout />
+          <ErrorBoundary>
+            <AppLayout />
+          </ErrorBoundary>
         </RouterProvider>
       </CustomerAuthProvider>
     </ThemeProvider>

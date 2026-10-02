@@ -332,7 +332,6 @@ export default function CustomerMobilePrototype({ initialScreen = "home" } = {})
       <main className={`cm-scroll ${!showBottomNav ? 'cm-scroll-full' : ''}`}>{renderPage()}</main>
       {showBottomNav && <BottomNav screen={screen} go={go} />}
     </div>
-    <aside className="cm-preview-note"><span>Customer App · Mobile</span><strong>Curated Figma prototype</strong><p>Use the phone preview to explore the approved customer flows.</p></aside>
   </div>;
 }
 
@@ -369,13 +368,15 @@ function HomeScreen({ go, beginBooking }) {
       <div className="cm-home-section-head"><div><h2>Authorized Sports</h2></div><button onClick={() => go('facilities')}>See all <ChevronRight size={15}/></button></div>
       <div className="cm-home-sport-filters" aria-label="Authorized sports">
         <button className="selected">All Activities</button>
-        {prototypeFacilities.map((facility) => <button key={facility.id} onClick={() => beginBooking(facility)}>{facility.name}</button>)}
+        {['Box Cricket', 'Skating Rink', 'Pickle Ball', 'Cricket Green Net Practice'].map((sport) => (
+          <button key={sport} onClick={() => beginBooking(prototypeFacilities.find(f => f.name === sport))}>{sport}</button>
+        ))}
       </div>
     </section>
 
     <section className="cm-quick-match-section">
       <div className="cm-home-section-head"><div><h2>Quick Match Booking</h2></div></div>
-      <div className="cm-quick-match-list">{prototypeFacilities.map((facility) => <button className="cm-quick-match-card" key={facility.id} onClick={() => beginBooking(facility)}>
+      <div className="cm-quick-match-list">{prototypeFacilities.filter(f => f.id !== 'shooting-machine').map((facility) => <button className="cm-quick-match-card" key={facility.id} onClick={() => beginBooking(facility)}>
         <span className="cm-quick-match-media"><img src={facility.image} alt=""/><span className="cm-quick-match-overlay cm-quick-match-rating"><Star size={12} fill="currentColor"/>{facility.rating}</span><span className="cm-quick-match-overlay cm-quick-match-status">Open now</span></span>
         <span className="cm-quick-match-details"><span className="cm-quick-match-badge">{facility.service}</span><strong>{facility.name}</strong><small><MapPin size={12}/> Patan, Gujarat</small><span className="cm-quick-match-rate"><b>From</b> {facility.tariff}/hr</span><em><Clock3 size={12}/> {facility.availability}</em></span>
         <span className="cm-quick-match-cta">Book Slot <ArrowRight size={15}/></span>
@@ -384,9 +385,9 @@ function HomeScreen({ go, beginBooking }) {
   </div>;
 }
 
-function FacilitiesScreen({ go }) { const curatedVenues = prototypeFacilities.filter((facility) => ['box-cricket-1', 'skating-rink', 'shooting-machine'].includes(facility.id)); return <div className="cm-page cm-venues-page"><header className="cm-curated-top"><h1>Venues</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-venues-search"><Search size={19}/><input placeholder="Search facilities, sports..." aria-label="Search facilities, sports"/><button aria-label="Filter venues"><Menu size={18}/></button></div><div className="cm-venues-filter">{['All', 'Box Cricket', 'Skating Rink', 'Pickle Ball', 'Cricket Green Net Practice'].map((filter, index) => <button key={filter} className={index === 0 ? 'selected' : ''}>{filter}</button>)}</div><div className="cm-venues-meta"><span><i/>Patan Campus</span><b>FAST BOOKING</b></div><div className="cm-venues-list">{curatedVenues.map((facility) => <button key={facility.id} className="cm-venue-card" onClick={() => go('facility', { facility })}><span className="cm-venue-card-media"><img src={facility.image} alt=""/><i className="cm-venue-rating"><Star size={12} fill="currentColor"/>{facility.rating} ({facility.reviewCount})</i><i className="cm-venue-area">{facility.area}</i><i className="cm-venue-status">{facility.status}</i></span><span className="cm-venue-card-body"><strong>{facility.venueName}</strong><small><MapPin size={13}/>{facility.location}</small><em>{facility.name}{facility.id === 'box-cricket-1' && ' · Cricket Green Nets'}</em><span className="cm-venue-card-bottom"><span><b>STARTING AT</b><strong>{facility.tariff}<small>/ hr</small></strong></span><i>View Arena & Slots <ArrowRight size={17}/></i></span></span></button>)}</div></div>; }
+function FacilitiesScreen({ go }) { return <div className="cm-page cm-venues-page"><header className="cm-curated-top"><h1>Venues</h1><div><button className="cm-icon-button" aria-label="Notifications"><Bell/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-venues-search"><Search size={19}/><input placeholder="Search facilities, sports..." aria-label="Search facilities, sports"/><button aria-label="Filter venues"><Menu size={18}/></button></div><div className="cm-venues-filter">{['All', 'Box Cricket', 'Skating Rink', 'Pickle Ball', 'Cricket Green Net Practice'].map((filter, index) => <button key={filter} className={index === 0 ? 'selected' : ''}>{filter}</button>)}</div><div className="cm-venues-meta"><span><i/>Patan Campus</span><b>FAST BOOKING</b></div><div className="cm-venues-list">{prototypeFacilities.map((facility) => <button key={facility.id} className="cm-venue-card" onClick={() => go('facility', { facility })}><span className="cm-venue-card-media"><img src={facility.image} alt=""/><i className="cm-venue-rating"><Star size={12} fill="currentColor"/>{facility.rating} ({facility.reviewCount})</i><i className="cm-venue-area">{facility.area}</i><i className="cm-venue-status">{facility.status}</i></span><span className="cm-venue-card-body"><strong>{facility.venueName}</strong><small><MapPin size={13}/>{facility.location}</small><em>{facility.name}{facility.id === 'green-net' && ' · Shooting Machine available as add-on'}</em><span className="cm-venue-card-bottom"><span><b>STARTING AT</b><strong>{facility.tariff}<small>/ hr</small></strong></span><i>View Arena & Slots <ArrowRight size={17}/></i></span></span></button>)}</div></div>; }
 
-function FacilityDetail({ facility, beginBooking, back, go }) { return <div className="cm-page cm-curated-detail"><header className="cm-detail-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Facility Detail</h1><div><button className="cm-icon-button" aria-label="Save facility"><Bookmark/></button><button className="cm-icon-button" aria-label="Share facility"><Share2/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-curated-detail-media"><img src={facility.image} alt=""/><span className="cm-detail-active"><i/>ACTIVE & BOOKABLE</span><span className="cm-detail-service">⚯ {facility.name}</span><span className="cm-detail-photos">▣ 1 of 4 Photos</span></div><section className="cm-curated-detail-copy"><div className="cm-detail-reference"><span>FACILITY REFERENCE</span><b>{facility.service}</b></div><h2>{facility.venueName}</h2><div className="cm-detail-review"><Star size={16} fill="currentColor"/> <strong>{facility.rating}</strong> <i/> <button onClick={() => go('reviews')}>{facility.reviewCount} Verified Reviews →</button></div><span className="cm-detail-service-line">⚯ {facility.name} · {facility.label}</span><div className="cm-detail-feature-grid"><div><Clock3/><small>Slot Duration</small><strong>1h / 2h</strong></div><div><Clock3/><small>Operating Window</small><strong>24/7</strong></div><div><Sparkles/><small>Pitch Surface</small><strong>Synthetic Turfed Enclosure</strong></div><div><UsersRound/><small>Equipment</small><strong>Feeder & Stumps Provided</strong></div></div><h3>About This Facility</h3><div className="cm-detail-content-card"><p>{facility.description}</p><span>✿ Indoor Covered Bay　⚯ Power Feeder Ports</span></div><div className="cm-detail-heading-row"><h3>Pricing & Tariffs</h3><small>Member Rates Apply</small></div><div className="cm-detail-tariff"><div><h2>{facility.tariff}</h2><b>Standard Tier</b></div><p>Based on verified patron bookings</p><div className="cm-detail-tariff-table"><span>Standard Lane (Off-Peak)<strong>{facility.tariff} / hr</strong></span><span>Prime Lane (Peak Evening)<strong>{facility.tariff} / hr</strong></span><span>Equipment Provision<strong>Included</strong></span></div><em>Based on verified patron bookings</em></div><h3>Venue Guidelines</h3><div className="cm-guidelines"><div><span>◉</span><p><strong>Approved Footwear</strong>Flat rubber-soled turf trainers or non-marking sports shoes required. Metal spikes strictly prohibited.</p></div><div><span>▦</span><p><strong>Turnstile Check-In</strong>Digital pass scan at turnstile gate 10 mins prior to slot commencement.</p></div><div><span>◒</span><p><strong>Equipment Provision</strong>Club training balls included; protective batting gear and pads available on request at bay desk.</p></div></div></section><BookingBar label={facility.name} ctaText="Select Date & Time" onClick={() => beginBooking(facility)} detail={`Starting from ${facility.tariff}/hr`} /></div>; }
+function FacilityDetail({ facility, beginBooking, back, go }) { return <div className="cm-page cm-curated-detail"><header className="cm-detail-top"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Facility Detail</h1><div><button className="cm-icon-button" aria-label="Save facility"><Bookmark/></button><button className="cm-icon-button" aria-label="Share facility"><Share2/></button><button className="cm-home-account" aria-label="Profile" onClick={() => go('profile')}><UserRound size={18}/></button></div></header><div className="cm-curated-detail-media"><img src={facility.image} alt=""/><span className="cm-detail-active"><i/>ACTIVE & BOOKABLE</span><span className="cm-detail-service">⚯ {facility.name}</span><span className="cm-detail-photos">▣ 1 of 4 Photos</span></div><section className="cm-curated-detail-copy"><div className="cm-detail-reference"><span>SERVICE</span><b>{facility.service}</b></div><h2>{facility.venueName}</h2><div className="cm-detail-review"><Star size={16} fill="currentColor"/> <strong>{facility.rating}</strong> <i/> <button onClick={() => go('reviews')}>{facility.reviewCount} Verified Reviews →</button></div><span className="cm-detail-service-line">⚯ {facility.name} · {facility.label}</span><div className="cm-detail-feature-grid"><div><Clock3/><small>Slot Duration</small><strong>1h / 2h</strong></div><div><Clock3/><small>Operating Window</small><strong>24/7</strong></div><div><Sparkles/><small>Pitch Surface</small><strong>Synthetic Turfed Enclosure</strong></div><div><UsersRound/><small>Equipment</small><strong>Feeder & Stumps Provided</strong></div></div><h3>About This Facility</h3><div className="cm-detail-content-card"><p>{facility.description}</p><span>✿ Indoor Covered Bay　⚯ Power Feeder Ports</span></div><div className="cm-detail-heading-row"><h3>Pricing & Tariffs</h3><small>Member Rates Apply</small></div><div className="cm-detail-tariff"><div><h2>{facility.tariff}</h2><b>Standard Tier</b></div><p>Based on verified patron bookings</p><div className="cm-detail-tariff-table"><span>Standard Lane (Off-Peak)<strong>{facility.tariff} / hr</strong></span><span>Prime Lane (Peak Evening)<strong>{facility.tariff} / hr</strong></span><span>Equipment Provision<strong>Included</strong></span></div><em>Based on verified patron bookings</em></div><h3>Venue Guidelines</h3><div className="cm-guidelines"><div><span>◉</span><p><strong>Approved Footwear</strong>Flat rubber-soled turf trainers or non-marking sports shoes required. Metal spikes strictly prohibited.</p></div><div><span>▦</span><p><strong>Turnstile Check-In</strong>Digital pass scan at turnstile gate 10 mins prior to slot commencement.</p></div><div><span>◒</span><p><strong>Equipment Provision</strong>Club training balls included; protective batting gear and pads available on request at bay desk.</p></div></div></section><BookingBar label={facility.name} ctaText="Select Date & Time" onClick={() => beginBooking(facility)} detail={`Starting from ${facility.tariff}/hr`} /></div>; }
 
 function BookingScreen({
   back,
@@ -554,7 +555,7 @@ function StepVenue({ selectedFacility, onFacilityChange }) {
       <p>Choose the sport and session format for your booking.</p>
     </div>
     <div className="cm-venue-choice-list" aria-label="Authorized sports and services">
-      {prototypeFacilities.map((facility) => {
+      {prototypeFacilities.filter(f => f.id !== 'shooting-machine').map((facility) => {
         const isSelected = selectedFacility && selectedFacility.id === facility.id;
         return (
           <button
@@ -597,7 +598,7 @@ function StepSlots({
   selectedSlot,
   setSelectedSlot
 }) {
-  const durationLabel = selectedDuration === 1 ? '60-minute' : '120-minute';
+  const durationLabel = selectedDuration === 1 ? '1 hour' : '2 hours';
 
   return <section className="cm-step">
     <div className="cm-step-heading">
@@ -1233,21 +1234,34 @@ function SafeProfileScreen({ go, theme }) {
 function SafeEditProfileScreen({ back, go }) {
   return <div className="cm-page cm-source-settings">
     <header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Edit Profile</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header>
-    <p className="cm-overline">LOCAL PREVIEW</p><h2>Personal Profile</h2>
-    <div className="cm-edit-avatar"><div className="cm-avatar"><UserRound size={25}/></div><span>Profile data is not stored in this preview.</span></div>
-    <form className="cm-form cm-source-form" onSubmit={(event) => event.preventDefault()}><div className="cm-form-section-title"><strong>Core Information</strong></div><div className="cm-source-name-grid"><label>First Name<input placeholder="First name" autoComplete="given-name" /></label><label>Last Name<input placeholder="Last name" autoComplete="family-name" /></label></div><label>WhatsApp / Phone Number<input placeholder="Enter your mobile number" inputMode="tel" autoComplete="tel" /></label><label>Email Address<input placeholder="name@example.com" inputMode="email" autoComplete="email" /></label><label>City / Preferred Location<select defaultValue="bopal"><option value="bopal">Ahmedabad (Bopal / SG Highway)</option></select></label></form>
-    <BookingBar label="Save Profile" detail="Local preview only" onClick={() => go('profile')} />
+    <p className="cm-overline">PERSONAL DETAILS</p><h2>Personal Profile</h2>
+    <div className="cm-edit-avatar"><div className="cm-avatar"><UserRound size={25}/></div><span>Update your profile information.</span></div>
+    <form className="cm-form cm-source-form" onSubmit={(event) => event.preventDefault()}><div className="cm-form-section-title"><strong>Core Information</strong></div><div className="cm-source-name-grid"><label>First Name<input placeholder="First name" autoComplete="given-name" /></label><label>Last Name<input placeholder="Last name" autoComplete="family-name" /></label></div><label>WhatsApp / Phone Number<input placeholder="Enter your mobile number" inputMode="tel" autoComplete="tel" /></label><label>Email Address<input placeholder="name@example.com" inputMode="email" autoComplete="email" /></label><label>City / Preferred Location<select defaultValue="patan"><option value="patan">Patan, Gujarat</option></select></label></form>
+    <BookingBar label="Save Profile" detail="Personal details" onClick={() => go('profile')} />
   </div>;
 }
 
 function SafeSettingsScreen({ back, go, theme, setTheme }) {
   const infoLinks = [['notices', Bell, 'Updates & Notices', 'Latest clubhouse advisories'], ['contact', HelpCircle, 'Contact & Inquiry', 'Talk to the clubhouse desk'], ['rules', ShieldCheck, 'Ground Rules & Guidelines', 'Venue policies and access'], ['about', Info, 'About Turf & Taste', 'Clubhouse and community'], ['terms', FileText, 'Terms', 'Customer app terms'], ['privacy', LockKeyhole, 'Privacy', 'How customer data is handled']];
+  const buildInfo = (() => {
+    try { return require('../../../generated/build-info.json'); } catch { return null; }
+  })();
   return <div className="cm-page cm-source-settings">
     <header className="cm-source-state-header"><button className="cm-icon-button" onClick={back} aria-label="Go back"><ArrowLeft/></button><h1>Settings</h1><button className="cm-home-account" aria-label="Profile"><UserRound size={18}/></button></header>
     <div className="cm-settings-privilege"><span><UserRound/> TURF & TASTE Privileges</span><b>Tier 1<br/>Active</b></div>
     <SectionTitle title="GENERAL SETTINGS"/><div className="cm-list-card"><button onClick={() => go('appearance')}><Sun/><span><strong>Appearance / Theme</strong><small>{theme === 'dark' ? 'Midnight Ivory / Dark' : 'Clubhouse Ivory / Light'}</small></span><ChevronRight/></button><button><Bell/><span><strong>Notifications &amp; Alerts</strong><small>Bookings, reminders, match slots</small></span><ChevronRight/></button><button><MapPin/><span><strong>Location &amp; Region</strong><small>Patan, Gujarat · Asia/Kolkata IST</small></span><ChevronRight/></button></div>
     <SectionTitle title="SUPPORT &amp; DESK"/><div className="cm-list-card"><button onClick={() => go('offline')}><WifiOff/><span><strong>Connection status</strong><small>View resilience and recovery state</small></span><ChevronRight/></button>{infoLinks.map(([key, Icon, title, description]) => <button key={key} onClick={() => go('info', { info: key })}><Icon/><span><strong>{title}</strong><small>{description}</small></span><ChevronRight/></button>)}</div>
     <SectionTitle title="MIDNIGHT IVORY · PARITY"/><div className="cm-list-card cm-appearance-panel"><button onClick={() => setTheme('ivory')} className={theme === 'ivory' ? 'selected' : ''}><Sun/><span><strong>Clubhouse Ivory</strong><small>Primary customer flow</small></span>{theme === 'ivory' && <Check/>}</button><button onClick={() => setTheme('dark')} className={theme === 'dark' ? 'selected' : ''}><Moon/><span><strong>Midnight Ivory</strong><small>Dark theme parity</small></span>{theme === 'dark' && <Check/>}</button></div>
+    {buildInfo && (
+      <>
+        <SectionTitle title="ABOUT THIS BUILD" />
+        <div className="cm-list-card">
+          <div><strong>App Version</strong><small>{buildInfo.version} (Build {buildInfo.versionCode})</small></div>
+          <div><strong>Git Commit</strong><small>{buildInfo.gitCommit}</small></div>
+          <div><strong>Built</strong><small>{buildInfo.buildDate}</small></div>
+        </div>
+      </>
+    )}
   </div>;
 }
 
